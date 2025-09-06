@@ -1,0 +1,60 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground-rgb: 0, 0, 0;
+  --background-start-rgb: 214, 219, 220;
+  --background-end-rgb: 255, 255, 255;
+}
+
+@media (prefers-color-scheme: dark) {
+  /* Commented out dark mode to prevent white text on white background */
+  /* :root {
+    --foreground-rgb: 255, 255, 255;
+    --background-start-rgb: 0, 0, 0;
+    --background-end-rgb: 0, 0, 0;
+  } */
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: linear-gradient(
+      to bottom,
+      transparent,
+      rgb(var(--background-end-rgb))
+    )
+    rgb(var(--background-start-rgb));
+}
+
+/* Custom styles for LearnAIA */
+.gradient-text {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.hero-gradient {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+/* Ensure text visibility on light backgrounds */
+.bg-white, .bg-gray-50, .bg-blue-50, .bg-green-50, .bg-orange-50 {
+  color: #1f2937 !important; /* gray-800 */
+}
+
+/* Ensure modal text is always visible */
+.modal-content {
+  color: #1f2937 !important;
+}
+
+/* Override any potential white text issues */
+div, span, p, h1, h2, h3, h4, h5, h6 {
+  color: inherit;
+}
+
+/* Specific overrides for common classes */
+.text-xl.font-bold {
+  color: #1f2937 !important;
+}
