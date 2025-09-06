@@ -1,5 +1,5 @@
-export default function DepartmentStructure() {
-  const departments = [
+
+const departments = [
     {
       name: "Computer Science",
       icon: "💻",
