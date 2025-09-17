@@ -1,5 +1,8 @@
 
-const departments = [
+import React from 'react'
+
+export default function DepartmentStructure() {
+  const departments = [
     {
       name: "Computer Science",
       icon: "💻",

@@ -7,20 +7,23 @@ import UserManagement from './UserManagement'
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('dashboard')
 
-  // Sample data for demonstration
-  const departmentStats = [
-    { name: "Computer Science", students: 120, faculty: 8, staff: 3, subjects: 12 },
-    { name: "Mechanical Engineering", students: 95, faculty: 6, staff: 2, subjects: 10 },
-    { name: "Business Administration", students: 150, faculty: 10, staff: 4, subjects: 14 },
-    { name: "Electrical Engineering", students: 85, faculty: 7, staff: 2, subjects: 11 }
-  ]
+  // Empty data arrays - to be populated from actual data sources
+  const departmentStats: Array<{
+    name: string;
+    students: number;
+    faculty: number;
+    staff: number;
+    subjects: number;
+  }> = []
 
-  const recentActivities = [
-    { action: "New student enrolled", department: "Computer Science", section: "1A", time: "2 hours ago" },
-    { action: "Faculty assigned to subject", subject: "Data Structures", faculty: "Prof. Johnson", time: "3 hours ago" },
-    { action: "Department created", department: "Biotechnology", time: "1 day ago" },
-    { action: "Class section added", section: "3B", department: "Mechanical Engineering", time: "2 days ago" }
-  ]
+  const recentActivities: Array<{
+    action: string;
+    department?: string;
+    section?: string;
+    subject?: string;
+    faculty?: string;
+    time: string;
+  }> = []
 
   const adminFeatures = [
     {
@@ -54,7 +57,7 @@ export default function AdminDashboard() {
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-lg font-semibold text-gray-800">Total Students</h3>
-              <p className="text-3xl font-bold text-blue-600">450</p>
+              <p className="text-3xl font-bold text-blue-600">{departmentStats.reduce((sum, dept) => sum + dept.students, 0)}</p>
             </div>
             <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
               <span className="text-2xl">👨‍🎓</span>
@@ -66,7 +69,7 @@ export default function AdminDashboard() {
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-lg font-semibold text-gray-800">Total Faculty</h3>
-              <p className="text-3xl font-bold text-purple-600">31</p>
+              <p className="text-3xl font-bold text-purple-600">{departmentStats.reduce((sum, dept) => sum + dept.faculty, 0)}</p>
             </div>
             <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
               <span className="text-2xl">👩‍🏫</span>
@@ -78,7 +81,7 @@ export default function AdminDashboard() {
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-lg font-semibold text-gray-800">Departments</h3>
-              <p className="text-3xl font-bold text-green-600">4</p>
+              <p className="text-3xl font-bold text-green-600">{departmentStats.length}</p>
             </div>
             <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
               <span className="text-2xl">🏢</span>
@@ -90,7 +93,7 @@ export default function AdminDashboard() {
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-lg font-semibold text-gray-800">Active Subjects</h3>
-              <p className="text-3xl font-bold text-orange-600">47</p>
+              <p className="text-3xl font-bold text-orange-600">{departmentStats.reduce((sum, dept) => sum + dept.subjects, 0)}</p>
             </div>
             <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
               <span className="text-2xl">📖</span>
