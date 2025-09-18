@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import apiService from '../services/api'
+import mockDataService from '../services/mockData'
 
 interface Department {
   id: string
@@ -122,6 +122,42 @@ export default function DepartmentManagement() {
     type: 'success' as 'success' | 'error' | 'warning'
   })
 
+  // Additional states for enhanced features
+  const [showFacultyAssignmentForm, setShowFacultyAssignmentForm] = useState(false)
+  const [selectedSubjectForAssignment, setSelectedSubjectForAssignment] = useState<Subject | null>(null)
+  const [selectedFaculty, setSelectedFaculty] = useState<any[]>([])
+  const [showStudentAssignForm, setShowStudentAssignForm] = useState(false)
+  const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null)
+  
+  // Filter states
+  const [enhancedFilters, setEnhancedFilters] = useState({
+    department: '',
+    year: '',
+    section: '',
+    faculty: '',
+    enrollmentStatus: '' // full, partial, empty
+  })
+
+  const [studentFilters, setStudentFilters] = useState({
+    department: '',
+    year: '',
+    section: '',
+    status: '' // assigned, unassigned, all
+  })
+
+  const [searchSubjectTerm, setSearchSubjectTerm] = useState('')
+  const [searchStudentTerm, setSearchStudentTerm] = useState('')
+
+  // Student action states
+  const [showViewStudentPopup, setShowViewStudentPopup] = useState(false)
+  const [showReassignPopup, setShowReassignPopup] = useState(false)
+  const [selectedStudentForAction, setSelectedStudentForAction] = useState<User | null>(null)
+
+  // Confirmation dialog state
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false)
+  const [confirmMessage, setConfirmMessage] = useState('')
+  const [confirmAction, setConfirmAction] = useState<(() => void) | null>(null)
+
   // Load data on component mount
   useEffect(() => {
     loadAllData()
@@ -132,26 +168,162 @@ export default function DepartmentManagement() {
     setTimeout(() => setNotification({ show: false, message: '', type: 'success' }), 5000)
   }
 
+  const showConfirmationDialog = (message: string, action: () => void) => {
+    setConfirmMessage(message)
+    setConfirmAction(() => action)
+    setShowConfirmDialog(true)
+  }
+
+  // Helper function to get academic year from batch
+  const getAcademicYear = (batch: string): string => {
+    const currentYear = 2025;
+    const batchYear = parseInt(batch);
+    const yearOfStudy = currentYear - batchYear + 1;
+    
+    switch (yearOfStudy) {
+      case 1: return '1st Year';
+      case 2: return '2nd Year';
+      case 3: return '3rd Year';
+      case 4: return '4th Year';
+      default: return `${yearOfStudy}th Year`;
+    }
+  };
+
+  // Student allocation system functions
+  const getUnassignedStudents = () => {
+    return users.filter(user => 
+      user.role === 'Student' && 
+      user.department && 
+      user.batch && 
+      !user.section // Only students without section assignment
+    );
+  };
+
+  const getAssignedStudents = () => {
+    return users.filter(user => 
+      user.role === 'Student' && 
+      user.section // Students with section assignment
+    );
+  };
+
+  // Get class combinations (Department + Year + Section)
+  const getClassCombinations = () => {
+    const combinations: { department: string; year: string; section: string; currentCount: number }[] = [];
+    const sections = ['A', 'B', 'C']; // Available sections
+    
+    departments.forEach(dept => {
+      const years = ['1st Year', '2nd Year', '3rd Year', '4th Year'];
+      years.forEach(year => {
+        sections.forEach(section => {
+          const currentCount = users.filter(user => 
+            user.role === 'Student' && 
+            user.department === dept.name && 
+            getAcademicYear(user.batch || '') === year && 
+            user.section === section
+          ).length;
+          
+          combinations.push({
+            department: dept.name,
+            year,
+            section,
+            currentCount
+          });
+        });
+      });
+    });
+    
+    return combinations;
+  };
+
+  // Student allocation handlers
+  const handleAllocateStudent = async (studentId: string, department: string, year: string, section: string) => {
+    try {
+      // Update student section in backend
+      await mockDataService.updateUser(studentId, { section });
+      
+      // Reload data to reflect changes
+      loadAllData();
+      
+      const student = users.find(u => u.id === studentId);
+      if (student) {
+        showNotification(`${student.name} successfully assigned to Section ${section}`, 'success');
+      }
+    } catch (error: any) {
+      console.error('Allocate student error:', error);
+      showNotification(error.message || 'Failed to assign student', 'error');
+    }
+  };
+
+  const handleBulkAllocate = async (department: string, year: string) => {
+    const eligibleStudents = getUnassignedStudents().filter(student => 
+      student.department === department && getAcademicYear(student.batch || '') === year
+    );
+
+    if (eligibleStudents.length === 0) {
+      showNotification(`No unassigned students found for ${department} ${year}.`, 'warning');
+      return;
+    }
+
+    try {
+      // Find available sections with capacity
+      const classCombinations = getClassCombinations();
+      const availableSections = classCombinations.filter(c => 
+        c.department === department && c.year === year && c.currentCount < 65
+      ).sort((a, b) => a.currentCount - b.currentCount);
+
+      if (availableSections.length === 0) {
+        showNotification(`No available sections for ${department} ${year}`, 'error');
+        return;
+      }
+
+      let sectionIndex = 0;
+      let assignedCount = 0;
+      
+      // Assign students to sections
+      for (const student of eligibleStudents) {
+        if (sectionIndex < availableSections.length && availableSections[sectionIndex].currentCount < 65) {
+          const assignedSection = availableSections[sectionIndex].section;
+          
+          await mockDataService.updateUser(student.id, { section: assignedSection });
+          
+          availableSections[sectionIndex].currentCount++;
+          assignedCount++;
+
+          // Move to next section if current one is full
+          if (availableSections[sectionIndex].currentCount >= 65) {
+            sectionIndex++;
+          }
+        }
+      }
+
+      loadAllData(); // Reload data
+      showNotification(`Successfully assigned ${assignedCount} students to sections`, 'success');
+    } catch (error: any) {
+      console.error('Bulk allocate error:', error);
+      showNotification(error.message || 'Failed to bulk assign students', 'error');
+    }
+  };
+
   const loadAllData = async () => {
     setLoading(true)
     try {
       // Load departments, users, and subjects in parallel
       const [departmentsData, usersData, subjectsData] = await Promise.all([
-        apiService.getDepartments(),
-        apiService.getUsers(),
-        apiService.getSubjects()
+        mockDataService.getDepartments(),
+        mockDataService.getUsers(),
+        mockDataService.getSubjects()
       ])
 
       // Transform and set departments
-      const transformedDepartments = departmentsData.data?.map(apiService.transformDepartmentData) || []
+      const transformedDepartments = departmentsData.data?.map(mockDataService.transformDepartmentData) || []
       setDepartments(transformedDepartments)
 
       // Transform and set users
-      const transformedUsers = usersData.data?.map(apiService.transformUserData) || []
+      const transformedUsers = usersData.data?.map(mockDataService.transformUserData) || []
       setUsers(transformedUsers)
 
       // Transform and set subjects
-      const transformedSubjects = subjectsData.data?.map(apiService.transformSubjectData) || []
+      const transformedSubjects = subjectsData.data?.map(mockDataService.transformSubjectData) || []
       setSubjects(transformedSubjects)
 
       // Update department statistics
@@ -199,7 +371,7 @@ export default function DepartmentManagement() {
         programs: []
       }
 
-      const response = await apiService.createDepartment(departmentData)
+      const response = await mockDataService.createDepartment(departmentData)
       
       if (response.success) {
         showNotification('Department created successfully!')
@@ -234,7 +406,7 @@ export default function DepartmentManagement() {
         contactInfo: departmentForm.contactInfo
       }
 
-      const response = await apiService.updateDepartment(editingDepartment.id, departmentData)
+      const response = await mockDataService.updateDepartment(editingDepartment.id, departmentData)
       
       if (response.success) {
         showNotification('Department updated successfully!')
@@ -261,7 +433,7 @@ export default function DepartmentManagement() {
     setLoading(true)
     
     try {
-      const response = await apiService.deleteDepartment(departmentId)
+      const response = await mockDataService.deleteDepartment(departmentId)
       
       if (response.success) {
         showNotification('Department deleted successfully!')
@@ -292,7 +464,7 @@ export default function DepartmentManagement() {
             code: `${subjectForm.code}-${section}`, // Add section to code
             department: subjectForm.department
           }
-          return apiService.createSubject(subjectData)
+          return mockDataService.createSubject(subjectData)
         })
         
         await Promise.all(promises)
@@ -301,7 +473,7 @@ export default function DepartmentManagement() {
         // Create subject for specific section
         const { createForAllSections, ...subjectData } = subjectForm
         
-        const response = await apiService.createSubject(subjectData)
+        const response = await mockDataService.createSubject(subjectData)
         
         if (response.success) {
           showNotification('Subject created successfully!')
@@ -330,7 +502,7 @@ export default function DepartmentManagement() {
     setLoading(true)
     
     try {
-      const response = await apiService.deleteSubject(subjectId)
+      const response = await mockDataService.deleteSubject(subjectId)
       
       if (response.success) {
         showNotification('Subject deleted successfully!')
@@ -630,6 +802,209 @@ export default function DepartmentManagement() {
     </div>
   )
 
+  const renderStudentAllocation = () => {
+    const filteredStudents = users.filter(user => {
+      if (user.role !== 'Student') return false
+      
+      const matchesDepartment = !studentFilters.department || user.department === studentFilters.department
+      const matchesYear = !studentFilters.year || getAcademicYear(user.batch || '') === studentFilters.year
+      const matchesSection = !studentFilters.section || user.section === studentFilters.section
+      const matchesStatus = !studentFilters.status || 
+        (studentFilters.status === 'assigned' && user.section) ||
+        (studentFilters.status === 'unassigned' && !user.section)
+      
+      const matchesSearch = !searchStudentTerm || 
+        user.name.toLowerCase().includes(searchStudentTerm.toLowerCase()) ||
+        user.email.toLowerCase().includes(searchStudentTerm.toLowerCase()) ||
+        (user.studentId && user.studentId.toLowerCase().includes(searchStudentTerm.toLowerCase()))
+      
+      return matchesDepartment && matchesYear && matchesSection && matchesStatus && matchesSearch
+    })
+
+    const unassignedStudents = filteredStudents.filter(student => !student.section)
+    const assignedStudents = filteredStudents.filter(student => student.section)
+
+    return (
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <h3 className="text-xl font-bold text-gray-800">Student Allocation</h3>
+          <div className="flex gap-2">
+            <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
+              Total: {filteredStudents.length}
+            </span>
+            <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
+              Assigned: {assignedStudents.length}
+            </span>
+            <span className="bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-sm font-medium">
+              Unassigned: {unassignedStudents.length}
+            </span>
+          </div>
+        </div>
+
+        {/* Filters */}
+        <div className="bg-white rounded-lg p-4 shadow-sm border">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Search Students</label>
+              <input
+                type="text"
+                value={searchStudentTerm}
+                onChange={(e) => setSearchStudentTerm(e.target.value)}
+                placeholder="Name, email, or student ID..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
+              <select
+                value={studentFilters.department}
+                onChange={(e) => setStudentFilters({...studentFilters, department: e.target.value})}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">All Departments</option>
+                {departments.map(dept => (
+                  <option key={dept.id} value={dept.name}>{dept.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Academic Year</label>
+              <select
+                value={studentFilters.year}
+                onChange={(e) => setStudentFilters({...studentFilters, year: e.target.value})}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">All Years</option>
+                <option value="1st Year">1st Year</option>
+                <option value="2nd Year">2nd Year</option>
+                <option value="3rd Year">3rd Year</option>
+                <option value="4th Year">4th Year</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Section</label>
+              <select
+                value={studentFilters.section}
+                onChange={(e) => setStudentFilters({...studentFilters, section: e.target.value})}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">All Sections</option>
+                <option value="A">Section A</option>
+                <option value="B">Section B</option>
+                <option value="C">Section C</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+              <select
+                value={studentFilters.status}
+                onChange={(e) => setStudentFilters({...studentFilters, status: e.target.value})}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">All Status</option>
+                <option value="assigned">Assigned</option>
+                <option value="unassigned">Unassigned</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Students Table */}
+        <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="text-left py-3 px-4 font-medium text-gray-700">Student Info</th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-700">Department</th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-700">Academic Year</th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-700">Section</th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-700">Status</th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-700">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {filteredStudents.map((student) => (
+                  <tr key={student.id} className="hover:bg-gray-50">
+                    <td className="py-3 px-4">
+                      <div>
+                        <p className="font-medium text-gray-800">{student.name}</p>
+                        <p className="text-sm text-gray-600">{student.email}</p>
+                        {student.studentId && (
+                          <p className="text-xs text-gray-500">ID: {student.studentId}</p>
+                        )}
+                      </div>
+                    </td>
+                    <td className="py-3 px-4 text-gray-700">{student.department}</td>
+                    <td className="py-3 px-4">
+                      <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm">
+                        {getAcademicYear(student.batch || '')}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4">
+                      {student.section ? (
+                        <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-sm font-medium">
+                          Section {student.section}
+                        </span>
+                      ) : (
+                        <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-sm">
+                          Not Assigned
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-3 px-4">
+                      <span className={`px-2 py-1 rounded text-sm font-medium ${
+                        student.status === 'Active' 
+                          ? 'bg-green-100 text-green-800' 
+                          : 'bg-red-100 text-red-800'
+                      }`}>
+                        {student.status}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => {
+                            setSelectedStudentForAction(student)
+                            setShowViewStudentPopup(true)
+                          }}
+                          className="text-blue-600 hover:text-blue-800 text-xs bg-blue-50 px-2 py-1 rounded hover:bg-blue-100 transition-colors"
+                        >
+                          View
+                        </button>
+                        {student.section && (
+                          <button
+                            onClick={() => {
+                              setSelectedStudentForAction(student)
+                              setShowReassignPopup(true)
+                            }}
+                            className="text-orange-600 hover:text-orange-800 text-xs bg-orange-50 px-2 py-1 rounded hover:bg-orange-100 transition-colors"
+                          >
+                            Reassign
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {filteredStudents.length === 0 && !loading && (
+          <div className="text-center py-12 text-gray-500 bg-white rounded-lg border">
+            <svg className="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+            </svg>
+            <p className="text-lg font-medium">No students found</p>
+            <p className="text-sm">Try adjusting your filters or search terms</p>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   const renderSubjectManagement = () => (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -691,7 +1066,7 @@ export default function DepartmentManagement() {
                             ))}
                           </div>
                         ) : (
-                          <span className="text-gray-500 italic">No faculty</span>
+                          <span className="text-gray-500 italic">No faculty assigned</span>
                         )}
                       </td>
                       <td className="py-3">
@@ -708,8 +1083,17 @@ export default function DepartmentManagement() {
                       <td className="py-3">
                         <div className="flex gap-1">
                           <button 
+                            onClick={() => {
+                              setSelectedSubjectForAssignment(subject)
+                              setShowFacultyAssignmentForm(true)
+                            }}
+                            className="text-blue-600 hover:text-blue-800 text-xs bg-blue-50 px-2 py-1 rounded hover:bg-blue-100 transition-colors"
+                          >
+                            Assign Faculty
+                          </button>
+                          <button 
                             onClick={() => handleDeleteSubject(subject.id)}
-                            className="text-red-600 hover:text-red-800 text-xs"
+                            className="text-red-600 hover:text-red-800 text-xs bg-red-50 px-2 py-1 rounded hover:bg-red-100 transition-colors"
                           >
                             Delete
                           </button>
@@ -816,11 +1200,22 @@ export default function DepartmentManagement() {
         >
           📚 Subject Management
         </button>
+        <button
+          onClick={() => setActiveTab('student-allocation')}
+          className={`pb-2 px-1 border-b-2 font-medium ${
+            activeTab === 'student-allocation'
+              ? 'border-blue-500 text-blue-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          👥 Student Allocation
+        </button>
       </div>
 
       {/* Content */}
       {activeTab === 'overview' && renderOverview()}
       {activeTab === 'subject-management' && renderSubjectManagement()}
+      {activeTab === 'student-allocation' && renderStudentAllocation()}
 
       {/* Department Form Modal */}
       {showAddForm && (
@@ -1246,6 +1641,433 @@ export default function DepartmentManagement() {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Faculty Assignment Modal */}
+      {showFacultyAssignmentForm && selectedSubjectForAssignment && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto modal-content">
+            <h3 className="text-xl font-bold mb-4 text-black">
+              Assign Faculty to {selectedSubjectForAssignment.name}
+            </h3>
+            
+            <div className="space-y-6">
+              <div>
+                <p className="text-gray-600 mb-4">
+                  Subject: {selectedSubjectForAssignment.code} - {selectedSubjectForAssignment.department} Section {selectedSubjectForAssignment.section}
+                </p>
+              </div>
+
+              {/* Available Faculty List */}
+              <div>
+                <h4 className="font-semibold text-gray-800 mb-3">Available Faculty (Multiple Selection)</h4>
+                <div className="grid gap-3 max-h-64 overflow-y-auto">
+                  {users.filter(user => user.role === 'Faculty').map((faculty) => {
+                    const isSelected = selectedFaculty.some((f: any) => f.id === faculty.id)
+                    const isExternal = faculty.department !== selectedSubjectForAssignment.department
+                    
+                    return (
+                      <div key={faculty.id} className={`p-3 border rounded-lg cursor-pointer transition-colors ${
+                        isSelected 
+                          ? 'border-blue-500 bg-blue-50' 
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                      onClick={() => {
+                        if (isSelected) {
+                          setSelectedFaculty(selectedFaculty.filter((f: any) => f.id !== faculty.id))
+                        } else {
+                          setSelectedFaculty([...selectedFaculty, { 
+                            id: faculty.id,
+                            name: faculty.name,
+                            email: faculty.email,
+                            department: faculty.department,
+                            isExternal 
+                          }])
+                        }
+                      }}>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="font-medium text-gray-800">{faculty.name}</p>
+                            <p className="text-sm text-gray-600">{faculty.email}</p>
+                            <p className="text-sm text-gray-500">
+                              {faculty.department}
+                              {isExternal && (
+                                <span className="ml-2 px-2 py-1 bg-orange-100 text-orange-700 text-xs rounded-full">
+                                  External
+                                </span>
+                              )}
+                            </p>
+                          </div>
+                          <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
+                            isSelected 
+                              ? 'border-blue-500 bg-blue-500' 
+                              : 'border-gray-300'
+                          }`}>
+                            {isSelected && (
+                              <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                              </svg>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Selected Faculty Preview */}
+              <div>
+                <h4 className="font-semibold text-gray-800 mb-3">Selected Faculty ({selectedFaculty.length})</h4>
+                <div className="space-y-2">
+                  {selectedFaculty.map((faculty: any, index) => (
+                    <div key={index} className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-lg">
+                      <div>
+                        <p className="font-medium text-gray-800">{faculty.name}</p>
+                        <p className="text-sm text-gray-600">{faculty.email}</p>
+                        <p className="text-sm text-gray-500">
+                          {faculty.department}
+                          {faculty.isExternal && (
+                            <span className="ml-2 px-2 py-1 bg-orange-100 text-orange-700 text-xs rounded-full">
+                              External
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setSelectedFaculty(selectedFaculty.filter((f: any) => f.id !== faculty.id))}
+                        className="bg-red-500 text-white px-3 py-1 rounded text-sm hover:bg-red-600"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                  {selectedFaculty.length === 0 && (
+                    <p className="text-gray-500 text-center py-4">No faculty selected</p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-6 mt-6 border-t">
+              <button
+                onClick={() => {
+                  setShowFacultyAssignmentForm(false)
+                  setSelectedSubjectForAssignment(null)
+                  setSelectedFaculty([])
+                }}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  try {
+                    if (selectedSubjectForAssignment) {
+                      // Here you would make API call to assign faculty
+                      await mockDataService.assignFacultyToSubject(selectedSubjectForAssignment.id, { facultyId: selectedFaculty, isPrimary: true });
+                      loadAllData(); // Reload data
+                      showNotification('Faculty assigned successfully!');
+                      setShowFacultyAssignmentForm(false);
+                      setSelectedSubjectForAssignment(null);
+                      setSelectedFaculty([]);
+                    }
+                  } catch (error: any) {
+                    showNotification(error.message || 'Failed to assign faculty', 'error');
+                  }
+                }}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Save Assignment
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Student View Popup */}
+      {showViewStudentPopup && selectedStudentForAction && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-bold text-gray-800">Student Details</h3>
+                <button
+                  onClick={() => {
+                    setShowViewStudentPopup(false)
+                    setSelectedStudentForAction(null)
+                  }}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="space-y-6">
+                {/* Student Info */}
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg">
+                  <div className="flex items-center gap-4">
+                    <div className="bg-blue-100 p-3 rounded-full">
+                      <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h4 className="text-xl font-bold text-gray-800">{selectedStudentForAction?.name}</h4>
+                      <p className="text-gray-600">{selectedStudentForAction?.email}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Academic Information */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-3">
+                    <h5 className="font-semibold text-gray-800">Academic Information</h5>
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Department:</span>
+                        <span className="font-medium">{selectedStudentForAction?.department}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Batch:</span>
+                        <span className="font-medium">{selectedStudentForAction?.batch}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Academic Year:</span>
+                        <span className="font-medium">{getAcademicYear(selectedStudentForAction?.batch || '')}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Section:</span>
+                        <span className="font-medium">
+                          {selectedStudentForAction?.section ? (
+                            <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm">
+                              Section {selectedStudentForAction?.section}
+                            </span>
+                          ) : (
+                            <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-sm">
+                              Not Assigned
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Status:</span>
+                        <span className={`px-2 py-1 rounded text-sm font-medium ${
+                          selectedStudentForAction?.status === 'Active' 
+                            ? 'bg-green-100 text-green-800' 
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                          {selectedStudentForAction?.status}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <h5 className="font-semibold text-gray-800">Contact Information</h5>
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Phone:</span>
+                        <span className="font-medium">{selectedStudentForAction?.phone}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Address:</span>
+                        <span className="font-medium text-right">{selectedStudentForAction?.address}</span>
+                      </div>
+                      {selectedStudentForAction?.guardianName && (
+                        <>
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Guardian:</span>
+                            <span className="font-medium">{selectedStudentForAction?.guardianName}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Guardian Phone:</span>
+                            <span className="font-medium">{selectedStudentForAction?.guardianPhone}</span>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end mt-6">
+                <button
+                  onClick={() => {
+                    setShowViewStudentPopup(false)
+                    setSelectedStudentForAction(null)
+                  }}
+                  className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Student Reassign Popup */}
+      {showReassignPopup && selectedStudentForAction && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-lg w-full">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-bold text-gray-800">Reassign Student</h3>
+                <button
+                  onClick={() => {
+                    setShowReassignPopup(false)
+                    setSelectedStudentForAction(null)
+                  }}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div className="bg-blue-50 p-4 rounded-lg">
+                  <h4 className="font-semibold text-gray-800 mb-2">Student Information</h4>
+                  <p className="text-gray-700"><strong>Name:</strong> {selectedStudentForAction?.name}</p>
+                  <p className="text-gray-700"><strong>Current Section:</strong> {selectedStudentForAction?.section || 'Not Assigned'}</p>
+                  <p className="text-gray-700"><strong>Department:</strong> {selectedStudentForAction?.department}</p>
+                  <p className="text-gray-700"><strong>Academic Year:</strong> {getAcademicYear(selectedStudentForAction?.batch || '')}</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Select New Section</label>
+                  {(() => {
+                    const year = getAcademicYear(selectedStudentForAction?.batch || '')
+                    const currentClassCombinations = getClassCombinations();
+                    const availableSections = currentClassCombinations.filter(c => 
+                      c.department === selectedStudentForAction?.department && 
+                      c.year === year && 
+                      c.section !== selectedStudentForAction?.section && 
+                      c.currentCount < 65
+                    )
+
+                    if (availableSections.length === 0) {
+                      return (
+                        <div className="bg-yellow-50 border border-yellow-200 p-3 rounded-lg">
+                          <p className="text-yellow-800">No available sections for reassignment. All sections are either full or this is the student's current section.</p>
+                          <div className="flex justify-end mt-3">
+                            <button
+                              onClick={() => {
+                                setShowReassignPopup(false)
+                                setSelectedStudentForAction(null)
+                              }}
+                              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                            >
+                              OK
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    }
+
+                    return (
+                      <div className="space-y-2">
+                        {availableSections.map((section) => (
+                          <button
+                            type="button"
+                            key={section.section}
+                            onClick={async () => {
+                              if (selectedStudentForAction) {
+                                try {
+                                  await mockDataService.updateUser(selectedStudentForAction.id, { section: section.section });
+                                  loadAllData(); // Reload data
+                                  showNotification(`${selectedStudentForAction.name} successfully reassigned to Section ${section.section}`, 'success');
+                                  setShowReassignPopup(false);
+                                  setSelectedStudentForAction(null);
+                                } catch (error: any) {
+                                  showNotification(error.message || 'Failed to reassign student', 'error');
+                                }
+                              }
+                            }}
+                            className="w-full p-3 border border-gray-300 rounded-lg hover:bg-blue-50 hover:border-blue-300 transition-colors text-left"
+                          >
+                            <div className="flex justify-between items-center">
+                              <span className="font-medium">Section {section.section}</span>
+                              <span className="text-sm text-gray-600">
+                                {section.currentCount}/65 students
+                              </span>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                              <div 
+                                className="bg-blue-600 h-2 rounded-full" 
+                                style={{ width: `${(section.currentCount / 65) * 100}%` }}
+                              ></div>
+                            </div>
+                          </button>
+                        ))}
+                        <div className="flex justify-end gap-3 mt-4">
+                          <button
+                            onClick={() => {
+                              setShowReassignPopup(false)
+                              setSelectedStudentForAction(null)
+                            }}
+                            className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })()}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Dialog */}
+      {showConfirmDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-md w-full">
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="bg-red-100 p-2 rounded-full">
+                  <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-bold text-gray-800">Confirm Action</h3>
+              </div>
+              
+              <p className="text-gray-600 mb-6">{confirmMessage}</p>
+              
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => {
+                    setShowConfirmDialog(false)
+                    setConfirmAction(null)
+                  }}
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (confirmAction) {
+                      confirmAction();
+                    }
+                    setShowConfirmDialog(false);
+                    setConfirmAction(null);
+                  }}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                >
+                  Confirm
+                </button>
+              </div>
             </div>
           </div>
         </div>
