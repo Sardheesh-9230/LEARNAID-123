@@ -25,9 +25,11 @@ const departmentSchema = new mongoose.Schema({
   hod: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: [true, 'Head of Department is required'],
+    required: false, // Made optional - HOD can be assigned after department creation
     validate: {
       validator: async function(value) {
+        // Skip validation if no value provided
+        if (!value) return true;
         const user = await mongoose.model('User').findById(value);
         return user && user.role === 'Faculty';
       },

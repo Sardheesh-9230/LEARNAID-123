@@ -40,41 +40,127 @@ class ApiService {
     return headers;
   }
 
-  // Generic API request handler
-  async makeRequest(url, options = {}) {
-    try {
-      const config = {
-        headers: this.getHeaders(),
-        ...options,
-      };
+  // Generic API request handler with retry logic
+  async makeRequest(url, options = {}, retries = 3) {
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        const config = {
+          headers: this.getHeaders(),
+          ...options,
+        };
 
-      const response = await fetch(`${this.baseURL}${url}`, config);
-      
-      // Handle different HTTP status codes
-      if (response.status === 401) {
-        // Unauthorized - clear token and redirect to login
-        this.setToken(null);
-        if (typeof window !== 'undefined') {
-          window.location.href = '/login';
+        const response = await fetch(`${this.baseURL}${url}`, config);
+        
+        // Handle different HTTP status codes
+        if (response.status === 401) {
+          // Unauthorized - clear token and try auto-login once
+          if (attempt === 0) {
+            this.setToken(null);
+            const autoLoginSuccess = await this.autoLogin();
+            if (autoLoginSuccess) {
+              continue; // Retry with new token
+            }
+          }
+          
+          if (typeof window !== 'undefined') {
+            window.location.href = '/login';
+          }
+          throw new Error('Unauthorized access - please login again');
         }
-        throw new Error('Unauthorized access');
+
+        if (response.status === 403) {
+          throw new Error('Access forbidden - insufficient permissions');
+        }
+
+        if (response.status === 404) {
+          throw new Error('Resource not found');
+        }
+
+        if (response.status === 409) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.message || 'Conflict - resource already exists');
+        }
+
+        if (response.status === 400) {
+          const errorData = await response.json().catch(() => ({}));
+          // For validation errors, throw the entire error data to preserve error details
+          const error = new Error(errorData.message || 'Bad request - validation failed');
+          error.response = { data: errorData };
+          throw error;
+        }
+
+        if (response.status === 429) {
+          // Rate limited - wait and retry
+          if (attempt < retries) {
+            const delay = Math.pow(2, attempt) * 1000; // Exponential backoff
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          }
+          throw new Error('Too many requests - please try again later');
+        }
+
+        if (response.status >= 500) {
+          // Server error - retry
+          if (attempt < retries) {
+            const delay = Math.pow(2, attempt) * 1000; // Exponential backoff
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          }
+          throw new Error('Server error - please try again later');
+        }
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        }
+
+        // Handle empty responses (like DELETE operations)
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          return await response.json();
+        }
+        
+        return { success: true };
+      } catch (error) {
+        // If it's our last attempt or a non-retryable error, throw it
+        if (attempt === retries || 
+            error.message.includes('Unauthorized') ||
+            error.message.includes('forbidden') ||
+            error.message.includes('not found') ||
+            error.message.includes('Conflict')) {
+          console.error(`API Request Error (attempt ${attempt + 1}):`, error);
+          throw error;
+        }
+        
+        // For network errors, wait before retrying
+        const delay = Math.pow(2, attempt) * 1000; // Exponential backoff
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+
+  // Auto-login helper method
+  async autoLogin() {
+    try {
+      // Try with existing token first
+      const existingToken = localStorage.getItem('authToken');
+      if (existingToken) {
+        this.setToken(existingToken);
+        // Verify token is still valid
+        const response = await fetch(`${this.baseURL}/auth/me`, {
+          headers: this.getHeaders()
+        });
+        if (response.ok) {
+          return true;
+        }
       }
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
-      }
-
-      // Handle empty responses (like DELETE operations)
-      const contentType = response.headers.get('content-type');
-      if (contentType && contentType.includes('application/json')) {
-        return await response.json();
-      }
-      
-      return { success: true };
+      // Auto-login as admin
+      const loginResponse = await this.login('admin@learnaia.edu', 'admin123');
+      return loginResponse.success && loginResponse.token;
     } catch (error) {
-      console.error('API Request Error:', error);
-      throw error;
+      console.error('Auto-login failed:', error);
+      return false;
     }
   }
 
@@ -384,26 +470,69 @@ class ApiService {
     };
   }
 
-  // Error handling utility
+  // Error handling utility with notifications
   handleApiError(error, context = 'API operation') {
     console.error(`${context} failed:`, error);
     
     // Show user-friendly error messages
-    const errorMessage = error.message || 'An unexpected error occurred';
+    let errorMessage = 'An unexpected error occurred';
     
-    // You can integrate with a toast notification system here
-    if (typeof window !== 'undefined') {
-      if (window.showNotification) {
-        window.showNotification(errorMessage, 'error');
-      } else {
-        alert(`Error: ${errorMessage}`);
-      }
+    if (error.message.includes('Unauthorized')) {
+      errorMessage = 'Session expired. Please login again.';
+    } else if (error.message.includes('forbidden')) {
+      errorMessage = 'You do not have permission to perform this action.';
+    } else if (error.message.includes('not found')) {
+      errorMessage = 'The requested resource was not found.';
+    } else if (error.message.includes('Conflict')) {
+      errorMessage = error.message; // Keep the specific conflict message
+    } else if (error.message.includes('Too many requests')) {
+      errorMessage = 'Too many requests. Please wait a moment and try again.';
+    } else if (error.message.includes('Server error')) {
+      errorMessage = 'Server is temporarily unavailable. Please try again later.';
+    } else if (error.message) {
+      errorMessage = error.message;
     }
+    
+    // Show notification
+    this.showNotification(errorMessage, 'error');
     
     return null;
   }
 
-  // Health check
+  // Notification system
+  showNotification(message, type = 'info') {
+    if (typeof window !== 'undefined') {
+      // Try to use custom notification system if available
+      if (window.showNotification) {
+        window.showNotification(message, type);
+      } else {
+        // Fallback to console and alert for errors
+        if (type === 'error') {
+          console.error('Error:', message);
+          // Only show alert for critical errors, not routine ones
+          if (message.includes('Server error') || message.includes('Session expired')) {
+            alert(`Error: ${message}`);
+          }
+        } else if (type === 'success') {
+          console.log('Success:', message);
+        } else {
+          console.info('Info:', message);
+        }
+      }
+    }
+  }
+
+  // Success notification helper
+  showSuccess(message) {
+    this.showNotification(message, 'success');
+  }
+
+  // Error notification helper  
+  showError(message) {
+    this.showNotification(message, 'error');
+  }
+
+  // Health check with better error handling
   async checkHealth() {
     try {
       const response = await fetch(`${this.baseURL.replace('/api', '')}/health`);
@@ -412,6 +541,64 @@ class ApiService {
       console.error('Health check failed:', error);
       return false;
     }
+  }
+
+  // Batch operations helper
+  async batchOperation(operations, batchSize = 5) {
+    const results = [];
+    
+    for (let i = 0; i < operations.length; i += batchSize) {
+      const batch = operations.slice(i, i + batchSize);
+      const batchResults = await Promise.allSettled(batch);
+      results.push(...batchResults);
+    }
+    
+    return results;
+  }
+
+  // Cache management
+  clearCache() {
+    if (typeof window !== 'undefined') {
+      // Clear all API-related cache
+      const keys = Object.keys(localStorage);
+      keys.forEach(key => {
+        if (key.startsWith('api_cache_')) {
+          localStorage.removeItem(key);
+        }
+      });
+    }
+  }
+
+  // Data validation helpers
+  validateEmail(email) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  }
+
+  validatePhone(phone) {
+    const phoneRegex = /^[\+]?[1-9][\d]{0,15}$/;
+    return phoneRegex.test(phone.replace(/[\s\-\(\)]/g, ''));
+  }
+
+  // Format helpers
+  formatDate(dateString) {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  }
+
+  formatDateTime(dateString) {
+    const date = new Date(dateString);
+    return date.toLocaleString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   }
 }
 

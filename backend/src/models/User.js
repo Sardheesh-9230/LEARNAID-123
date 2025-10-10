@@ -42,12 +42,21 @@ const userSchema = new mongoose.Schema({
   // Contact Information
   phone: {
     type: String,
-    required: [true, 'Phone number is required'],
-    match: [/^\+?[1-9]\d{1,14}$/, 'Please enter a valid phone number']
+    required: false, // Made optional
+    validate: {
+      validator: function(v) {
+        // If phone is provided, validate it
+        if (!v) return true; // Allow empty values
+        // Remove spaces and dashes, then validate
+        const cleanPhone = v.replace(/[\s-]/g, '');
+        return /^\+?[1-9]\d{9,14}$/.test(cleanPhone);
+      },
+      message: 'Please enter a valid phone number'
+    }
   },
   address: {
     type: String,
-    required: [true, 'Address is required'],
+    required: false, // Made optional
     maxlength: [500, 'Address cannot exceed 500 characters']
   },
   
@@ -72,6 +81,9 @@ const userSchema = new mongoose.Schema({
     sparse: true, // Allow null values but ensure uniqueness when present
     required: function() {
       return this.role === 'Student';
+    },
+    default: function() {
+      return this.role === 'Student' ? undefined : null;
     }
   },
   enrolledSubjects: [{
@@ -106,13 +118,22 @@ const userSchema = new mongoose.Schema({
     required: function() {
       return this.role === 'Student';
     },
-    match: [/^\+?[1-9]\d{1,14}$/, 'Please enter a valid guardian phone number']
+    validate: {
+      validator: function(v) {
+        // If this is not a student or phone is not provided, skip validation
+        if (this.role !== 'Student' || !v) return true;
+        // Remove spaces and dashes, then validate
+        const cleanPhone = v.replace(/[\s-]/g, '');
+        return /^\+?[1-9]\d{9,14}$/.test(cleanPhone);
+      },
+      message: 'Please enter a valid guardian phone number'
+    }
   },
   
   // Faculty-specific fields
   designation: {
     type: String,
-    enum: ['Assistant Professor', 'Associate Professor', 'Professor', 'Lecturer'],
+    enum: ['Assistant Professor', 'Associate Professor', 'Professor', 'Lecturer', 'Head of Department'],
     required: function() {
       return this.role === 'Faculty';
     }

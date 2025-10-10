@@ -76,48 +76,9 @@ export default function UserManagement() {
     guardianPhone: ''
   })
 
-  const sections = ["A", "B", "C", "D", "E"]
+  const sections = ["A", "B", "C"]
   const batches = ["2024", "2023", "2022", "2021"]
   const designations = ["Assistant Professor", "Associate Professor", "Professor", "Lecturer", "Head of Department"]
-  const qualifications = [
-    "Ph.D",
-    "M.Tech",
-    "M.E",
-    "M.Sc",
-    "MBA",
-    "B.Tech",
-    "B.E",
-    "B.Sc",
-    "Other"
-  ]
-
-  // Generate ID based on department and role
-  const generateUserId = (departmentId: string, role: string, batch?: string) => {
-    const dept = departments.find(d => d.id === departmentId)
-    const deptCode = dept?.code || 'DEPT'
-    const year = new Date().getFullYear().toString().slice(-2)
-    const timestamp = Date.now().toString().slice(-6)
-    
-    let prefix = ''
-    switch (role) {
-      case 'Student':
-        prefix = `${deptCode}${batch || year}S`
-        break
-      case 'Faculty':
-        prefix = `${deptCode}F`
-        break
-      case 'Staff':
-        prefix = `${deptCode}ST`
-        break
-      case 'Admin':
-        prefix = `${deptCode}AD`
-        break
-      default:
-        prefix = `${deptCode}U`
-    }
-    
-    return `${prefix}${timestamp}`
-  }
 
   // Auto-login function for admin access
   const autoLogin = async () => {
@@ -217,129 +178,46 @@ export default function UserManagement() {
     try {
       setLoading(true)
       
-      // Check if trying to create admin when one already exists
-      if (newUser.role === 'Admin') {
-        const existingAdmins = users.filter(u => u.role === 'Admin')
-        if (existingAdmins.length > 0) {
-          setError('Admin already exists! Only one admin is allowed in the system.')
-          setLoading(false)
-          return
-        }
-      }
-
-      // Basic validation for required fields
-      if (!newUser.name || !newUser.name.trim()) {
-        setError('Name is required')
-        setLoading(false)
-        return
-      }
-      if (!newUser.email || !newUser.email.trim()) {
-        setError('Email is required')
-        setLoading(false)
-        return
-      }
-      if (!newUser.department) {
-        setError('Department is required')
-        setLoading(false)
-        return
-      }
-      
-      // Auto-generate user ID based on department and role
-      const generatedId = generateUserId(newUser.department, newUser.role, newUser.batch)
-      
       const userData: any = {
         name: newUser.name,
         email: newUser.email,
-        password: 'TempPass123!', // Default password for all new users
         role: newUser.role,
         department: newUser.department,
+        phone: newUser.phone,
+        address: newUser.address,
         status: 'Active'
-      }
-
-      // Add optional fields only if they have values
-      if (newUser.phone && newUser.phone.trim()) {
-        userData.phone = newUser.phone.trim()
-      }
-      if (newUser.address && newUser.address.trim()) {
-        userData.address = newUser.address.trim()
       }
 
       // Add role-specific fields
       if (newUser.role === 'Student') {
         userData.section = newUser.section
         userData.batch = newUser.batch
-        userData.studentId = generatedId // Auto-generated student ID
+        userData.studentId = newUser.studentId
         userData.semester = newUser.semester
         userData.guardianName = newUser.guardianName
         userData.guardianPhone = newUser.guardianPhone
         if (newUser.gpa > 0) userData.gpa = newUser.gpa
       } else if (newUser.role === 'Faculty') {
-        // Validate required Faculty fields
-        if (!newUser.designation || !newUser.designation.trim()) {
-          setError('Designation is required for faculty')
-          setLoading(false)
-          return
-        }
-        if (!newUser.qualification || !newUser.qualification.trim()) {
-          setError('Qualification is required for faculty')
-          setLoading(false)
-          return
-        }
-        if (!newUser.experience || newUser.experience <= 0) {
-          setError('Experience is required for faculty (must be greater than 0)')
-          setLoading(false)
-          return
-        }
-
-        userData.employeeId = generatedId // Auto-generated employee ID
-        userData.designation = newUser.designation.trim()
-        userData.qualification = newUser.qualification.trim()
-        userData.experience = newUser.experience
-        if (newUser.specialization && newUser.specialization.trim()) {
-          userData.specialization = newUser.specialization.split(',').map(s => s.trim())
-        }
-      } else if (newUser.role === 'Staff') {
-        userData.employeeId = generatedId // Auto-generated employee ID
+        userData.employeeId = newUser.employeeId
         userData.designation = newUser.designation
         userData.qualification = newUser.qualification
-      } else if (newUser.role === 'Admin') {
-        userData.employeeId = generatedId // Auto-generated admin ID
+        userData.experience = newUser.experience
+        if (newUser.specialization) {
+          userData.specialization = newUser.specialization.split(',').map(s => s.trim())
+        }
       }
-
-      // Debug: Log the data being sent
-      console.log('Sending user data:', userData)
 
       const response = await apiService.createUser(userData)
       if (response.success) {
         await loadAllData() // Reload data
         resetForm()
         setShowAddForm(false)
-        // Show success message with generated ID
-        setError(`User created successfully! Generated ID: ${generatedId}`)
-        setTimeout(() => setError(null), 5000) // Clear message after 5 seconds
       } else {
-        // Show detailed validation errors if available
-        if (response.errors && Array.isArray(response.errors)) {
-          const errorMessages = response.errors.map((err: any) => err.msg).join(', ')
-          setError(`Validation failed: ${errorMessages}`)
-        } else {
-          setError(response.message || 'Failed to create user')
-        }
+        setError(response.message || 'Failed to create user')
       }
     } catch (error: any) {
       console.error('Error creating user:', error)
-      // Show detailed error information for debugging
-      if (error.response && error.response.data) {
-        const errorData = error.response.data
-        if (errorData.errors && Array.isArray(errorData.errors)) {
-          const errorMessages = errorData.errors.map((err: any) => err.msg).join(', ')
-          setError(`Validation failed: ${errorMessages}`)
-        } else {
-          setError(errorData.message || 'Failed to create user')
-        }
-      } else {
-        setError(error.message || 'Failed to create user')
-      }
+      setError(error.message || 'Failed to create user')
     } finally {
       setLoading(false)
     }
@@ -762,18 +640,8 @@ export default function UserManagement() {
                       <option value="Student">Student</option>
                       <option value="Faculty">Faculty</option>
                       <option value="Staff">Staff</option>
-                      <option 
-                        value="Admin" 
-                        disabled={users.filter(u => u.role === 'Admin').length > 0}
-                      >
-                        Admin {users.filter(u => u.role === 'Admin').length > 0 ? '(Already exists)' : ''}
-                      </option>
+                      <option value="Admin">Admin</option>
                     </select>
-                    {users.filter(u => u.role === 'Admin').length > 0 && (
-                      <p className="text-sm text-amber-600 mt-1">
-                        ⚠️ Admin already exists. Only one admin is allowed in the system.
-                      </p>
-                    )}
                   </div>
 
                   <div>
@@ -820,7 +688,18 @@ export default function UserManagement() {
                 {/* Role-specific fields */}
                 {newUser.role === 'Student' && (
                   <>
-                    <div className="grid md:grid-cols-3 gap-4">
+                    <div className="grid md:grid-cols-4 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Student ID</label>
+                        <input
+                          type="text"
+                          value={newUser.studentId}
+                          onChange={(e) => setNewUser({...newUser, studentId: e.target.value})}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-black"
+                          required
+                        />
+                      </div>
+
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Section</label>
                         <select
@@ -829,7 +708,7 @@ export default function UserManagement() {
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-black"
                           required
                         >
-                          <option value="">Select Section</option>
+                          <option value="">Select</option>
                           {sections.map(section => (
                             <option key={section} value={section}>{section}</option>
                           ))}
@@ -844,7 +723,7 @@ export default function UserManagement() {
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-black"
                           required
                         >
-                          <option value="">Select Batch Year</option>
+                          <option value="">Select</option>
                           {batches.map(batch => (
                             <option key={batch} value={batch}>{batch}</option>
                           ))}
@@ -863,12 +742,6 @@ export default function UserManagement() {
                           required
                         />
                       </div>
-                    </div>
-
-                    <div className="bg-green-50 p-3 rounded-lg">
-                      <p className="text-sm text-green-700">
-                        <strong>Student ID will be auto-generated</strong> based on department and batch year
-                      </p>
                     </div>
 
                     <div className="grid md:grid-cols-2 gap-4">
@@ -902,6 +775,17 @@ export default function UserManagement() {
                   <>
                     <div className="grid md:grid-cols-3 gap-4">
                       <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Employee ID</label>
+                        <input
+                          type="text"
+                          value={newUser.employeeId}
+                          onChange={(e) => setNewUser({...newUser, employeeId: e.target.value})}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-black"
+                          required
+                        />
+                      </div>
+
+                      <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Designation</label>
                         <select
                           value={newUser.designation}
@@ -909,24 +793,9 @@ export default function UserManagement() {
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-black"
                           required
                         >
-                          <option value="">Select Designation</option>
+                          <option value="">Select</option>
                           {designations.map(designation => (
                             <option key={designation} value={designation}>{designation}</option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Qualification</label>
-                        <select
-                          value={newUser.qualification}
-                          onChange={(e) => setNewUser({...newUser, qualification: e.target.value})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-black"
-                          required
-                        >
-                          <option value="">Select Qualification</option>
-                          {qualifications.map(qualification => (
-                            <option key={qualification} value={qualification}>{qualification}</option>
                           ))}
                         </select>
                       </div>
@@ -936,13 +805,24 @@ export default function UserManagement() {
                         <input
                           type="number"
                           min="0"
-                          max="50"
                           value={newUser.experience}
                           onChange={(e) => setNewUser({...newUser, experience: parseInt(e.target.value)})}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-black"
                           required
                         />
                       </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Qualification</label>
+                      <input
+                        type="text"
+                        value={newUser.qualification}
+                        onChange={(e) => setNewUser({...newUser, qualification: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-black"
+                        placeholder="Ph.D in Computer Science, M.Tech"
+                        required
+                      />
                     </div>
 
                     <div>
@@ -954,51 +834,6 @@ export default function UserManagement() {
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-black"
                         placeholder="Machine Learning, Data Science, AI"
                       />
-                    </div>
-
-                    <div className="bg-blue-50 p-3 rounded-lg">
-                      <p className="text-sm text-blue-700">
-                        <strong>Employee ID will be auto-generated</strong> based on department code
-                      </p>
-                    </div>
-                  </>
-                )}
-
-                {(newUser.role === 'Staff' || newUser.role === 'Admin') && (
-                  <>
-                    <div className="grid md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Designation</label>
-                        <input
-                          type="text"
-                          value={newUser.designation}
-                          onChange={(e) => setNewUser({...newUser, designation: e.target.value})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-black"
-                          placeholder="Enter designation"
-                          required
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Qualification</label>
-                        <select
-                          value={newUser.qualification}
-                          onChange={(e) => setNewUser({...newUser, qualification: e.target.value})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-black"
-                          required
-                        >
-                          <option value="">Select Qualification</option>
-                          {qualifications.map(qualification => (
-                            <option key={qualification} value={qualification}>{qualification}</option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-
-                    <div className="bg-purple-50 p-3 rounded-lg">
-                      <p className="text-sm text-purple-700">
-                        <strong>Employee ID will be auto-generated</strong> based on department and role
-                      </p>
                     </div>
                   </>
                 )}

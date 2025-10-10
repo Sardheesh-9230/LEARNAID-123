@@ -29,7 +29,7 @@ const getSubjects = async (req, res) => {
     const subjects = await Subject.find(filter)
       .populate('department', 'name code')
       .populate('faculty', 'name email designation')
-      .populate('prerequisites', 'name code')
+      .populate('prerequisite', 'name code')
       .sort({ semester: 1, name: 1 });
 
     res.status(200).json({
@@ -61,7 +61,7 @@ const createSubject = async (req, res) => {
       });
     }
 
-    const { name, code, department, faculty, credits, semester, description, prerequisites } = req.body;
+    const { name, code, type, department, faculty, credits, semester, description, prerequisite, academicYear, section, year } = req.body;
 
     // Check if subject with this code already exists in the department
     let subject = await Subject.findOne({ 
@@ -99,16 +99,16 @@ const createSubject = async (req, res) => {
       }
     }
 
-    // Verify prerequisites exist in the same department
-    if (prerequisites && prerequisites.length > 0) {
-      const prereqSubjects = await Subject.find({
-        _id: { $in: prerequisites },
+    // Verify prerequisite exists in the same department
+    if (prerequisite) {
+      const prereqSubject = await Subject.findOne({
+        _id: prerequisite,
         department: department
       });
-      if (prereqSubjects.length !== prerequisites.length) {
+      if (!prereqSubject) {
         return res.status(400).json({
           success: false,
-          message: 'All prerequisites must be valid subjects in the same department'
+          message: 'Prerequisite must be a valid subject in the same department'
         });
       }
     }
@@ -117,19 +117,24 @@ const createSubject = async (req, res) => {
     subject = await Subject.create({
       name,
       code: code.toUpperCase(),
+      type: type || 'Theory',
       department,
       faculty,
       credits,
       semester,
       description,
-      prerequisites: prerequisites || []
+      prerequisite: prerequisite || null,
+      academicYear: academicYear || '2024-2025', // Default academic year
+      section: section || 'A', // Default section
+      year: year || '1st Year', // Default year
+      createdBy: req.user?.id || req.user?._id || null // Add createdBy from authenticated user with fallback
     });
 
     // Populate the created subject
     await subject.populate([
       { path: 'department', select: 'name code' },
       { path: 'faculty', select: 'name email designation' },
-      { path: 'prerequisites', select: 'name code' }
+      { path: 'prerequisite', select: 'name code' }
     ]);
 
     // Update department's subjects array
@@ -184,7 +189,7 @@ const getSubjectById = async (req, res) => {
     const subject = await Subject.findById(req.params.id)
       .populate('department', 'name code')
       .populate('faculty', 'name email designation')
-      .populate('prerequisites', 'name code credits semester');
+      .populate('prerequisite', 'name code credits semester');
 
     if (!subject) {
       return res.status(404).json({
@@ -222,7 +227,7 @@ const updateSubject = async (req, res) => {
       });
     }
 
-    const allowedFields = ['name', 'code', 'credits', 'semester', 'description', 'faculty', 'isActive', 'prerequisites'];
+    const allowedFields = ['name', 'code', 'type', 'credits', 'semester', 'description', 'faculty', 'isActive', 'prerequisite'];
     const updates = {};
 
     // Only allow updating specific fields
@@ -292,16 +297,16 @@ const updateSubject = async (req, res) => {
       );
     }
 
-    // Verify prerequisites exist in the same department
-    if (updates.prerequisites) {
-      const prereqSubjects = await Subject.find({
-        _id: { $in: updates.prerequisites },
+    // Verify prerequisite exists in the same department
+    if (updates.prerequisite) {
+      const prereqSubject = await Subject.findOne({
+        _id: updates.prerequisite,
         department: currentSubject.department
       });
-      if (prereqSubjects.length !== updates.prerequisites.length) {
+      if (!prereqSubject) {
         return res.status(400).json({
           success: false,
-          message: 'All prerequisites must be valid subjects in the same department'
+          message: 'Prerequisite must be a valid subject in the same department'
         });
       }
     }
@@ -313,7 +318,7 @@ const updateSubject = async (req, res) => {
     ).populate([
       { path: 'department', select: 'name code' },
       { path: 'faculty', select: 'name email designation' },
-      { path: 'prerequisites', select: 'name code' }
+      { path: 'prerequisite', select: 'name code' }
     ]);
 
     // Log activity
@@ -370,7 +375,7 @@ const deleteSubject = async (req, res) => {
 
     // Check if subject is a prerequisite for other subjects
     const dependentSubjects = await Subject.find({
-      prerequisites: req.params.id
+      prerequisite: req.params.id
     });
 
     if (dependentSubjects.length > 0) {

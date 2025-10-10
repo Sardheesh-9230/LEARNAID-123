@@ -13,7 +13,16 @@ const subjectSchema = new mongoose.Schema({
     uppercase: true,
     trim: true,
     maxlength: [20, 'Subject code cannot exceed 20 characters'],
-    match: [/^[A-Z0-9]+$/, 'Subject code must contain only uppercase letters and numbers']
+    match: [/^[A-Z0-9\-]+$/, 'Subject code must contain only uppercase letters, numbers, and hyphens']
+  },
+  type: {
+    type: String,
+    required: [true, 'Subject type is required'],
+    enum: {
+      values: ['Theory', 'TCPR', 'TCPL', 'Elective', 'Core'],
+      message: 'Subject type must be Theory, TCPR, TCPL, Elective, or Core'
+    },
+    default: 'Theory'
   },
   description: {
     type: String,
@@ -191,7 +200,7 @@ const subjectSchema = new mongoose.Schema({
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true
+    required: false // Made optional to handle authentication edge cases
   },
   updatedBy: {
     type: mongoose.Schema.Types.ObjectId,

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import mockDataService from '../services/mockData'
+import apiService from '../services/api'
 
 interface Department {
   id: string
@@ -84,7 +84,9 @@ export default function DepartmentManagement() {
   // Form states
   const [showAddForm, setShowAddForm] = useState(false)
   const [showSubjectForm, setShowSubjectForm] = useState(false)
+  const [showHodAssignmentForm, setShowHodAssignmentForm] = useState(false)
   const [editingDepartment, setEditingDepartment] = useState<Department | null>(null)
+  const [selectedDepartmentForHod, setSelectedDepartmentForHod] = useState<Department | null>(null)
   
   // Form data
   const [departmentForm, setDepartmentForm] = useState({
@@ -239,7 +241,7 @@ export default function DepartmentManagement() {
   const handleAllocateStudent = async (studentId: string, department: string, year: string, section: string) => {
     try {
       // Update student section in backend
-      await mockDataService.updateUser(studentId, { section });
+      await apiService.updateUser(studentId, { section });
       
       // Reload data to reflect changes
       loadAllData();
@@ -284,7 +286,7 @@ export default function DepartmentManagement() {
         if (sectionIndex < availableSections.length && availableSections[sectionIndex].currentCount < 65) {
           const assignedSection = availableSections[sectionIndex].section;
           
-          await mockDataService.updateUser(student.id, { section: assignedSection });
+          await apiService.updateUser(student.id, { section: assignedSection });
           
           availableSections[sectionIndex].currentCount++;
           assignedCount++;
@@ -307,23 +309,41 @@ export default function DepartmentManagement() {
   const loadAllData = async () => {
     setLoading(true)
     try {
+      // Auto-login as admin if no token exists
+      if (!apiService.token) {
+        console.log('No token found, attempting auto-login as admin...')
+        try {
+          const loginResponse = await apiService.login('admin@learnaid.edu', 'admin123')
+          if (loginResponse.success) {
+            console.log('Auto-login successful')
+          } else {
+            throw new Error('Auto-login failed')
+          }
+        } catch (loginError) {
+          console.error('Auto-login failed:', loginError)
+          setError('Authentication failed. Please contact administrator.')
+          setLoading(false)
+          return
+        }
+      }
+
       // Load departments, users, and subjects in parallel
       const [departmentsData, usersData, subjectsData] = await Promise.all([
-        mockDataService.getDepartments(),
-        mockDataService.getUsers(),
-        mockDataService.getSubjects()
+        apiService.getDepartments(),
+        apiService.getUsers(),
+        apiService.getSubjects()
       ])
 
       // Transform and set departments
-      const transformedDepartments = departmentsData.data?.map(mockDataService.transformDepartmentData) || []
+      const transformedDepartments = departmentsData.data?.map(apiService.transformDepartmentData) || []
       setDepartments(transformedDepartments)
 
       // Transform and set users
-      const transformedUsers = usersData.data?.map(mockDataService.transformUserData) || []
+      const transformedUsers = usersData.data?.map(apiService.transformUserData) || []
       setUsers(transformedUsers)
 
       // Transform and set subjects
-      const transformedSubjects = subjectsData.data?.map(mockDataService.transformSubjectData) || []
+      const transformedSubjects = subjectsData.data?.map(apiService.transformSubjectData) || []
       setSubjects(transformedSubjects)
 
       // Update department statistics
@@ -371,7 +391,7 @@ export default function DepartmentManagement() {
         programs: []
       }
 
-      const response = await mockDataService.createDepartment(departmentData)
+      const response = await apiService.createDepartment(departmentData)
       
       if (response.success) {
         showNotification('Department created successfully!')
@@ -406,7 +426,7 @@ export default function DepartmentManagement() {
         contactInfo: departmentForm.contactInfo
       }
 
-      const response = await mockDataService.updateDepartment(editingDepartment.id, departmentData)
+      const response = await apiService.updateDepartment(editingDepartment.id, departmentData)
       
       if (response.success) {
         showNotification('Department updated successfully!')
@@ -433,7 +453,7 @@ export default function DepartmentManagement() {
     setLoading(true)
     
     try {
-      const response = await mockDataService.deleteDepartment(departmentId)
+      const response = await apiService.deleteDepartment(departmentId)
       
       if (response.success) {
         showNotification('Department deleted successfully!')
@@ -464,7 +484,7 @@ export default function DepartmentManagement() {
             code: `${subjectForm.code}-${section}`, // Add section to code
             department: subjectForm.department
           }
-          return mockDataService.createSubject(subjectData)
+          return apiService.createSubject(subjectData)
         })
         
         await Promise.all(promises)
@@ -473,7 +493,7 @@ export default function DepartmentManagement() {
         // Create subject for specific section
         const { createForAllSections, ...subjectData } = subjectForm
         
-        const response = await mockDataService.createSubject(subjectData)
+        const response = await apiService.createSubject(subjectData)
         
         if (response.success) {
           showNotification('Subject created successfully!')
@@ -502,7 +522,7 @@ export default function DepartmentManagement() {
     setLoading(true)
     
     try {
-      const response = await mockDataService.deleteSubject(subjectId)
+      const response = await apiService.deleteSubject(subjectId)
       
       if (response.success) {
         showNotification('Subject deleted successfully!')
@@ -580,8 +600,41 @@ export default function DepartmentManagement() {
     })
   }
 
-  const getFacultyOptions = () => {
-    return users.filter(user => user.role === 'Faculty')
+  // HOD Assignment Functions
+  const getFacultyForHodAssignment = (departmentId: string) => {
+    return users.filter(user => 
+      user.role === 'Faculty' && 
+      (user.departmentId === departmentId || user.department === departments.find(d => d.id === departmentId)?.name)
+    )
+  }
+
+  const handleAssignHod = async (facultyId: string) => {
+    if (!selectedDepartmentForHod) return
+
+    setLoading(true)
+    try {
+      const selectedFaculty = users.find(u => u.id === facultyId)
+      if (!selectedFaculty) throw new Error('Faculty not found')
+
+      // Update department with new HOD (backend expects hod field to be the faculty ObjectId)
+      const response = await apiService.updateDepartment(selectedDepartmentForHod.id, {
+        hod: selectedFaculty.id  // Send the faculty ID, backend will populate the name
+      })
+
+      if (response.success) {
+        showNotification(`${selectedFaculty.name} assigned as HOD successfully!`)
+        setShowHodAssignmentForm(false)
+        setSelectedDepartmentForHod(null)
+        loadAllData() // Reload data
+      } else {
+        throw new Error(response.message || 'Failed to assign HOD')
+      }
+    } catch (error: any) {
+      console.error('HOD assignment error:', error)
+      setError(error.message || 'Failed to assign HOD. Please try again.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const renderOverview = () => (
@@ -747,10 +800,10 @@ export default function DepartmentManagement() {
             </div>
 
             {/* Action Buttons */}
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               <button
                 onClick={() => handleEditDepartment(dept)}
-                className="flex-1 bg-gradient-to-r from-blue-500 to-blue-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:from-blue-600 hover:to-blue-700 transition-all duration-200 flex items-center justify-center gap-2 shadow-sm"
+                className="flex-1 min-w-[100px] bg-gradient-to-r from-blue-500 to-blue-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:from-blue-600 hover:to-blue-700 transition-all duration-200 flex items-center justify-center gap-2 shadow-sm"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -758,8 +811,20 @@ export default function DepartmentManagement() {
                 Edit
               </button>
               <button
+                onClick={() => {
+                  setSelectedDepartmentForHod(dept)
+                  setShowHodAssignmentForm(true)
+                }}
+                className="flex-1 min-w-[100px] bg-gradient-to-r from-purple-500 to-purple-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:from-purple-600 hover:to-purple-700 transition-all duration-200 flex items-center justify-center gap-2 shadow-sm"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+                {dept.hod ? 'Change HOD' : 'Assign HOD'}
+              </button>
+              <button
                 onClick={() => setActiveTab('subject-management')}
-                className="flex-1 bg-gradient-to-r from-green-500 to-green-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:from-green-600 hover:to-green-700 transition-all duration-200 flex items-center justify-center gap-2 shadow-sm"
+                className="flex-1 min-w-[100px] bg-gradient-to-r from-green-500 to-green-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:from-green-600 hover:to-green-700 transition-all duration-200 flex items-center justify-center gap-2 shadow-sm"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
@@ -1286,18 +1351,13 @@ export default function DepartmentManagement() {
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Head of Department
                     </label>
-                    <select
+                    <input
+                      type="text"
                       value={departmentForm.hod}
                       onChange={(e) => setDepartmentForm({...departmentForm, hod: e.target.value})}
+                      placeholder="Enter HOD name"
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    >
-                      <option value="">Select HOD</option>
-                      {getFacultyOptions().map(faculty => (
-                        <option key={faculty.id} value={faculty.id}>
-                          {faculty.name} ({faculty.department})
-                        </option>
-                      ))}
-                    </select>
+                    />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1768,7 +1828,7 @@ export default function DepartmentManagement() {
                   try {
                     if (selectedSubjectForAssignment) {
                       // Here you would make API call to assign faculty
-                      await mockDataService.assignFacultyToSubject(selectedSubjectForAssignment.id, { facultyId: selectedFaculty, isPrimary: true });
+                      await apiService.assignFacultyToSubject(selectedSubjectForAssignment.id, { facultyId: selectedFaculty, isPrimary: true });
                       loadAllData(); // Reload data
                       showNotification('Faculty assigned successfully!');
                       setShowFacultyAssignmentForm(false);
@@ -1981,7 +2041,7 @@ export default function DepartmentManagement() {
                             onClick={async () => {
                               if (selectedStudentForAction) {
                                 try {
-                                  await mockDataService.updateUser(selectedStudentForAction.id, { section: section.section });
+                                  await apiService.updateUser(selectedStudentForAction.id, { section: section.section });
                                   loadAllData(); // Reload data
                                   showNotification(`${selectedStudentForAction.name} successfully reassigned to Section ${section.section}`, 'success');
                                   setShowReassignPopup(false);
@@ -2066,6 +2126,109 @@ export default function DepartmentManagement() {
                   className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
                 >
                   Confirm
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* HOD Assignment Modal */}
+      {showHodAssignmentForm && selectedDepartmentForHod && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-bold text-gray-800">
+                  {selectedDepartmentForHod.hod ? 'Change HOD' : 'Assign HOD'} - {selectedDepartmentForHod.name}
+                </h3>
+                <button
+                  onClick={() => {
+                    setShowHodAssignmentForm(false)
+                    setSelectedDepartmentForHod(null)
+                  }}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              {selectedDepartmentForHod.hod && (
+                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-sm text-blue-800">
+                    <span className="font-medium">Current HOD:</span> {selectedDepartmentForHod.hod}
+                  </p>
+                </div>
+              )}
+
+              <div className="space-y-3">
+                <label className="block text-sm font-medium text-gray-700 mb-3">
+                  Select Faculty Member as HOD:
+                </label>
+
+                {(() => {
+                  const facultyMembers = getFacultyForHodAssignment(selectedDepartmentForHod.id)
+                  
+                  if (facultyMembers.length === 0) {
+                    return (
+                      <div className="text-center py-8 text-gray-500">
+                        <svg className="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
+                        <p className="text-sm">No faculty members found in this department.</p>
+                        <p className="text-xs text-gray-400 mt-1">Add faculty members first to assign as HOD.</p>
+                      </div>
+                    )
+                  }
+
+                  return facultyMembers.map((faculty) => (
+                    <div
+                      key={faculty.id}
+                      className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 hover:bg-blue-50 transition-colors cursor-pointer"
+                      onClick={() => handleAssignHod(faculty.id)}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="font-medium text-gray-800">{faculty.name}</h4>
+                          <p className="text-sm text-gray-600">{faculty.email}</p>
+                          <p className="text-xs text-gray-500">
+                            {faculty.designation} | {faculty.experience} years exp.
+                          </p>
+                          {faculty.specialization && faculty.specialization.length > 0 && (
+                            <div className="flex gap-1 mt-2">
+                              {faculty.specialization.slice(0, 2).map((spec, index) => (
+                                <span key={index} className="bg-gray-100 text-gray-700 px-2 py-1 rounded text-xs">
+                                  {spec}
+                                </span>
+                              ))}
+                              {faculty.specialization.length > 2 && (
+                                <span className="text-xs text-gray-500">+{faculty.specialization.length - 2} more</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        <div className="text-blue-600">
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                })()}
+              </div>
+
+              <div className="flex justify-end gap-3 mt-6">
+                <button
+                  onClick={() => {
+                    setShowHodAssignmentForm(false)
+                    setSelectedDepartmentForHod(null)
+                  }}
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
                 </button>
               </div>
             </div>

@@ -1,4 +1,5 @@
 const { validationResult } = require('express-validator');
+const mongoose = require('mongoose');
 const Department = require('../models/Department');
 const User = require('../models/User');
 const Subject = require('../models/Subject');
@@ -26,9 +27,7 @@ const getDepartments = async (req, res) => {
     }
 
     const departments = await Department.find(filter)
-      .populate('head', 'name email')
-      .populate('faculty', 'name email designation')
-      .populate('subjects', 'name code credits')
+      .populate('hod', 'name email')
       .sort({ name: 1 });
 
     res.status(200).json({
@@ -60,7 +59,7 @@ const createDepartment = async (req, res) => {
       });
     }
 
-    const { name, code, description, head } = req.body;
+    const { name, code, description, establishedYear, contactInfo, sections } = req.body;
 
     // Check if department with this code already exists
     let department = await Department.findOne({ code: code.toUpperCase() });
@@ -71,32 +70,24 @@ const createDepartment = async (req, res) => {
       });
     }
 
-    // If head is provided, verify it's a faculty member
-    if (head) {
-      const headFaculty = await User.findOne({ _id: head, role: 'Faculty' });
-      if (!headFaculty) {
-        return res.status(400).json({
-          success: false,
-          message: 'Head must be a faculty member'
-        });
-      }
-    }
-
-    // Create department
+    // Create department without HOD - HOD will be assigned later
     department = await Department.create({
       name,
       code: code.toUpperCase(),
       description,
-      head
+      establishedYear,
+      contactInfo: {
+        email: contactInfo.email,
+        phone: contactInfo.phone,
+        location: contactInfo.location
+      },
+      sections: sections || ['A'], // Default to section A if not provided
+      createdBy: req.user.id
+      // HOD is not included - will be assigned separately
     });
 
-    // Populate the created department
-    await department.populate('head', 'name email');
-
-    // If head is assigned, update their department
-    if (head) {
-      await User.findByIdAndUpdate(head, { department: department._id });
-    }
+    // No need to populate HOD during creation since it's not assigned yet
+    // HOD will be assigned later through a separate operation
 
     // Log activity
     await ActivityLog.logActivity({
@@ -130,7 +121,7 @@ const createDepartment = async (req, res) => {
 const getDepartmentById = async (req, res) => {
   try {
     const department = await Department.findById(req.params.id)
-      .populate('head', 'name email designation')
+      .populate('hod', 'name email designation')
       .populate('faculty', 'name email designation')
       .populate('subjects', 'name code credits semester');
 
@@ -170,7 +161,7 @@ const updateDepartment = async (req, res) => {
       });
     }
 
-    const allowedFields = ['name', 'code', 'description', 'head', 'isActive'];
+    const allowedFields = ['name', 'code', 'description', 'hod', 'isActive'];
     const updates = {};
 
     // Only allow updating specific fields
@@ -201,14 +192,27 @@ const updateDepartment = async (req, res) => {
       }
     }
 
-    // If head is being updated, verify it's a faculty member
-    if (updates.head) {
-      const headFaculty = await User.findOne({ _id: updates.head, role: 'Faculty' });
-      if (!headFaculty) {
-        return res.status(400).json({
-          success: false,
-          message: 'Head must be a faculty member'
-        });
+    // If hod is being updated, verify it's a valid ObjectId and a faculty member
+    if (updates.hod) {
+      if (updates.hod.trim() === '') {
+        // If hod is empty string, set to null
+        updates.hod = null;
+      } else {
+        // Check if hod is a valid ObjectId
+        if (!mongoose.Types.ObjectId.isValid(updates.hod)) {
+          return res.status(400).json({
+            success: false,
+            message: 'Invalid HOD ID format. Please select a valid faculty member.'
+          });
+        }
+
+        const hodFaculty = await User.findOne({ _id: updates.hod, role: 'Faculty' });
+        if (!hodFaculty) {
+          return res.status(400).json({
+            success: false,
+            message: 'HOD must be a faculty member'
+          });
+        }
       }
     }
 
@@ -216,7 +220,7 @@ const updateDepartment = async (req, res) => {
       req.params.id,
       updates,
       { new: true, runValidators: true }
-    ).populate('head', 'name email');
+    ).populate('hod', 'name email');
 
     if (!department) {
       return res.status(404).json({
@@ -502,6 +506,156 @@ const getDepartmentStats = async (req, res) => {
   }
 };
 
+// @desc    Assign HOD to department
+// @route   PUT /api/departments/:id/assign-hod
+// @access  Private (Admin)
+const assignHodToDepartment = async (req, res) => {
+  try {
+    const { hodId } = req.body;
+    const departmentId = req.params.id;
+
+    // Validate department exists
+    const department = await Department.findById(departmentId);
+    if (!department) {
+      return res.status(404).json({
+        success: false,
+        message: 'Department not found'
+      });
+    }
+
+    // Validate HOD ID format
+    if (!mongoose.Types.ObjectId.isValid(hodId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid HOD ID format. Please select a valid faculty member.'
+      });
+    }
+
+    // Verify HOD is a faculty member
+    const hodFaculty = await User.findOne({ _id: hodId, role: 'Faculty' });
+    if (!hodFaculty) {
+      return res.status(400).json({
+        success: false,
+        message: 'HOD must be a faculty member'
+      });
+    }
+
+    // Check if faculty is already HOD of another department
+    const existingHod = await Department.findOne({ hod: hodId, _id: { $ne: departmentId } });
+    if (existingHod) {
+      return res.status(400).json({
+        success: false,
+        message: `${hodFaculty.name} is already HOD of ${existingHod.name} department`
+      });
+    }
+
+    // Remove HOD role from previous HOD (if any)
+    if (department.hod) {
+      await User.findByIdAndUpdate(department.hod, { $unset: { department: 1 } });
+    }
+
+    // Assign new HOD
+    department.hod = hodId;
+    await department.save();
+
+    // Update faculty's department
+    await User.findByIdAndUpdate(hodId, { department: departmentId });
+
+    // Populate and return updated department
+    await department.populate('hod', 'name email designation');
+
+    // Log activity
+    await ActivityLog.logActivity({
+      user: req.user.id,
+      action: 'ASSIGN_HOD',
+      resourceType: 'Department',
+      resourceId: department._id,
+      details: { 
+        departmentName: department.name,
+        hodName: hodFaculty.name,
+        hodEmail: hodFaculty.email
+      },
+      ipAddress: req.ip,
+      userAgent: req.get('User-Agent')
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'HOD assigned successfully',
+      data: department
+    });
+
+  } catch (error) {
+    console.error('Assign HOD error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while assigning HOD'
+    });
+  }
+};
+
+// @desc    Remove HOD from department
+// @route   PUT /api/departments/:id/remove-hod
+// @access  Private (Admin)
+const removeHodFromDepartment = async (req, res) => {
+  try {
+    const departmentId = req.params.id;
+
+    // Validate department exists
+    const department = await Department.findById(departmentId).populate('hod', 'name email');
+    if (!department) {
+      return res.status(404).json({
+        success: false,
+        message: 'Department not found'
+      });
+    }
+
+    if (!department.hod) {
+      return res.status(400).json({
+        success: false,
+        message: 'Department does not have an assigned HOD'
+      });
+    }
+
+    const previousHod = department.hod;
+
+    // Remove HOD from department
+    department.hod = null;
+    await department.save();
+
+    // Update previous HOD's department (optional - depends on your business logic)
+    // await User.findByIdAndUpdate(previousHod._id, { $unset: { department: 1 } });
+
+    // Log activity
+    await ActivityLog.logActivity({
+      user: req.user.id,
+      action: 'REMOVE_HOD',
+      resourceType: 'Department',
+      resourceId: department._id,
+      details: { 
+        departmentName: department.name,
+        previousHodName: previousHod.name,
+        previousHodEmail: previousHod.email
+      },
+      ipAddress: req.ip,
+      userAgent: req.get('User-Agent')
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'HOD removed successfully',
+      data: department
+    });
+
+  } catch (error) {
+    console.error('Remove HOD error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while removing HOD'
+    });
+  }
+};
+
 module.exports = {
   getDepartments,
   createDepartment,
@@ -511,5 +665,7 @@ module.exports = {
   getDepartmentFaculty,
   getDepartmentStudents,
   getDepartmentSubjects,
-  getDepartmentStats
+  getDepartmentStats,
+  assignHodToDepartment,
+  removeHodFromDepartment
 };

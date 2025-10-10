@@ -56,7 +56,13 @@ const createDepartmentValidation = [
   body('name').trim().isLength({ min: 2, max: 100 }).withMessage('Name must be between 2 and 100 characters'),
   body('code').trim().isLength({ min: 2, max: 10 }).withMessage('Code must be between 2 and 10 characters'),
   body('description').optional().trim().isLength({ max: 500 }).withMessage('Description must be less than 500 characters'),
-  body('head').optional().isMongoId().withMessage('Valid head faculty ID is required')
+  body('establishedYear').isInt({ min: 1900, max: new Date().getFullYear() }).withMessage(`Established year must be between 1900 and ${new Date().getFullYear()}`),
+  body('contactInfo.email').isEmail().withMessage('Valid email is required'),
+  body('contactInfo.phone').matches(/^\+?[1-9]\d{1,14}$/).withMessage('Valid phone number is required'),
+  body('contactInfo.location').trim().isLength({ min: 1, max: 200 }).withMessage('Location must be between 1 and 200 characters'),
+  body('sections').isArray({ min: 1 }).withMessage('At least one section is required'),
+  body('sections.*').isIn(['A', 'B', 'C']).withMessage('Section must be A, B, or C')
+  // HOD is not required during creation - will be assigned separately
 ];
 
 const updateDepartmentValidation = [
@@ -356,5 +362,69 @@ router.get('/:id/subjects', protect, departmentController.getDepartmentSubjects)
  *                       type: object
  */
 router.get('/:id/stats', protect, departmentController.getDepartmentStats);
+
+/**
+ * @swagger
+ * /api/departments/{id}/assign-hod:
+ *   put:
+ *     summary: Assign HOD to department
+ *     tags: [Departments]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: Department ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - hodId
+ *             properties:
+ *               hodId:
+ *                 type: string
+ *                 description: Faculty member ID to assign as HOD
+ *     responses:
+ *       200:
+ *         description: HOD assigned successfully
+ *       400:
+ *         description: Invalid input or business rule violation
+ *       404:
+ *         description: Department not found
+ */
+router.put('/:id/assign-hod', protect, authorize('Admin'), [
+  body('hodId').notEmpty().withMessage('HOD ID is required')
+], departmentController.assignHodToDepartment);
+
+/**
+ * @swagger
+ * /api/departments/{id}/remove-hod:
+ *   put:
+ *     summary: Remove HOD from department
+ *     tags: [Departments]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: Department ID
+ *     responses:
+ *       200:
+ *         description: HOD removed successfully
+ *       400:
+ *         description: Department has no assigned HOD
+ *       404:
+ *         description: Department not found
+ */
+router.put('/:id/remove-hod', protect, authorize('Admin'), departmentController.removeHodFromDepartment);
 
 module.exports = router;

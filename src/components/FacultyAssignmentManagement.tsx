@@ -1,11 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import apiService from '../services/api'
 
 interface Faculty {
-  id: number
+  id: string
   name: string
   department: string
+  departmentId: string
   designation: string
   specialization: string[]
   experience: number
@@ -13,556 +15,568 @@ interface Faculty {
   phone: string
 }
 
+interface Subject {
+  id: string
+  name: string
+  code: string
+  type: string
+  credits: number
+  semester: number
+  department: string
+  departmentId: string
+  section: string
+  year: string
+  academicYear: string
+  maxStudents: number
+  enrolledStudents: string[]
+  faculty: Array<{
+    id: string
+    name: string
+    email: string
+    department: string
+    isExternal: boolean
+    isPrimary: boolean
+  }>
+}
+
 interface Assignment {
-  id: number
-  facultyId: number
+  id: string
+  facultyId: string
   facultyName: string
   facultyDepartment: string
   subjectName: string
   subjectCode: string
+  subjectId: string
   teachingDepartment: string
   section: string
   credits: number
   semester: string
   academicYear: string
+  isExternal: boolean
+  isPrimary: boolean
 }
 
 export default function FacultyAssignmentManagement() {
   const [activeTab, setActiveTab] = useState('assignments')
   const [showAssignForm, setShowAssignForm] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  // Sample faculty data
-  const [faculty] = useState<Faculty[]>([
-    {
-      id: 1,
-      name: "Prof. Alice Johnson",
-      department: "Computer Science",
-      designation: "Associate Professor",
-      specialization: ["Data Science", "Machine Learning", "Database Systems"],
-      experience: 8,
-      email: "alice.johnson@learnaia.edu",
-      phone: "+91 98765 43210"
-    },
-    {
-      id: 2,
-      name: "Dr. Robert Brown",
-      department: "Mechanical Engineering",
-      designation: "Professor",
-      specialization: ["Thermodynamics", "Fluid Mechanics", "Heat Transfer"],
-      experience: 15,
-      email: "robert.brown@learnaia.edu",
-      phone: "+91 97654 32109"
-    },
-    {
-      id: 3,
-      name: "Prof. Sarah Wilson",
-      department: "Business Administration",
-      designation: "Assistant Professor",
-      specialization: ["Marketing", "Business Analytics", "Digital Marketing"],
-      experience: 5,
-      email: "sarah.wilson@learnaia.edu",
-      phone: "+91 96543 21098"
-    },
-    {
-      id: 4,
-      name: "Dr. Michael Chen",
-      department: "Computer Science",
-      designation: "Professor",
-      specialization: ["Software Engineering", "System Design", "Project Management"],
-      experience: 12,
-      email: "michael.chen@learnaia.edu",
-      phone: "+91 95432 10987"
-    }
-  ])
-
-  // Sample assignments data
-  const [assignments, setAssignments] = useState<Assignment[]>([
-    {
-      id: 1,
-      facultyId: 1,
-      facultyName: "Prof. Alice Johnson",
-      facultyDepartment: "Computer Science",
-      subjectName: "Business Analytics",
-      subjectCode: "BA201",
-      teachingDepartment: "Business Administration",
-      section: "A",
-      credits: 3,
-      semester: "Fall",
-      academicYear: "2024-25"
-    },
-    {
-      id: 2,
-      facultyId: 4,
-      facultyName: "Dr. Michael Chen",
-      facultyDepartment: "Computer Science",
-      subjectName: "Project Management",
-      subjectCode: "BA301",
-      teachingDepartment: "Business Administration",
-      section: "B",
-      credits: 3,
-      semester: "Spring",
-      academicYear: "2024-25"
-    },
-    {
-      id: 3,
-      facultyId: 3,
-      facultyName: "Prof. Sarah Wilson",
-      facultyDepartment: "Business Administration",
-      subjectName: "Digital Marketing for Engineers",
-      subjectCode: "ME401",
-      teachingDepartment: "Mechanical Engineering",
-      section: "A",
-      credits: 2,
-      semester: "Fall",
-      academicYear: "2024-25"
-    }
-  ])
+  // State for real data
+  const [faculty, setFaculty] = useState<Faculty[]>([])
+  const [subjects, setSubjects] = useState<Subject[]>([])
+  const [assignments, setAssignments] = useState<Assignment[]>([])
+  const [departments, setDepartments] = useState<Array<{id: string, name: string}>>([])
 
   const [newAssignment, setNewAssignment] = useState({
-    facultyId: 0,
-    subjectName: '',
-    subjectCode: '',
-    teachingDepartment: '',
-    section: '',
-    credits: 3,
-    semester: 'Fall',
-    academicYear: '2024-25'
+    facultyId: '',
+    subjectId: '',
+    isExternal: false,
+    isPrimary: false
   })
 
-  const departments = ["Computer Science", "Mechanical Engineering", "Business Administration", "Electrical Engineering"]
-  const sections = ["A", "B", "C"]
-  const semesters = ["Fall", "Spring", "Summer"]
-
-  const handleAddAssignment = (e: React.FormEvent) => {
-    e.preventDefault()
-    const selectedFaculty = faculty.find(f => f.id === newAssignment.facultyId)
-    if (selectedFaculty) {
-      const assignment: Assignment = {
-        id: assignments.length + 1,
-        facultyId: newAssignment.facultyId,
-        facultyName: selectedFaculty.name,
-        facultyDepartment: selectedFaculty.department,
-        subjectName: newAssignment.subjectName,
-        subjectCode: newAssignment.subjectCode,
-        teachingDepartment: newAssignment.teachingDepartment,
-        section: newAssignment.section,
-        credits: newAssignment.credits,
-        semester: newAssignment.semester,
-        academicYear: newAssignment.academicYear
+  // Auto-login function for admin access
+  const autoLogin = async () => {
+    try {
+      const existingToken = localStorage.getItem('authToken')
+      if (existingToken) {
+        apiService.setToken(existingToken)
+        return true
       }
-      setAssignments([...assignments, assignment])
-      resetForm()
-      setShowAssignForm(false)
+
+      // Auto-login as admin
+      const loginResponse = await apiService.login('admin@learnaia.edu', 'admin123')
+      if (loginResponse.success && loginResponse.token) {
+        console.log('Auto-login successful')
+        return true
+      }
+      return false
+    } catch (error) {
+      console.error('Auto-login failed:', error)
+      return false
+    }
+  }
+
+  // Load all data
+  const loadAllData = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+
+      // Ensure authentication
+      const isAuthenticated = await autoLogin()
+      if (!isAuthenticated) {
+        throw new Error('Authentication failed')
+      }
+
+      // Load data in parallel
+      const [facultyResponse, subjectsResponse, departmentsResponse] = await Promise.all([
+        apiService.getUsersByRole('Faculty'),
+        apiService.getSubjects(),
+        apiService.getDepartments()
+      ])
+
+      if (facultyResponse.success && facultyResponse.data) {
+        const transformedFaculty = facultyResponse.data.map((fac: any) => ({
+          id: fac._id,
+          name: fac.name,
+          department: fac.department?.name || 'Unknown',
+          departmentId: fac.department?._id || '',
+          designation: fac.designation || 'Faculty',
+          specialization: fac.specialization || [],
+          experience: fac.experience || 0,
+          email: fac.email,
+          phone: fac.phone || ''
+        }))
+        setFaculty(transformedFaculty)
+      }
+
+      if (subjectsResponse.success && subjectsResponse.data) {
+        const transformedSubjects = subjectsResponse.data.map(apiService.transformSubjectData)
+        setSubjects(transformedSubjects)
+        
+        // Generate assignments from subjects with faculty
+        const allAssignments: Assignment[] = []
+        transformedSubjects.forEach((subject: Subject) => {
+          subject.faculty.forEach((fac, index) => {
+            allAssignments.push({
+              id: `${subject.id}-${fac.id}-${index}`,
+              facultyId: fac.id,
+              facultyName: fac.name,
+              facultyDepartment: fac.department,
+              subjectName: subject.name,
+              subjectCode: subject.code,
+              subjectId: subject.id,
+              teachingDepartment: subject.department,
+              section: subject.section,
+              credits: subject.credits,
+              semester: subject.semester.toString(),
+              academicYear: subject.academicYear,
+              isExternal: fac.isExternal,
+              isPrimary: fac.isPrimary
+            })
+          })
+        })
+        setAssignments(allAssignments)
+      }
+
+      if (departmentsResponse.success && departmentsResponse.data) {
+        const transformedDepartments = departmentsResponse.data.map((dept: any) => ({
+          id: dept._id,
+          name: dept.name
+        }))
+        setDepartments(transformedDepartments)
+      }
+
+    } catch (error: any) {
+      console.error('Error loading data:', error)
+      setError(error.message || 'Failed to load data')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadAllData()
+  }, [])
+
+  const handleAssignFaculty = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    try {
+      setLoading(true)
+      
+      const facultyData = {
+        facultyId: newAssignment.facultyId,
+        isExternal: newAssignment.isExternal,
+        isPrimary: newAssignment.isPrimary
+      }
+
+      const response = await apiService.assignFacultyToSubject(newAssignment.subjectId, facultyData)
+      if (response.success) {
+        await loadAllData() // Reload data
+        resetForm()
+        setShowAssignForm(false)
+      } else {
+        setError(response.message || 'Failed to assign faculty')
+      }
+    } catch (error: any) {
+      console.error('Error assigning faculty:', error)
+      setError(error.message || 'Failed to assign faculty')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleRemoveAssignment = async (assignment: Assignment) => {
+    if (!confirm(`Are you sure you want to remove ${assignment.facultyName} from ${assignment.subjectName}?`)) return
+
+    try {
+      setLoading(true)
+      const response = await apiService.removeFacultyFromSubject(assignment.subjectId, assignment.facultyId)
+      if (response.success) {
+        await loadAllData() // Reload data
+      } else {
+        setError(response.message || 'Failed to remove assignment')
+      }
+    } catch (error: any) {
+      console.error('Error removing assignment:', error)
+      setError(error.message || 'Failed to remove assignment')
+    } finally {
+      setLoading(false)
     }
   }
 
   const resetForm = () => {
     setNewAssignment({
-      facultyId: 0,
-      subjectName: '',
-      subjectCode: '',
-      teachingDepartment: '',
-      section: '',
-      credits: 3,
-      semester: 'Fall',
-      academicYear: '2024-25'
+      facultyId: '',
+      subjectId: '',
+      isExternal: false,
+      isPrimary: false
     })
   }
 
-  const getCrossDepartmentalAssignments = () => {
-    return assignments.filter(assignment => 
-      assignment.facultyDepartment !== assignment.teachingDepartment
+  const getWorkloadStats = () => {
+    const workloadMap = new Map<string, { faculty: Faculty; credits: number; subjects: number }>()
+    
+    assignments.forEach(assignment => {
+      const facultyMember = faculty.find((f: Faculty) => f.id === assignment.facultyId)
+      if (facultyMember) {
+        const current = workloadMap.get(assignment.facultyId) || { 
+          faculty: facultyMember, 
+          credits: 0, 
+          subjects: 0 
+        }
+        current.credits += assignment.credits
+        current.subjects += 1
+        workloadMap.set(assignment.facultyId, current)
+      }
+    })
+
+    return Array.from(workloadMap.values())
+  }
+
+  if (loading) {
+    return (
+      <div className="p-6">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto"></div>
+        <p className="text-center mt-4 text-gray-600">Loading faculty assignments...</p>
+      </div>
     )
   }
 
-  const getFacultyAssignmentCount = (facultyId: number) => {
-    return assignments.filter(assignment => assignment.facultyId === facultyId).length
+  if (error) {
+    return (
+      <div className="p-6">
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+          <strong className="font-bold">Error: </strong>
+          <span>{error}</span>
+        </div>
+        <button 
+          onClick={loadAllData}
+          className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+        >
+          Retry
+        </button>
+      </div>
+    )
   }
 
-  const renderAssignments = () => {
-    const crossDeptAssignments = getCrossDepartmentalAssignments()
+  const workloadStats = getWorkloadStats()
 
-    return (
-      <div className="space-y-6">
-        <div className="flex justify-between items-center">
-          <div>
-            <h3 className="text-xl font-bold text-gray-800">Faculty Assignment Overview</h3>
-            <p className="text-gray-600">Manage cross-departmental teaching assignments</p>
-          </div>
-          <button
-            onClick={() => setShowAssignForm(true)}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            Create New Assignment
-          </button>
+  return (
+    <div className="p-6 bg-gray-50 min-h-screen">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-800 mb-2">Faculty Assignment Management</h1>
+          <p className="text-gray-600">Manage faculty assignments to subjects and track workload</p>
         </div>
 
-        {/* Summary Cards */}
-        <div className="grid md:grid-cols-3 gap-6">
-          <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-blue-500">
-            <h4 className="text-lg font-semibold text-gray-800">Total Assignments</h4>
-            <p className="text-3xl font-bold text-blue-600">{assignments.length}</p>
-            <p className="text-sm text-gray-500">All faculty assignments</p>
-          </div>
-          <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-orange-500">
-            <h4 className="text-lg font-semibold text-gray-800">Cross-Department</h4>
-            <p className="text-3xl font-bold text-orange-600">{crossDeptAssignments.length}</p>
-            <p className="text-sm text-gray-500">Inter-departmental teaching</p>
-          </div>
-          <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-green-500">
-            <h4 className="text-lg font-semibold text-gray-800">Active Faculty</h4>
-            <p className="text-3xl font-bold text-green-600">{new Set(assignments.map(a => a.facultyId)).size}</p>
-            <p className="text-sm text-gray-500">Faculty with assignments</p>
-          </div>
-        </div>
-
-        {/* Cross-Departmental Assignments Table */}
-        <div className="bg-white rounded-xl shadow-lg p-6">
-          <h4 className="text-lg font-bold text-gray-800 mb-4">Cross-Departmental Teaching Assignments</h4>
-          {crossDeptAssignments.length === 0 ? (
-            <div className="text-center py-8">
-              <div className="text-gray-400 text-4xl mb-4">🔄</div>
-              <p className="text-gray-500">No cross-departmental assignments found</p>
+        {/* Action Bar */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
+          <div className="flex justify-between items-center">
+            <div className="flex space-x-1">
+              <button
+                onClick={() => setActiveTab('assignments')}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  activeTab === 'assignments'
+                    ? 'bg-green-600 text-white'
+                    : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                Current Assignments
+              </button>
+              <button
+                onClick={() => setActiveTab('workload')}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  activeTab === 'workload'
+                    ? 'bg-green-600 text-white'
+                    : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                Faculty Workload
+              </button>
+              <button
+                onClick={() => setActiveTab('faculty')}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  activeTab === 'faculty'
+                    ? 'bg-green-600 text-white'
+                    : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                Faculty Directory
+              </button>
             </div>
-          ) : (
+            <button
+              onClick={() => setShowAssignForm(true)}
+              className="bg-green-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-700 transition-colors flex items-center space-x-2"
+            >
+              <span>+</span>
+              <span>Assign Faculty</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Content */}
+        {activeTab === 'assignments' && (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h2 className="text-xl font-bold text-gray-800 mb-4">Current Faculty Assignments</h2>
+            
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-gray-200">
                     <th className="text-left py-3 text-gray-700">Faculty</th>
-                    <th className="text-left py-3 text-gray-700">Home Dept</th>
+                    <th className="text-left py-3 text-gray-700">Department</th>
                     <th className="text-left py-3 text-gray-700">Subject</th>
+                    <th className="text-left py-3 text-gray-700">Code</th>
                     <th className="text-left py-3 text-gray-700">Teaching Dept</th>
                     <th className="text-left py-3 text-gray-700">Section</th>
                     <th className="text-left py-3 text-gray-700">Credits</th>
-                    <th className="text-left py-3 text-gray-700">Semester</th>
+                    <th className="text-left py-3 text-gray-700">Role</th>
                     <th className="text-left py-3 text-gray-700">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {crossDeptAssignments.map((assignment) => (
+                  {assignments.map((assignment) => (
                     <tr key={assignment.id} className="border-b border-gray-100 hover:bg-gray-50">
-                      <td className="py-3">
-                        <div>
-                          <p className="font-medium text-gray-800">{assignment.facultyName}</p>
-                          <p className="text-sm text-gray-500">{faculty.find(f => f.id === assignment.facultyId)?.designation}</p>
-                        </div>
-                      </td>
-                      <td className="py-3">
-                        <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-medium">
-                          {assignment.facultyDepartment}
-                        </span>
-                      </td>
-                      <td className="py-3">
-                        <div>
-                          <p className="font-medium text-gray-800">{assignment.subjectName}</p>
-                          <p className="text-sm text-blue-600">{assignment.subjectCode}</p>
-                        </div>
-                      </td>
-                      <td className="py-3">
-                        <span className="bg-orange-100 text-orange-800 px-2 py-1 rounded text-xs font-medium">
-                          {assignment.teachingDepartment}
-                        </span>
-                      </td>
+                      <td className="py-3 font-medium text-gray-800">{assignment.facultyName}</td>
+                      <td className="py-3 text-gray-600">{assignment.facultyDepartment}</td>
+                      <td className="py-3">{assignment.subjectName}</td>
+                      <td className="py-3 font-mono text-blue-600">{assignment.subjectCode}</td>
+                      <td className="py-3 text-gray-600">{assignment.teachingDepartment}</td>
                       <td className="py-3">
                         <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">
                           {assignment.section}
                         </span>
                       </td>
-                      <td className="py-3 font-medium">{assignment.credits}</td>
+                      <td className="py-3">{assignment.credits}</td>
                       <td className="py-3">
-                        <div className="text-sm">
-                          <p className="font-medium">{assignment.semester}</p>
-                          <p className="text-gray-500">{assignment.academicYear}</p>
+                        <div className="flex flex-col space-y-1">
+                          {assignment.isPrimary && (
+                            <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs">Primary</span>
+                          )}
+                          {assignment.isExternal && (
+                            <span className="bg-orange-100 text-orange-800 px-2 py-1 rounded text-xs">External</span>
+                          )}
+                          {!assignment.isPrimary && !assignment.isExternal && (
+                            <span className="bg-gray-100 text-gray-800 px-2 py-1 rounded text-xs">Regular</span>
+                          )}
                         </div>
                       </td>
                       <td className="py-3">
-                        <div className="flex gap-1">
-                          <button className="bg-blue-500 text-white px-2 py-1 rounded text-xs hover:bg-blue-600">
-                            Edit
-                          </button>
-                          <button className="bg-red-500 text-white px-2 py-1 rounded text-xs hover:bg-red-600">
-                            Remove
-                          </button>
-                        </div>
+                        <button
+                          onClick={() => handleRemoveAssignment(assignment)}
+                          className="text-red-600 hover:text-red-800 text-sm"
+                        >
+                          Remove
+                        </button>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+              
+              {assignments.length === 0 && (
+                <div className="text-center py-8 text-gray-500">
+                  No faculty assignments found
+                </div>
+              )}
             </div>
-          )}
-        </div>
-      </div>
-    )
-  }
-
-  const renderFacultyProfiles = () => (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h3 className="text-xl font-bold text-gray-800">Faculty Profiles & Specializations</h3>
-      </div>
-
-      <div className="grid md:grid-cols-2 gap-6">
-        {faculty.map((member) => {
-          const assignmentCount = getFacultyAssignmentCount(member.id)
-          const crossDeptCount = assignments.filter(a => 
-            a.facultyId === member.id && a.facultyDepartment !== a.teachingDepartment
-          ).length
-
-          return (
-            <div key={member.id} className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
-              <div className="flex justify-between items-start mb-4">
-                <div>
-                  <h4 className="text-lg font-bold text-gray-800">{member.name}</h4>
-                  <p className="text-sm text-gray-600">{member.designation}</p>
-                  <p className="text-sm text-blue-600">{member.department}</p>
-                </div>
-                <div className="text-right">
-                  <div className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs font-medium mb-1">
-                    {assignmentCount} assignments
-                  </div>
-                  {crossDeptCount > 0 && (
-                    <div className="bg-orange-100 text-orange-800 px-2 py-1 rounded text-xs font-medium">
-                      {crossDeptCount} cross-dept
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <div>
-                  <p className="text-sm font-medium text-gray-700 mb-1">Experience</p>
-                  <p className="text-sm text-gray-600">{member.experience} years</p>
-                </div>
-
-                <div>
-                  <p className="text-sm font-medium text-gray-700 mb-1">Specializations</p>
-                  <div className="flex flex-wrap gap-1">
-                    {member.specialization.map((spec, index) => (
-                      <span key={index} className="bg-gray-100 text-gray-700 px-2 py-1 rounded text-xs">
-                        {spec}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <p className="text-sm font-medium text-gray-700 mb-1">Contact</p>
-                  <p className="text-sm text-gray-600">{member.email}</p>
-                  <p className="text-sm text-gray-600">{member.phone}</p>
-                </div>
-
-                {/* Show current assignments */}
-                <div>
-                  <p className="text-sm font-medium text-gray-700 mb-1">Current Assignments</p>
-                  {assignments.filter(a => a.facultyId === member.id).length === 0 ? (
-                    <p className="text-sm text-gray-500">No current assignments</p>
-                  ) : (
-                    <div className="space-y-1">
-                      {assignments.filter(a => a.facultyId === member.id).map((assignment) => (
-                        <div key={assignment.id} className="text-xs">
-                          <span className="font-medium">{assignment.subjectName}</span>
-                          <span className="text-gray-500"> in </span>
-                          <span className={`font-medium ${
-                            assignment.facultyDepartment !== assignment.teachingDepartment
-                              ? 'text-orange-600'
-                              : 'text-green-600'
-                          }`}>
-                            {assignment.teachingDepartment}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-
-  return (
-    <div className="p-6">
-      {/* Header */}
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-800 mb-2">Faculty Assignment Management</h2>
-        <p className="text-gray-600">Manage cross-departmental faculty teaching assignments and expertise sharing</p>
-      </div>
-
-      {/* Navigation Tabs */}
-      <div className="flex space-x-4 mb-6 border-b">
-        <button
-          onClick={() => setActiveTab('assignments')}
-          className={`pb-2 px-1 border-b-2 font-medium ${
-            activeTab === 'assignments'
-              ? 'border-blue-500 text-blue-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          📋 Assignments
-        </button>
-        <button
-          onClick={() => setActiveTab('faculty')}
-          className={`pb-2 px-1 border-b-2 font-medium ${
-            activeTab === 'faculty'
-              ? 'border-blue-500 text-blue-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          👨‍🏫 Faculty Profiles
-        </button>
-      </div>
-
-      {/* Content */}
-      {activeTab === 'assignments' && renderAssignments()}
-      {activeTab === 'faculty' && renderFacultyProfiles()}
-
-      {/* Add Assignment Modal */}
-      {showAssignForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
-            <h3 className="text-xl font-bold mb-4 text-black">Create New Faculty Assignment</h3>
-            
-            <form onSubmit={handleAddAssignment} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Select Faculty</label>
-                <select
-                  value={newAssignment.facultyId}
-                  onChange={(e) => setNewAssignment({...newAssignment, facultyId: parseInt(e.target.value)})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-black"
-                  required
-                >
-                  <option value={0}>Choose Faculty Member</option>
-                  {faculty.map((member) => (
-                    <option key={member.id} value={member.id}>
-                      {member.name} ({member.department})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Subject Name</label>
-                <input
-                  type="text"
-                  value={newAssignment.subjectName}
-                  onChange={(e) => setNewAssignment({...newAssignment, subjectName: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-black"
-                  placeholder="e.g., Business Analytics"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Subject Code</label>
-                <input
-                  type="text"
-                  value={newAssignment.subjectCode}
-                  onChange={(e) => setNewAssignment({...newAssignment, subjectCode: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-black"
-                  placeholder="e.g., BA201"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Teaching Department</label>
-                <select
-                  value={newAssignment.teachingDepartment}
-                  onChange={(e) => setNewAssignment({...newAssignment, teachingDepartment: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-black"
-                  required
-                >
-                  <option value="">Select Department</option>
-                  {departments.map((dept) => (
-                    <option key={dept} value={dept}>{dept}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Section</label>
-                  <select
-                    value={newAssignment.section}
-                    onChange={(e) => setNewAssignment({...newAssignment, section: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-black"
-                    required
-                  >
-                    <option value="">Select Section</option>
-                    {sections.map((section) => (
-                      <option key={section} value={section}>{section}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Credits</label>
-                  <input
-                    type="number"
-                    value={newAssignment.credits}
-                    onChange={(e) => setNewAssignment({...newAssignment, credits: parseInt(e.target.value)})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-black"
-                    min="1"
-                    max="6"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Semester</label>
-                  <select
-                    value={newAssignment.semester}
-                    onChange={(e) => setNewAssignment({...newAssignment, semester: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-black"
-                    required
-                  >
-                    {semesters.map((semester) => (
-                      <option key={semester} value={semester}>{semester}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Academic Year</label>
-                  <input
-                    type="text"
-                    value={newAssignment.academicYear}
-                    onChange={(e) => setNewAssignment({...newAssignment, academicYear: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-black"
-                    placeholder="e.g., 2024-25"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="flex gap-2 pt-4">
-                <button
-                  type="submit"
-                  className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  Create Assignment
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowAssignForm(false)
-                    resetForm()
-                  }}
-                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
           </div>
-        </div>
-      )}
+        )}
+
+        {activeTab === 'workload' && (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h2 className="text-xl font-bold text-gray-800 mb-4">Faculty Workload Overview</h2>
+            
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-200">
+                    <th className="text-left py-3 text-gray-700">Faculty</th>
+                    <th className="text-left py-3 text-gray-700">Department</th>
+                    <th className="text-left py-3 text-gray-700">Designation</th>
+                    <th className="text-left py-3 text-gray-700">Total Subjects</th>
+                    <th className="text-left py-3 text-gray-700">Total Credits</th>
+                    <th className="text-left py-3 text-gray-700">Workload Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {workloadStats.map((stat) => (
+                    <tr key={stat.faculty.id} className="border-b border-gray-100 hover:bg-gray-50">
+                      <td className="py-3 font-medium text-gray-800">{stat.faculty.name}</td>
+                      <td className="py-3 text-gray-600">{stat.faculty.department}</td>
+                      <td className="py-3 text-gray-600">{stat.faculty.designation}</td>
+                      <td className="py-3">{stat.subjects}</td>
+                      <td className="py-3">{stat.credits}</td>
+                      <td className="py-3">
+                        <span className={`px-2 py-1 rounded text-xs font-medium ${
+                          stat.credits <= 12 ? 'bg-green-100 text-green-800' :
+                          stat.credits <= 18 ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-red-100 text-red-800'
+                        }`}>
+                          {stat.credits <= 12 ? 'Light' : stat.credits <= 18 ? 'Normal' : 'Heavy'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              
+              {workloadStats.length === 0 && (
+                <div className="text-center py-8 text-gray-500">
+                  No workload data available
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'faculty' && (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h2 className="text-xl font-bold text-gray-800 mb-4">Faculty Directory</h2>
+            
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {faculty.map((fac) => (
+                <div key={fac.id} className="border border-gray-200 rounded-lg p-4">
+                  <h3 className="font-medium text-gray-800">{fac.name}</h3>
+                  <p className="text-sm text-gray-600">{fac.designation}</p>
+                  <p className="text-sm text-gray-600">{fac.department}</p>
+                  <p className="text-sm text-blue-600">{fac.email}</p>
+                  {fac.specialization.length > 0 && (
+                    <div className="mt-2">
+                      <p className="text-xs text-gray-500">Specializations:</p>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {fac.specialization.map((spec, index) => (
+                          <span key={index} className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">
+                            {spec}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <p className="text-xs text-gray-500 mt-2">Experience: {fac.experience} years</p>
+                </div>
+              ))}
+            </div>
+            
+            {faculty.length === 0 && (
+              <div className="text-center py-8 text-gray-500">
+                No faculty members found
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Assignment Form Modal */}
+        {showAssignForm && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 w-full max-w-md">
+              <h2 className="text-2xl font-bold text-gray-800 mb-6">Assign Faculty to Subject</h2>
+
+              <form onSubmit={handleAssignFaculty} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Faculty</label>
+                  <select
+                    value={newAssignment.facultyId}
+                    onChange={(e) => setNewAssignment({...newAssignment, facultyId: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-black"
+                    required
+                  >
+                    <option value="">Select Faculty</option>
+                    {faculty.map(fac => (
+                      <option key={fac.id} value={fac.id}>
+                        {fac.name} - {fac.department}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Subject</label>
+                  <select
+                    value={newAssignment.subjectId}
+                    onChange={(e) => setNewAssignment({...newAssignment, subjectId: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-black"
+                    required
+                  >
+                    <option value="">Select Subject</option>
+                    {subjects.map(subject => (
+                      <option key={subject.id} value={subject.id}>
+                        {subject.code} - {subject.name} ({subject.department})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={newAssignment.isPrimary}
+                      onChange={(e) => setNewAssignment({...newAssignment, isPrimary: e.target.checked})}
+                      className="mr-2"
+                    />
+                    <span className="text-sm text-gray-700">Primary Faculty</span>
+                  </label>
+
+                  <label className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={newAssignment.isExternal}
+                      onChange={(e) => setNewAssignment({...newAssignment, isExternal: e.target.checked})}
+                      className="mr-2"
+                    />
+                    <span className="text-sm text-gray-700">External Faculty</span>
+                  </label>
+                </div>
+
+                <div className="flex space-x-4 pt-6">
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="bg-green-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-green-700 transition-colors disabled:opacity-50"
+                  >
+                    {loading ? 'Assigning...' : 'Assign Faculty'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAssignForm(false)
+                      resetForm()
+                    }}
+                    className="bg-gray-300 text-gray-700 px-6 py-2 rounded-lg font-medium hover:bg-gray-400 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

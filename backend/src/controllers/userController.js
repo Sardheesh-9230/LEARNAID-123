@@ -102,6 +102,17 @@ const createUser = async (req, res) => {
       });
     }
 
+    // Check if trying to create Admin when one already exists
+    if (role === 'Admin') {
+      const existingAdmin = await User.findOne({ role: 'Admin' });
+      if (existingAdmin) {
+        return res.status(400).json({
+          success: false,
+          message: 'Admin already exists. Only one admin is allowed in the system.'
+        });
+      }
+    }
+
     // Verify department exists
     const departmentDoc = await Department.findById(department);
     if (!departmentDoc) {
@@ -138,6 +149,9 @@ const createUser = async (req, res) => {
         userData.guardianName = guardianName;
         userData.guardianPhone = guardianPhone;
       }
+    } else {
+      // For non-student roles, explicitly set studentId to null to avoid validation issues
+      userData.studentId = null;
     }
 
     if (role === 'Faculty') {
@@ -153,6 +167,9 @@ const createUser = async (req, res) => {
       userData.specialization = specialization || [];
     }
 
+    // Debug log to see what data is being sent
+    console.log('Creating user with data:', JSON.stringify(userData, null, 2));
+    
     // Create user
     user = await User.create(userData);
 
@@ -244,7 +261,13 @@ const updateUser = async (req, res) => {
       });
     }
 
-    const allowedFields = ['name', 'email', 'phone', 'address', 'status'];
+    const allowedFields = [
+      'name', 'email', 'phone', 'address', 'status',
+      // Faculty-specific fields
+      'designation', 'qualification', 'experience', 'specialization',
+      // Student-specific fields  
+      'section', 'semester', 'batch'
+    ];
     const updates = {};
 
     // Only allow updating specific fields
@@ -259,6 +282,41 @@ const updateUser = async (req, res) => {
         success: false,
         message: 'No valid fields to update'
       });
+    }
+
+    // Get current user to check role-based field restrictions
+    const currentUser = await User.findById(req.params.id);
+    if (!currentUser) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Role-based field validation
+    const facultyFields = ['designation', 'qualification', 'experience', 'specialization'];
+    const studentFields = ['section', 'semester', 'batch'];
+    
+    // Check if trying to update faculty fields for non-faculty user
+    if (currentUser.role !== 'Faculty') {
+      const invalidFacultyFields = facultyFields.filter(field => updates[field] !== undefined);
+      if (invalidFacultyFields.length > 0) {
+        return res.status(400).json({
+          success: false,
+          message: `Cannot update faculty fields (${invalidFacultyFields.join(', ')}) for non-faculty user`
+        });
+      }
+    }
+
+    // Check if trying to update student fields for non-student user
+    if (currentUser.role !== 'Student') {
+      const invalidStudentFields = studentFields.filter(field => updates[field] !== undefined);
+      if (invalidStudentFields.length > 0) {
+        return res.status(400).json({
+          success: false,
+          message: `Cannot update student fields (${invalidStudentFields.join(', ')}) for non-student user`
+        });
+      }
     }
 
     // Check if email is being updated and if it's unique
