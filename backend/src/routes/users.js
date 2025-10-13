@@ -105,7 +105,7 @@ const createUserValidation = [
 const updateUserValidation = [
   body('name').optional().trim().isLength({ min: 2, max: 100 }).withMessage('Name must be between 2 and 100 characters'),
   body('email').optional().isEmail().normalizeEmail().withMessage('Valid email is required'),
-  body('phone').optional({ nullable: true, checkFalsy: true }).matches(/^\+?[1-9]\d{9,14}$/).withMessage('Valid phone number is required'),
+  body('phone').optional({ nullable: true, checkFalsy: true }).matches(/^\+?[1-9][\d\s]{9,14}$/).withMessage('Valid phone number is required'),
   body('address').optional().trim().isLength({ max: 500 }).withMessage('Address must be less than 500 characters'),
   body('status').optional().isIn(['Active', 'Inactive']).withMessage('Invalid status'),
   // Role-specific field validations
@@ -115,7 +115,14 @@ const updateUserValidation = [
   body('specialization').optional().isArray().withMessage('Specialization must be an array'),
   body('section').optional().isIn(['A', 'B', 'C']).withMessage('Section must be A, B, or C'),
   body('semester').optional().isInt({ min: 1, max: 8 }).withMessage('Semester must be between 1 and 8'),
-  body('batch').optional().matches(/^20\d{2}$/).withMessage('Batch must be a valid year (e.g., 2024)')
+  body('batch').optional().matches(/^20\d{2}$/).withMessage('Batch must be a valid year (e.g., 2024)'),
+  // Additional student fields
+  body('guardianName').optional({ nullable: true, checkFalsy: true }).trim().isLength({ min: 2, max: 100 }).withMessage('Guardian name must be between 2 and 100 characters'),
+  body('guardianPhone').optional({ nullable: true, checkFalsy: true }).matches(/^\+?[1-9][\d\s]{9,14}$/).withMessage('Valid guardian phone number is required'),
+  body('studentId').optional().trim().isLength({ min: 3, max: 20 }).withMessage('Student ID must be between 3 and 20 characters'),
+  body('gpa').optional().isFloat({ min: 0, max: 10 }).withMessage('GPA must be between 0 and 10'),
+  // Additional faculty fields
+  body('employeeId').optional().trim().isLength({ min: 3, max: 20 }).withMessage('Employee ID must be between 3 and 20 characters')
 ];
 
 const allocateSubjectsValidation = [
@@ -432,6 +439,45 @@ router.post('/:id/allocate-subjects', protect, authorize('Admin', 'Faculty'), al
  *         description: Faculty not found
  */
 router.post('/:id/assign-subjects', protect, authorize('Admin'), allocateSubjectsValidation, userController.assignSubjects);
+
+/**
+ * @swagger
+ * /api/users/{id}/unassign-subjects:
+ *   delete:
+ *     summary: Remove subjects from a faculty member
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Faculty ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - subjectIds
+ *             properties:
+ *               subjectIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: Array of subject IDs to unassign
+ *     responses:
+ *       200:
+ *         description: Subjects unassigned successfully
+ *       400:
+ *         description: Invalid request
+ *       404:
+ *         description: Faculty not found
+ */
+router.delete('/:id/unassign-subjects', protect, authorize('Admin'), allocateSubjectsValidation, userController.unassignSubjects);
 
 /**
  * @swagger

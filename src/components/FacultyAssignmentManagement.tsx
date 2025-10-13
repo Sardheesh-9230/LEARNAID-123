@@ -192,7 +192,7 @@ export default function FacultyAssignmentManagement() {
         isPrimary: newAssignment.isPrimary
       }
 
-      const response = await apiService.assignFacultyToSubject(newAssignment.subjectId, facultyData)
+      const response = await apiService.assignFacultyToSubject(newAssignment.facultyId, { subjectIds: [newAssignment.subjectId] })
       if (response.success) {
         await loadAllData() // Reload data
         resetForm()

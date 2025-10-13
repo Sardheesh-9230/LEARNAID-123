@@ -323,10 +323,10 @@ class ApiService {
   }
 
   // Assign faculty to subject
-  async assignFacultyToSubject(subjectId, facultyData) {
-    return this.makeRequest(`/subjects/${subjectId}/faculty`, {
+  async assignFacultyToSubject(facultyId, subjectData) {
+    return this.makeRequest(`/users/${facultyId}/assign-subjects`, {
       method: 'POST',
-      body: JSON.stringify(facultyData),
+      body: JSON.stringify(subjectData),
     });
   }
 
@@ -429,6 +429,7 @@ class ApiService {
       dateJoined: user.createdAt || new Date().toISOString(),
       // Student-specific fields
       studentId: user.studentId,
+      year: user.year,
       semester: user.semester,
       gpa: user.gpa,
       guardianName: user.guardianName,

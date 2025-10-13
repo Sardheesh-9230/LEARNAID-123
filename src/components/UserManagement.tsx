@@ -21,6 +21,7 @@ interface User {
   guardianPhone?: string
   // Student-specific fields
   studentId?: string
+  year?: string
   semester?: number
   gpa?: number
   enrolledSubjects?: string[]
@@ -56,29 +57,21 @@ export default function UserManagement() {
   const [newUser, setNewUser] = useState({
     name: '',
     email: '',
+    password: '',
     role: 'Student' as 'Student' | 'Faculty' | 'Staff' | 'Admin',
     department: '',
-    section: '',
-    batch: '',
     phone: '',
-    address: '',
-    // Faculty fields
-    employeeId: '',
+    // Student specific fields
+    batch: '',
+    section: '',
+    // Faculty specific fields
     designation: '',
     qualification: '',
     experience: 0,
-    specialization: '',
-    // Student fields
-    studentId: '',
-    semester: 1,
-    gpa: 0,
-    guardianName: '',
-    guardianPhone: ''
+    specialization: [] as string[]
   })
 
-  const sections = ["A", "B", "C", "D", "E"]
-  const batches = ["2024", "2023", "2022", "2021"]
-  const designations = ["Assistant Professor", "Associate Professor", "Professor", "Lecturer", "Head of Department"]
+  const designations = ["Assistant Professor", "Associate Professor", "Professor", "Lecturer"]
   const qualifications = [
     "Ph.D",
     "M.Tech",
@@ -92,7 +85,7 @@ export default function UserManagement() {
   ]
 
   // Generate ID based on department and role
-  const generateUserId = (departmentId: string, role: string, batch?: string) => {
+  const generateUserId = (departmentId: string, role: string) => {
     const dept = departments.find(d => d.id === departmentId)
     const deptCode = dept?.code || 'DEPT'
     const year = new Date().getFullYear().toString().slice(-2)
@@ -101,7 +94,7 @@ export default function UserManagement() {
     let prefix = ''
     switch (role) {
       case 'Student':
-        prefix = `${deptCode}${batch || year}S`
+        prefix = `${deptCode}${year}S`
         break
       case 'Faculty':
         prefix = `${deptCode}F`
@@ -175,6 +168,7 @@ export default function UserManagement() {
           status: user.status || 'Active',
           // Student fields
           studentId: user.studentId || '',
+          year: user.year || '',
           semester: user.semester || 1,
           gpa: user.gpa || 0,
           guardianName: user.guardianName || '',
@@ -245,34 +239,33 @@ export default function UserManagement() {
       }
       
       // Auto-generate user ID based on department and role
-      const generatedId = generateUserId(newUser.department, newUser.role, newUser.batch)
+      const generatedId = generateUserId(newUser.department, newUser.role)
       
       const userData: any = {
         name: newUser.name,
         email: newUser.email,
-        password: 'TempPass123!', // Default password for all new users
+        password: newUser.password || 'TempPass123!', // Use provided password or default
         role: newUser.role,
         department: newUser.department,
+        phone: newUser.phone,
         status: 'Active'
-      }
-
-      // Add optional fields only if they have values
-      if (newUser.phone && newUser.phone.trim()) {
-        userData.phone = newUser.phone.trim()
-      }
-      if (newUser.address && newUser.address.trim()) {
-        userData.address = newUser.address.trim()
       }
 
       // Add role-specific fields
       if (newUser.role === 'Student') {
-        userData.section = newUser.section
-        userData.batch = newUser.batch
+        // Validate batch is required
+        if (!newUser.batch || !newUser.batch.trim()) {
+          setError('Batch year is required for students')
+          setLoading(false)
+          return
+        }
+        
         userData.studentId = generatedId // Auto-generated student ID
-        userData.semester = newUser.semester
-        userData.guardianName = newUser.guardianName
-        userData.guardianPhone = newUser.guardianPhone
-        if (newUser.gpa > 0) userData.gpa = newUser.gpa
+        userData.batch = newUser.batch
+        // Section is optional - add it only if provided
+        if (newUser.section) {
+          userData.section = newUser.section
+        }
       } else if (newUser.role === 'Faculty') {
         // Validate required Faculty fields
         if (!newUser.designation || !newUser.designation.trim()) {
@@ -295,9 +288,6 @@ export default function UserManagement() {
         userData.designation = newUser.designation.trim()
         userData.qualification = newUser.qualification.trim()
         userData.experience = newUser.experience
-        if (newUser.specialization && newUser.specialization.trim()) {
-          userData.specialization = newUser.specialization.split(',').map(s => s.trim())
-        }
       } else if (newUser.role === 'Staff') {
         userData.employeeId = generatedId // Auto-generated employee ID
         userData.designation = newUser.designation
@@ -350,24 +340,18 @@ export default function UserManagement() {
     setNewUser({
       name: user.name,
       email: user.email,
+      password: '', // Don't show existing password
       role: user.role,
       department: user.departmentId,
-      section: user.section || '',
-      batch: user.batch || '',
       phone: user.phone,
-      address: user.address,
+      // Student fields
+      batch: user.batch || '',
+      section: user.section || '',
       // Faculty fields
-      employeeId: user.employeeId || '',
       designation: user.designation || '',
       qualification: user.qualification || '',
       experience: user.experience || 0,
-      specialization: user.specialization?.join(', ') || '',
-      // Student fields
-      studentId: user.studentId || '',
-      semester: user.semester || 1,
-      gpa: user.gpa || 0,
-      guardianName: user.guardianName || '',
-      guardianPhone: user.guardianPhone || ''
+      specialization: user.specialization || []
     })
     setShowAddForm(true)
   }
@@ -382,29 +366,14 @@ export default function UserManagement() {
       const userData: any = {
         name: newUser.name,
         email: newUser.email,
-        role: newUser.role,
-        department: newUser.department,
-        phone: newUser.phone,
-        address: newUser.address
+        phone: newUser.phone
       }
 
-      // Add role-specific fields
-      if (newUser.role === 'Student') {
-        userData.section = newUser.section
-        userData.batch = newUser.batch
-        userData.studentId = newUser.studentId
-        userData.semester = newUser.semester
-        userData.guardianName = newUser.guardianName
-        userData.guardianPhone = newUser.guardianPhone
-        if (newUser.gpa > 0) userData.gpa = newUser.gpa
-      } else if (newUser.role === 'Faculty') {
-        userData.employeeId = newUser.employeeId
+      // Add role-specific fields for Faculty only (Students don't have updatable role-specific fields)
+      if (newUser.role === 'Faculty') {
         userData.designation = newUser.designation
         userData.qualification = newUser.qualification
         userData.experience = newUser.experience
-        if (newUser.specialization) {
-          userData.specialization = newUser.specialization.split(',').map(s => s.trim())
-        }
       }
 
       const response = await apiService.updateUser(editingUser.id, userData)
@@ -449,22 +418,18 @@ export default function UserManagement() {
     setNewUser({
       name: '',
       email: '',
+      password: '',
       role: 'Student',
       department: '',
-      section: '',
-      batch: '',
       phone: '',
-      address: '',
-      employeeId: '',
+      // Student fields
+      batch: '',
+      section: '',
+      // Faculty fields
       designation: '',
       qualification: '',
       experience: 0,
-      specialization: '',
-      studentId: '',
-      semester: 1,
-      gpa: 0,
-      guardianName: '',
-      guardianPhone: ''
+      specialization: []
     })
     setEditingUser(null)
   }
@@ -646,7 +611,7 @@ export default function UserManagement() {
                   <th className="text-left py-3 text-gray-700">Email</th>
                   <th className="text-left py-3 text-gray-700">Role</th>
                   <th className="text-left py-3 text-gray-700">Department</th>
-                  <th className="text-left py-3 text-gray-700">ID/Section</th>
+                  <th className="text-left py-3 text-gray-700">ID/Year/Section</th>
                   <th className="text-left py-3 text-gray-700">Phone</th>
                   <th className="text-left py-3 text-gray-700">Status</th>
                   <th className="text-left py-3 text-gray-700">Actions</th>
@@ -670,7 +635,7 @@ export default function UserManagement() {
                     <td className="py-3 text-gray-600">{user.department}</td>
                     <td className="py-3 text-gray-600">
                       {user.role === 'Student' 
-                        ? `${user.studentId || 'N/A'} / ${user.section}` 
+                        ? `${user.studentId || 'N/A'} / ${user.year || 'N/A'} / ${user.section || 'N/A'}` 
                         : user.employeeId || 'N/A'
                       }
                     </td>
@@ -806,13 +771,14 @@ export default function UserManagement() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
                     <input
-                      type="text"
-                      value={newUser.address}
-                      onChange={(e) => setNewUser({...newUser, address: e.target.value})}
+                      type="password"
+                      value={newUser.password}
+                      onChange={(e) => setNewUser({...newUser, password: e.target.value})}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-black"
-                      required
+                      placeholder={editingUser ? "Leave blank to keep current password" : "Enter password"}
+                      required={!editingUser}
                     />
                   </div>
                 </div>
@@ -820,80 +786,52 @@ export default function UserManagement() {
                 {/* Role-specific fields */}
                 {newUser.role === 'Student' && (
                   <>
-                    <div className="grid md:grid-cols-3 gap-4">
+                    <div className="grid md:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Section</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Batch Year <span className="text-red-500">*</span>
+                        </label>
                         <select
-                          value={newUser.section}
-                          onChange={(e) => setNewUser({...newUser, section: e.target.value})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-black"
-                          required
-                        >
-                          <option value="">Select Section</option>
-                          {sections.map(section => (
-                            <option key={section} value={section}>{section}</option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Batch</label>
-                        <select
-                          value={newUser.batch}
+                          value={newUser.batch || ''}
                           onChange={(e) => setNewUser({...newUser, batch: e.target.value})}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-black"
                           required
                         >
                           <option value="">Select Batch Year</option>
-                          {batches.map(batch => (
-                            <option key={batch} value={batch}>{batch}</option>
-                          ))}
+                          <option value="2022">2022 (4th Year)</option>
+                          <option value="2023">2023 (3rd Year)</option>
+                          <option value="2024">2024 (2nd Year)</option>
+                          <option value="2025">2025 (1st Year)</option>
                         </select>
                       </div>
-
+                      
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Semester</label>
-                        <input
-                          type="number"
-                          min="1"
-                          max="8"
-                          value={newUser.semester}
-                          onChange={(e) => setNewUser({...newUser, semester: parseInt(e.target.value)})}
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Section <span className="text-gray-400">(Optional - assigned during subject allocation)</span>
+                        </label>
+                        <select
+                          value={newUser.section || ''}
+                          onChange={(e) => setNewUser({...newUser, section: e.target.value})}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-black"
-                          required
-                        />
+                        >
+                          <option value="">No Section (Assigned Later)</option>
+                          <option value="A">Section A</option>
+                          <option value="B">Section B</option>
+                          <option value="C">Section C</option>
+                        </select>
                       </div>
                     </div>
-
+                    
                     <div className="bg-green-50 p-3 rounded-lg">
                       <p className="text-sm text-green-700">
                         <strong>Student ID will be auto-generated</strong> based on department and batch year
                       </p>
-                    </div>
-
-                    <div className="grid md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Guardian Name</label>
-                        <input
-                          type="text"
-                          value={newUser.guardianName}
-                          onChange={(e) => setNewUser({...newUser, guardianName: e.target.value})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-black"
-                          required
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Guardian Phone</label>
-                        <input
-                          type="text"
-                          value={newUser.guardianPhone}
-                          onChange={(e) => setNewUser({...newUser, guardianPhone: formatPhoneNumber(e.target.value)})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-black"
-                          placeholder="+91 XXXXX XXXXX"
-                          required
-                        />
-                      </div>
+                      <p className="text-sm text-green-600 mt-1">
+                        Section assignment is optional during creation and will typically be done during subject allocation.
+                      </p>
+                      <p className="text-sm text-green-600 mt-1">
+                        Guardian information will be added by students themselves when they update their profile.
+                      </p>
                     </div>
                   </>
                 )}
@@ -946,19 +884,26 @@ export default function UserManagement() {
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Specialization (comma-separated)</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Specialization</label>
                       <input
                         type="text"
-                        value={newUser.specialization}
-                        onChange={(e) => setNewUser({...newUser, specialization: e.target.value})}
+                        value={newUser.specialization?.join(', ') || ''}
+                        onChange={(e) => setNewUser({
+                          ...newUser, 
+                          specialization: e.target.value.split(',').map(s => s.trim()).filter(s => s.length > 0)
+                        })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-black"
-                        placeholder="Machine Learning, Data Science, AI"
+                        placeholder="Enter specializations separated by commas (e.g., AI, Machine Learning, Data Science)"
                       />
+                      <p className="text-xs text-gray-500 mt-1">Separate multiple specializations with commas</p>
                     </div>
 
                     <div className="bg-blue-50 p-3 rounded-lg">
                       <p className="text-sm text-blue-700">
                         <strong>Employee ID will be auto-generated</strong> based on department code
+                      </p>
+                      <p className="text-sm text-blue-600 mt-1">
+                        Required fields: Name, Designation, Phone, Department, Qualification, Experience, Specialization
                       </p>
                     </div>
                   </>

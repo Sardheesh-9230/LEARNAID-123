@@ -28,7 +28,7 @@ const getSubjects = async (req, res) => {
 
     const subjects = await Subject.find(filter)
       .populate('department', 'name code')
-      .populate('faculty', 'name email designation')
+      .populate('faculty.user', 'name email designation')
       .populate('prerequisite', 'name code')
       .sort({ semester: 1, name: 1 });
 
@@ -188,7 +188,7 @@ const getSubjectById = async (req, res) => {
   try {
     const subject = await Subject.findById(req.params.id)
       .populate('department', 'name code')
-      .populate('faculty', 'name email designation')
+      .populate('faculty.user', 'name email designation')
       .populate('prerequisite', 'name code credits semester');
 
     if (!subject) {

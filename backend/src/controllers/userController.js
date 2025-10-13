@@ -90,7 +90,7 @@ const createUser = async (req, res) => {
     const {
       name, email, password, role, department, phone, address,
       section, batch, designation, qualification, experience,
-      specialization, guardianName, guardianPhone
+      specialization, guardianName, guardianPhone, studentId, employeeId
     } = req.body;
 
     // Check if user already exists
@@ -135,13 +135,16 @@ const createUser = async (req, res) => {
 
     // Add role-specific fields
     if (role === 'Student') {
-      if (!section || !batch) {
+      if (!batch) {
         return res.status(400).json({
           success: false,
-          message: 'Section and batch are required for students'
+          message: 'Batch is required for students'
         });
       }
-      userData.section = section;
+      // Section is optional during creation - will be assigned during subject allocation
+      if (section) {
+        userData.section = section;
+      }
       userData.batch = batch;
       userData.semester = 1; // Default to first semester
       
@@ -149,9 +152,16 @@ const createUser = async (req, res) => {
         userData.guardianName = guardianName;
         userData.guardianPhone = guardianPhone;
       }
-    } else {
-      // For non-student roles, explicitly set studentId to null to avoid validation issues
-      userData.studentId = null;
+      
+      // Add studentId if provided
+      if (studentId) {
+        userData.studentId = studentId;
+      }
+    }
+
+    // Add employeeId for Faculty, Staff, and Admin
+    if (['Faculty', 'Staff', 'Admin'].includes(role) && employeeId) {
+      userData.employeeId = employeeId;
     }
 
     if (role === 'Faculty') {
@@ -165,6 +175,21 @@ const createUser = async (req, res) => {
       userData.qualification = qualification;
       userData.experience = experience;
       userData.specialization = specialization || [];
+    }
+
+    if (role === 'Staff') {
+      if (!designation || !qualification) {
+        return res.status(400).json({
+          success: false,
+          message: 'Designation and qualification are required for staff'
+        });
+      }
+      userData.designation = designation;
+      userData.qualification = qualification;
+      // Experience is optional for Staff
+      if (experience !== undefined) {
+        userData.experience = experience;
+      }
     }
 
     // Debug log to see what data is being sent
@@ -254,6 +279,8 @@ const updateUser = async (req, res) => {
     // Validate input
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+      console.log('User update validation errors:', errors.array());
+      console.log('Request body:', req.body);
       return res.status(400).json({
         success: false,
         message: 'Validation failed',
@@ -264,9 +291,9 @@ const updateUser = async (req, res) => {
     const allowedFields = [
       'name', 'email', 'phone', 'address', 'status',
       // Faculty-specific fields
-      'designation', 'qualification', 'experience', 'specialization',
+      'designation', 'qualification', 'experience', 'specialization', 'employeeId',
       // Student-specific fields  
-      'section', 'semester', 'batch'
+      'section', 'semester', 'batch', 'year', 'guardianName', 'guardianPhone', 'studentId', 'gpa'
     ];
     const updates = {};
 
@@ -294,16 +321,17 @@ const updateUser = async (req, res) => {
     }
 
     // Role-based field validation
-    const facultyFields = ['designation', 'qualification', 'experience', 'specialization'];
-    const studentFields = ['section', 'semester', 'batch'];
+    const facultyFields = ['designation', 'qualification', 'experience', 'specialization', 'employeeId'];
+    const studentFields = ['section', 'semester', 'batch', 'year', 'guardianName', 'guardianPhone', 'studentId', 'gpa'];
+    const staffFields = ['designation', 'qualification', 'experience', 'employeeId'];
     
-    // Check if trying to update faculty fields for non-faculty user
-    if (currentUser.role !== 'Faculty') {
-      const invalidFacultyFields = facultyFields.filter(field => updates[field] !== undefined);
-      if (invalidFacultyFields.length > 0) {
+    // Check if trying to update faculty/staff fields for non-faculty/staff user
+    if (!['Faculty', 'Staff', 'Admin'].includes(currentUser.role)) {
+      const invalidEmployeeFields = facultyFields.filter(field => updates[field] !== undefined);
+      if (invalidEmployeeFields.length > 0) {
         return res.status(400).json({
           success: false,
-          message: `Cannot update faculty fields (${invalidFacultyFields.join(', ')}) for non-faculty user`
+          message: `Cannot update employee fields (${invalidEmployeeFields.join(', ')}) for non-employee user`
         });
       }
     }
@@ -318,6 +346,22 @@ const updateUser = async (req, res) => {
         });
       }
     }
+    
+    // Additional validation: ensure employeeId is not set for students
+    if (currentUser.role === 'Student' && updates.employeeId !== undefined) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot set employee ID for student users'
+      });
+    }
+    
+    // Additional validation: ensure studentId is not set for employees
+    if (['Faculty', 'Staff', 'Admin'].includes(currentUser.role) && updates.studentId !== undefined) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot set student ID for employee users'
+      });
+    }
 
     // Check if email is being updated and if it's unique
     if (updates.email) {
@@ -330,6 +374,21 @@ const updateUser = async (req, res) => {
           success: false,
           message: 'Email already exists'
         });
+      }
+    }
+
+    // If batch is being updated for a student, recalculate year
+    if (currentUser.role === 'Student' && updates.batch) {
+      const currentYear = new Date().getFullYear();
+      const batchYear = parseInt(updates.batch);
+      const yearOfStudy = currentYear - batchYear + 1;
+      
+      switch (yearOfStudy) {
+        case 1: updates.year = '1st Year'; break;
+        case 2: updates.year = '2nd Year'; break;
+        case 3: updates.year = '3rd Year'; break;
+        case 4: updates.year = '4th Year'; break;
+        default: updates.year = '1st Year'; // Default to 1st year if calculation is off
       }
     }
 
@@ -520,51 +579,92 @@ const assignSubjects = async (req, res) => {
 
     const { subjectIds } = req.body;
 
-    // Find faculty
-    const faculty = await User.findById(req.params.id);
-    if (!faculty) {
+    // Find faculty or staff member
+    const user = await User.findById(req.params.id);
+    if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'Faculty not found'
+        message: 'User not found'
       });
     }
 
-    if (faculty.role !== 'Faculty') {
+    if (!['Faculty', 'Staff'].includes(user.role)) {
       return res.status(400).json({
         success: false,
-        message: 'User is not a faculty member'
+        message: 'User is not a faculty or staff member'
       });
     }
 
-    // Verify all subjects exist and belong to faculty's department
+    // Verify all subjects exist and belong to user's department
     const subjects = await Subject.find({
       _id: { $in: subjectIds },
-      department: faculty.department
+      department: user.department
     });
 
     if (subjects.length !== subjectIds.length) {
       return res.status(400).json({
         success: false,
-        message: 'Some subjects are invalid or do not belong to faculty\'s department'
+        message: 'Some subjects are invalid or do not belong to user\'s department'
       });
     }
 
-    // Update faculty's assigned subjects
-    faculty.assignedSubjects = [...new Set([...faculty.assignedSubjects, ...subjectIds])];
-    await faculty.save();
+    // Add faculty to each subject's faculty array
+    const assignmentResults = [];
+    for (const subjectId of subjectIds) {
+      try {
+        const updatedSubject = await Subject.findByIdAndUpdate(
+          subjectId,
+          { 
+            $addToSet: { 
+              faculty: {
+                user: user._id,
+                isExternal: false,
+                isPrimary: false,
+                assignedDate: new Date()
+              }
+            } 
+          },
+          { new: true, runValidators: true }
+        ).populate('faculty.user', 'name email designation');
+        
+        assignmentResults.push({
+          subjectId,
+          success: true,
+          subject: updatedSubject
+        });
+      } catch (error) {
+        assignmentResults.push({
+          subjectId,
+          success: false,
+          error: error.message
+        });
+      }
+    }
 
-    // Populate the updated faculty
-    await faculty.populate('assignedSubjects', 'name code credits');
+    // Also update user's assignedSubjects for reference
+    const updatedUser = await User.findByIdAndUpdate(
+      user._id,
+      { $addToSet: { assignedSubjects: { $each: subjectIds } } },
+      { new: true, runValidators: true }
+    ).populate('assignedSubjects', 'name code credits');
+
+    if (!updatedUser) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found during update'
+      });
+    }
 
     // Log activity
     await ActivityLog.logActivity({
       user: req.user.id,
       action: 'UPDATE',
       resourceType: 'User',
-      resourceId: faculty._id,
+      resourceId: user._id,
       details: { 
         action: 'subject_assignment',
-        assignedSubjects: subjects.map(s => s.name)
+        assignedSubjects: subjects.map(s => s.name),
+        userRole: user.role
       },
       ipAddress: req.ip,
       userAgent: req.get('User-Agent')
@@ -573,7 +673,12 @@ const assignSubjects = async (req, res) => {
     res.status(200).json({
       success: true,
       message: 'Subjects assigned successfully',
-      data: faculty
+      data: {
+        user: updatedUser,
+        assignments: assignmentResults,
+        successCount: assignmentResults.filter(r => r.success).length,
+        totalCount: assignmentResults.length
+      }
     });
 
   } catch (error) {
@@ -581,6 +686,84 @@ const assignSubjects = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Server error while assigning subjects'
+    });
+  }
+};
+
+// @desc    Remove faculty from subjects
+// @route   DELETE /api/users/:id/unassign-subjects
+// @access  Private (Admin)
+const unassignSubjects = async (req, res) => {
+  try {
+    const { subjectIds } = req.body;
+
+    // Find faculty or staff member
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    if (!['Faculty', 'Staff'].includes(user.role)) {
+      return res.status(400).json({
+        success: false,
+        message: 'User is not a faculty or staff member'
+      });
+    }
+
+    // Remove faculty from each subject's faculty array
+    const unassignmentResults = [];
+    for (const subjectId of subjectIds) {
+      try {
+        const updatedSubject = await Subject.findByIdAndUpdate(
+          subjectId,
+          { 
+            $pull: { 
+              faculty: { user: user._id }
+            } 
+          },
+          { new: true, runValidators: true }
+        ).populate('faculty.user', 'name email designation');
+        
+        unassignmentResults.push({
+          subjectId,
+          success: true,
+          subject: updatedSubject
+        });
+      } catch (error) {
+        unassignmentResults.push({
+          subjectId,
+          success: false,
+          error: error.message
+        });
+      }
+    }
+
+    // Also update user's assignedSubjects for reference
+    const updatedUser = await User.findByIdAndUpdate(
+      user._id,
+      { $pullAll: { assignedSubjects: subjectIds } },
+      { new: true, runValidators: true }
+    ).populate('assignedSubjects', 'name code credits');
+
+    res.status(200).json({
+      success: true,
+      message: 'Subjects unassigned successfully',
+      data: {
+        user: updatedUser,
+        unassignments: unassignmentResults,
+        successCount: unassignmentResults.filter(r => r.success).length,
+        totalCount: unassignmentResults.length
+      }
+    });
+
+  } catch (error) {
+    console.error('Unassign subjects error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while unassigning subjects'
     });
   }
 };
@@ -755,6 +938,7 @@ module.exports = {
   deleteUser,
   allocateSubjects,
   assignSubjects,
+  unassignSubjects,
   bulkCreateUsers,
   getUserStats
 };

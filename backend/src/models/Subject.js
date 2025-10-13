@@ -223,23 +223,34 @@ subjectSchema.index({ semester: 1 });
 
 // Virtual for enrollment percentage
 subjectSchema.virtual('enrollmentPercentage').get(function() {
-  if (this.maxStudents === 0) return 0;
-  return Math.round((this.enrolledStudents.length / this.maxStudents) * 100);
+  if (!this.maxStudents || this.maxStudents === 0) return 0;
+  const enrolledCount = this.enrolledStudents ? this.enrolledStudents.length : 0;
+  return Math.round((enrolledCount / this.maxStudents) * 100);
 });
 
 // Virtual for faculty names
 subjectSchema.virtual('facultyNames').get(function() {
-  return this.faculty.map(f => f.user.name || f.user).join(', ');
+  if (!this.faculty || !Array.isArray(this.faculty)) return '';
+  return this.faculty.map(f => {
+    if (f && f.user) {
+      return f.user.name || f.user;
+    }
+    return '';
+  }).filter(name => name).join(', ');
 });
 
 // Virtual for is full
 subjectSchema.virtual('isFull').get(function() {
-  return this.enrolledStudents.length >= this.maxStudents;
+  if (!this.maxStudents) return false;
+  const enrolledCount = this.enrolledStudents ? this.enrolledStudents.length : 0;
+  return enrolledCount >= this.maxStudents;
 });
 
 // Virtual for available slots
 subjectSchema.virtual('availableSlots').get(function() {
-  return this.maxStudents - this.enrolledStudents.length;
+  if (!this.maxStudents) return 0;
+  const enrolledCount = this.enrolledStudents ? this.enrolledStudents.length : 0;
+  return this.maxStudents - enrolledCount;
 });
 
 // Pre-save middleware to validate schedule

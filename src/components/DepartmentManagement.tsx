@@ -95,7 +95,7 @@ export default function DepartmentManagement() {
     description: '',
     hod: '',
     establishedYear: new Date().getFullYear(),
-    sections: [] as string[],
+    sections: ['A'] as string[], // Default to Section A
     contactInfo: {
       email: '',
       phone: '',
@@ -313,7 +313,7 @@ export default function DepartmentManagement() {
       if (!apiService.token) {
         console.log('No token found, attempting auto-login as admin...')
         try {
-          const loginResponse = await apiService.login('admin@learnaid.edu', 'admin123')
+          const loginResponse = await apiService.login('admin@learnaia.edu', 'admin123')
           if (loginResponse.success) {
             console.log('Auto-login successful')
           } else {
@@ -336,6 +336,8 @@ export default function DepartmentManagement() {
 
       // Transform and set departments
       const transformedDepartments = departmentsData.data?.map(apiService.transformDepartmentData) || []
+      console.log('Raw departments data:', departmentsData.data)
+      console.log('Transformed departments:', transformedDepartments)
       setDepartments(transformedDepartments)
 
       // Transform and set users
@@ -391,7 +393,9 @@ export default function DepartmentManagement() {
         programs: []
       }
 
+      console.log('Creating department with data:', departmentData)
       const response = await apiService.createDepartment(departmentData)
+      console.log('Create department response:', response)
       
       if (response.success) {
         showNotification('Department created successfully!')
@@ -1826,11 +1830,35 @@ export default function DepartmentManagement() {
               <button
                 onClick={async () => {
                   try {
-                    if (selectedSubjectForAssignment) {
-                      // Here you would make API call to assign faculty
-                      await apiService.assignFacultyToSubject(selectedSubjectForAssignment.id, { facultyId: selectedFaculty, isPrimary: true });
+                    if (!selectedSubjectForAssignment) {
+                      showNotification('No subject selected', 'warning');
+                      return;
+                    }
+                    
+                    if (selectedFaculty.length === 0) {
+                      showNotification('Please select at least one faculty member', 'warning');
+                      return;
+                    }
+                    
+                    // Assign each selected faculty to the subject with sequential processing
+                    let successCount = 0;
+                    for (const faculty of selectedFaculty) {
+                      try {
+                        await apiService.assignFacultyToSubject(faculty.id, { subjectIds: [selectedSubjectForAssignment.id] });
+                        successCount++;
+                        // Small delay to prevent overwhelming the server
+                        if (selectedFaculty.length > 1) {
+                          await new Promise(resolve => setTimeout(resolve, 100));
+                        }
+                      } catch (error: any) {
+                        console.error(`Error assigning faculty ${faculty.name}:`, error);
+                        showNotification(`Failed to assign ${faculty.name}: ${error.message}`, 'error');
+                      }
+                    }
+                    
+                    if (successCount > 0) {
                       loadAllData(); // Reload data
-                      showNotification('Faculty assigned successfully!');
+                      showNotification(`${successCount} faculty assigned successfully!`, 'success');
                       setShowFacultyAssignmentForm(false);
                       setSelectedSubjectForAssignment(null);
                       setSelectedFaculty([]);
