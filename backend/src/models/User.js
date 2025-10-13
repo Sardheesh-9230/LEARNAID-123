@@ -76,8 +76,16 @@ const userSchema = new mongoose.Schema({
   year: {
     type: String,
     enum: ['1st Year', '2nd Year', '3rd Year', '4th Year'],
-    required: function() {
-      return this.role === 'Student';
+    // Note: Don't set required here as it's calculated in pre-save middleware
+    validate: {
+      validator: function(v) {
+        // Only validate if this is a student role
+        if (this.role === 'Student') {
+          return v && ['1st Year', '2nd Year', '3rd Year', '4th Year'].includes(v);
+        }
+        return true; // Non-students don't need year
+      },
+      message: 'Year must be one of: 1st Year, 2nd Year, 3rd Year, 4th Year'
     }
   },
   studentId: {

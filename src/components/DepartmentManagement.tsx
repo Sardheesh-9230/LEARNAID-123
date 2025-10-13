@@ -153,6 +153,7 @@ export default function DepartmentManagement() {
   // Student action states
   const [showViewStudentPopup, setShowViewStudentPopup] = useState(false)
   const [showReassignPopup, setShowReassignPopup] = useState(false)
+  const [showAssignPopup, setShowAssignPopup] = useState(false)
   const [selectedStudentForAction, setSelectedStudentForAction] = useState<User | null>(null)
 
   // Confirmation dialog state
@@ -211,12 +212,12 @@ export default function DepartmentManagement() {
   // Get class combinations (Department + Year + Section)
   const getClassCombinations = () => {
     const combinations: { department: string; year: string; section: string; currentCount: number }[] = [];
-    const sections = ['A', 'B', 'C']; // Available sections
     
     departments.forEach(dept => {
       const years = ['1st Year', '2nd Year', '3rd Year', '4th Year'];
       years.forEach(year => {
-        sections.forEach(section => {
+        // Use department's configured sections instead of hardcoded ones
+        dept.sections.forEach(section => {
           const currentCount = users.filter(user => 
             user.role === 'Student' && 
             user.department === dept.name && 
@@ -479,8 +480,9 @@ export default function DepartmentManagement() {
     
     try {
       if (subjectForm.createForAllSections) {
-        // Create subjects for all sections A, B, C
-        const sections = ['A', 'B', 'C']
+        // Create subjects for all sections of the selected department
+        const selectedDept = departments.find(dept => dept.name === subjectForm.department)
+        const sections = selectedDept ? selectedDept.sections : ['A'] // Fallback to A if department not found
         const promises = sections.map(section => {
           const { createForAllSections, ...subjectData } = {
             ...subjectForm,
@@ -897,7 +899,16 @@ export default function DepartmentManagement() {
       <div className="space-y-6">
         <div className="flex justify-between items-center">
           <h3 className="text-xl font-bold text-gray-800">Student Allocation</h3>
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center">
+            <button
+              onClick={loadAllData}
+              className="text-blue-600 hover:text-blue-800 p-2 rounded-lg hover:bg-blue-50 transition-colors"
+              title="Refresh student data"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            </button>
             <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
               Total: {filteredStudents.length}
             </span>
@@ -958,9 +969,19 @@ export default function DepartmentManagement() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
                 <option value="">All Sections</option>
-                <option value="A">Section A</option>
-                <option value="B">Section B</option>
-                <option value="C">Section C</option>
+                {(() => {
+                  const selectedDept = departments.find(dept => dept.name === studentFilters.department)
+                  if (selectedDept) {
+                    return selectedDept.sections.map(section => (
+                      <option key={section} value={section}>Section {section}</option>
+                    ))
+                  }
+                  // If no department selected, show all possible sections from all departments
+                  const allSections = Array.from(new Set(departments.flatMap(dept => dept.sections))).sort()
+                  return allSections.map(section => (
+                    <option key={section} value={section}>Section {section}</option>
+                  ))
+                })()}
               </select>
             </div>
             <div>
@@ -1041,7 +1062,7 @@ export default function DepartmentManagement() {
                         >
                           View
                         </button>
-                        {student.section && (
+                        {student.section ? (
                           <button
                             onClick={() => {
                               setSelectedStudentForAction(student)
@@ -1050,6 +1071,16 @@ export default function DepartmentManagement() {
                             className="text-orange-600 hover:text-orange-800 text-xs bg-orange-50 px-2 py-1 rounded hover:bg-orange-100 transition-colors"
                           >
                             Reassign
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              setSelectedStudentForAction(student)
+                              setShowAssignPopup(true)
+                            }}
+                            className="text-green-600 hover:text-green-800 text-xs bg-green-50 px-2 py-1 rounded hover:bg-green-100 transition-colors"
+                          >
+                            Assign
                           </button>
                         )}
                       </div>
@@ -1611,7 +1642,11 @@ export default function DepartmentManagement() {
                     </label>
                     <select
                       value={subjectForm.department}
-                      onChange={(e) => setSubjectForm({...subjectForm, department: e.target.value})}
+                      onChange={(e) => {
+                        const selectedDept = departments.find(dept => dept.name === e.target.value)
+                        const firstSection = selectedDept?.sections[0] || 'A'
+                        setSubjectForm({...subjectForm, department: e.target.value, section: firstSection})
+                      }}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       required
                     >
@@ -1666,9 +1701,15 @@ export default function DepartmentManagement() {
                       disabled={subjectForm.createForAllSections}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100"
                     >
-                      <option value="A">Section A</option>
-                      <option value="B">Section B</option>
-                      <option value="C">Section C</option>
+                      {(() => {
+                        const selectedDept = departments.find(dept => dept.name === subjectForm.department)
+                        if (selectedDept) {
+                          return selectedDept.sections.map(section => (
+                            <option key={section} value={section}>Section {section}</option>
+                          ))
+                        }
+                        return <option value="A">Section A</option>
+                      })()}
                     </select>
                   </div>
                 </div>
@@ -1681,7 +1722,11 @@ export default function DepartmentManagement() {
                     className="mr-2"
                   />
                   <label className="text-sm text-gray-700">
-                    Create this subject for all sections (A, B, C)
+                    {(() => {
+                      const selectedDept = departments.find(dept => dept.name === subjectForm.department)
+                      const sectionsList = selectedDept ? selectedDept.sections.join(', ') : 'available sections'
+                      return `Create this subject for all sections (${sectionsList})`
+                    })()}
                   </label>
                 </div>
 
@@ -2099,6 +2144,121 @@ export default function DepartmentManagement() {
                           <button
                             onClick={() => {
                               setShowReassignPopup(false)
+                              setSelectedStudentForAction(null)
+                            }}
+                            className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })()}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Student Assign Popup */}
+      {showAssignPopup && selectedStudentForAction && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-lg w-full">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-bold text-gray-800">Assign Student to Section</h3>
+                <button
+                  onClick={() => {
+                    setShowAssignPopup(false)
+                    setSelectedStudentForAction(null)
+                  }}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div className="bg-blue-50 p-4 rounded-lg">
+                  <h4 className="font-semibold text-gray-800 mb-2">Student Information</h4>
+                  <p className="text-gray-700"><strong>Name:</strong> {selectedStudentForAction?.name}</p>
+                  <p className="text-gray-700"><strong>Current Section:</strong> Not Assigned</p>
+                  <p className="text-gray-700"><strong>Department:</strong> {selectedStudentForAction?.department}</p>
+                  <p className="text-gray-700"><strong>Academic Year:</strong> {getAcademicYear(selectedStudentForAction?.batch || '')}</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Select Section</label>
+                  {(() => {
+                    const year = getAcademicYear(selectedStudentForAction?.batch || '')
+                    const currentClassCombinations = getClassCombinations();
+                    const availableSections = currentClassCombinations.filter(c => 
+                      c.department === selectedStudentForAction?.department && 
+                      c.year === year && 
+                      c.currentCount < 65
+                    )
+
+                    if (availableSections.length === 0) {
+                      return (
+                        <div className="bg-yellow-50 border border-yellow-200 p-3 rounded-lg">
+                          <p className="text-yellow-800">No available sections. All sections for {selectedStudentForAction?.department} {year} are full.</p>
+                          <div className="flex justify-end mt-3">
+                            <button
+                              onClick={() => {
+                                setShowAssignPopup(false)
+                                setSelectedStudentForAction(null)
+                              }}
+                              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                            >
+                              OK
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    }
+
+                    return (
+                      <div className="space-y-2">
+                        {availableSections.map((section) => (
+                          <button
+                            type="button"
+                            key={section.section}
+                            onClick={async () => {
+                              if (selectedStudentForAction) {
+                                try {
+                                  await apiService.updateUser(selectedStudentForAction.id, { section: section.section });
+                                  loadAllData(); // Reload data
+                                  showNotification(`${selectedStudentForAction.name} successfully assigned to Section ${section.section}`, 'success');
+                                  setShowAssignPopup(false);
+                                  setSelectedStudentForAction(null);
+                                } catch (error: any) {
+                                  showNotification(error.message || 'Failed to assign student', 'error');
+                                }
+                              }
+                            }}
+                            className="w-full p-3 border border-gray-300 rounded-lg hover:bg-green-50 hover:border-green-300 transition-colors text-left"
+                          >
+                            <div className="flex justify-between items-center">
+                              <span className="font-medium">Section {section.section}</span>
+                              <span className="text-sm text-gray-600">
+                                {section.currentCount}/65 students
+                              </span>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                              <div 
+                                className="bg-green-600 h-2 rounded-full" 
+                                style={{ width: `${(section.currentCount / 65) * 100}%` }}
+                              ></div>
+                            </div>
+                          </button>
+                        ))}
+                        <div className="flex justify-end gap-3 mt-4">
+                          <button
+                            onClick={() => {
+                              setShowAssignPopup(false)
                               setSelectedStudentForAction(null)
                             }}
                             className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"

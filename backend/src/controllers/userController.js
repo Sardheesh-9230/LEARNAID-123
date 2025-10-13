@@ -148,6 +148,19 @@ const createUser = async (req, res) => {
       userData.batch = batch;
       userData.semester = 1; // Default to first semester
       
+      // Calculate year based on batch
+      const currentYear = new Date().getFullYear();
+      const batchYear = parseInt(batch);
+      const yearOfStudy = currentYear - batchYear + 1;
+      
+      switch (yearOfStudy) {
+        case 1: userData.year = '1st Year'; break;
+        case 2: userData.year = '2nd Year'; break;
+        case 3: userData.year = '3rd Year'; break;
+        case 4: userData.year = '4th Year'; break;
+        default: userData.year = '1st Year'; // Default to 1st year if calculation is off
+      }
+      
       if (guardianName && guardianPhone) {
         userData.guardianName = guardianName;
         userData.guardianPhone = guardianPhone;
@@ -608,18 +621,34 @@ const assignSubjects = async (req, res) => {
       });
     }
 
+    // Get additional assignment options from request body
+    const { isPrimary = false, isExternal = false } = req.body;
+
     // Add faculty to each subject's faculty array
     const assignmentResults = [];
     for (const subjectId of subjectIds) {
       try {
+        // Check if faculty is already assigned to this subject
+        const subject = await Subject.findById(subjectId);
+        const existingAssignment = subject.faculty.find(f => f.user.toString() === user._id.toString());
+        
+        if (existingAssignment) {
+          assignmentResults.push({
+            subjectId,
+            success: false,
+            error: 'Faculty is already assigned to this subject'
+          });
+          continue;
+        }
+
         const updatedSubject = await Subject.findByIdAndUpdate(
           subjectId,
           { 
-            $addToSet: { 
+            $push: { 
               faculty: {
                 user: user._id,
-                isExternal: false,
-                isPrimary: false,
+                isExternal: isExternal,
+                isPrimary: isPrimary,
                 assignedDate: new Date()
               }
             } 
