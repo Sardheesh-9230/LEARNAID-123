@@ -26,7 +26,7 @@
 	<!-- Update README.md and finalize documentation -->
 
 ## Project Details
-- **Project Name**: LearnAIA
+- **Project Name**: LearnAID
 - **Purpose**: Educational platform for college institutions
 - **User Types**: Students, Faculty, Admin
 - **Technology Stack**: React, Next.js, TypeScript, Tailwind CSS, MySQL
