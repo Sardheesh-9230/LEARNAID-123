@@ -9,11 +9,11 @@ export default function Footer() {
               <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
                 <span className="text-white font-bold text-xl">L</span>
               </div>
-              <h3 className="text-2xl font-bold">LearnAIA</h3>
+              <h3 className="text-2xl font-bold">LearnAID</h3>
             </div>
             <p className="text-gray-300 mb-6 leading-relaxed">
               Empowering educational institutions with cutting-edge technology solutions. 
-              Join thousands of students, faculty, and administrators who trust LearnAIA 
+              Join thousands of students, faculty, and administrators who trust LearnAID 
               for their educational journey.
             </p>
             <div className="flex space-x-4">
@@ -67,7 +67,7 @@ export default function Footer() {
               <svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
               </svg>
-              <span className="text-gray-300">support@learnaia.com</span>
+              <span className="text-gray-300">support@learnAID.com</span>
             </div>
             <div className="flex items-center space-x-3">
               <svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -88,7 +88,7 @@ export default function Footer() {
         {/* Bottom Footer */}
         <div className="border-t border-gray-700 mt-8 pt-8 flex flex-col md:flex-row justify-between items-center">
           <p className="text-gray-400 text-sm">
-            © 2025 LearnAIA. All rights reserved.
+            © 2025 LearnAID. All rights reserved.
           </p>
           <div className="flex space-x-6 mt-4 md:mt-0">
             <a href="#" className="text-gray-400 hover:text-white text-sm transition-colors">Privacy Policy</a>

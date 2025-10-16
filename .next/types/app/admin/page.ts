@@ -1,4 +1,4 @@
-// File: S:\sardheesh's projects\learn\src\app\admin\page.tsx
+// File: /home/saravana/projects/AGILE/LEARNAID-REAL-ONE/LEARNAID-123/src/app/admin/page.tsx
 import * as entry from '../../../../src/app/admin/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

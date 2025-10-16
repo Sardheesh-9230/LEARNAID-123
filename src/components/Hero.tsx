@@ -4,7 +4,7 @@ export default function Hero() {
       <div className="max-w-7xl mx-auto text-center">
         <div className="hero-gradient text-white rounded-3xl p-12 shadow-2xl">
           <h2 className="text-5xl md:text-6xl font-bold mb-6">
-            Welcome to <span className="text-yellow-300">LearnAIA</span>
+            Welcome to <span className="text-yellow-300">LearnAID</span>
           </h2>
           <p className="text-xl md:text-2xl mb-8 text-blue-100">
             Admin-Centric Educational Management Platform
