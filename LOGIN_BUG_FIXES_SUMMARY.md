@@ -128,7 +128,6 @@ node -e "const regex = /^\+?[1-9][\d\s\-()]{9,15}$/; console.log(regex.test('+91
 
 Current `.env` file uses MongoDB Atlas:
 ```
-MONGODB_URI=mongodb+srv://sardheesh:learnaid@learnaid.b3q6npo.mongodb.net/learnaid?retryWrites=true&w=majority&appName=LEARNAID
 ```
 
 ## Known Issues:
