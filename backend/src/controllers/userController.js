@@ -444,6 +444,57 @@ const updateUser = async (req, res) => {
   }
 };
 
+// @desc    Change user password (Admin only)
+// @route   PUT /api/users/:id/password
+// @access  Private (Admin)
+const changeUserPassword = async (req, res) => {
+  try {
+    const { newPassword } = req.body;
+
+    if (!newPassword || newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 6 characters long'
+      });
+    }
+
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Update password (will be hashed by pre-save hook)
+    user.password = newPassword;
+    await user.save();
+
+    // Log activity
+    await ActivityLog.logActivity({
+      user: req.user.id,
+      action: 'UPDATE',
+      resourceType: 'User',
+      resourceId: user._id,
+      details: { action: 'Password changed by admin' },
+      ipAddress: req.ip,
+      userAgent: req.get('User-Agent')
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Password changed successfully'
+    });
+
+  } catch (error) {
+    console.error('Change password error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while changing password'
+    });
+  }
+};
+
 // @desc    Delete user
 // @route   DELETE /api/users/:id
 // @access  Private (Admin)
@@ -964,6 +1015,7 @@ module.exports = {
   createUser,
   getUserById,
   updateUser,
+  changeUserPassword,
   deleteUser,
   allocateSubjects,
   assignSubjects,

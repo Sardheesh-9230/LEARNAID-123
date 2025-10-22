@@ -365,19 +365,50 @@ export default function UserManagement() {
       
       const userData: any = {
         name: newUser.name,
-        email: newUser.email,
-        phone: newUser.phone
+        email: newUser.email
       }
 
-      // Add role-specific fields for Faculty only (Students don't have updatable role-specific fields)
-      if (newUser.role === 'Faculty') {
-        userData.designation = newUser.designation
-        userData.qualification = newUser.qualification
-        userData.experience = newUser.experience
+      // Only add phone if it has a value
+      if (newUser.phone && newUser.phone.trim()) {
+        userData.phone = newUser.phone
       }
+
+      // Add role-specific fields for Faculty only
+      if (newUser.role === 'Faculty') {
+        if (newUser.designation) userData.designation = newUser.designation
+        if (newUser.qualification) userData.qualification = newUser.qualification
+        if (newUser.experience !== undefined && newUser.experience !== null) {
+          userData.experience = parseInt(newUser.experience.toString())
+        }
+        // Ensure specialization is an array
+        if (newUser.specialization) {
+          userData.specialization = Array.isArray(newUser.specialization) 
+            ? newUser.specialization 
+            : []
+        }
+      }
+
+      // Add role-specific fields for Student
+      if (newUser.role === 'Student') {
+        if (newUser.section) userData.section = newUser.section
+        if (newUser.batch) userData.batch = newUser.batch
+      }
+
+      console.log('Sending update data:', userData) // Debug log
 
       const response = await apiService.updateUser(editingUser.id, userData)
       if (response.success) {
+        // If password was provided, change it separately
+        if (newUser.password && newUser.password.trim().length >= 6) {
+          console.log('Changing password...')
+          const passwordResponse = await apiService.changeUserPassword(editingUser.id, newUser.password)
+          if (!passwordResponse.success) {
+            setError('User updated but password change failed: ' + passwordResponse.message)
+            await loadAllData()
+            return
+          }
+        }
+        
         await loadAllData() // Reload data
         resetForm()
         setShowAddForm(false)
@@ -387,7 +418,11 @@ export default function UserManagement() {
       }
     } catch (error: any) {
       console.error('Error updating user:', error)
-      setError(error.message || 'Failed to update user')
+      // Extract validation errors if available
+      const errorMessage = error.response?.data?.errors 
+        ? error.response.data.errors.map((err: any) => err.msg).join(', ')
+        : error.message || 'Failed to update user'
+      setError(errorMessage)
     } finally {
       setLoading(false)
     }

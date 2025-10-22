@@ -41,7 +41,7 @@ class ApiService {
   }
 
   // Generic API request handler with retry logic
-  async makeRequest(url, options = {}, retries = 3) {
+  async makeRequest(url, options = {}, retries = 3, skipAutoLogin = false) {
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
         const config = {
@@ -53,8 +53,8 @@ class ApiService {
         
         // Handle different HTTP status codes
         if (response.status === 401) {
-          // Unauthorized - clear token and try auto-login once
-          if (attempt === 0) {
+          // Skip auto-login if this is already a login request to prevent infinite loop
+          if (!skipAutoLogin && attempt === 0 && !url.includes('/auth/login')) {
             this.setToken(null);
             const autoLoginSuccess = await this.autoLogin();
             if (autoLoginSuccess) {
@@ -62,8 +62,10 @@ class ApiService {
             }
           }
           
-          if (typeof window !== 'undefined') {
-            window.location.href = '/login';
+          // Don't redirect if this is a login request
+          if (typeof window !== 'undefined' && !url.includes('/auth/login')) {
+            // Clear token and show error instead of redirecting
+            this.setToken(null);
           }
           throw new Error('Unauthorized access - please login again');
         }
@@ -139,7 +141,7 @@ class ApiService {
     }
   }
 
-  // Auto-login helper method
+  // Auto-login helper method - DISABLED to prevent infinite loops
   async autoLogin() {
     try {
       // Try with existing token first
@@ -155,9 +157,9 @@ class ApiService {
         }
       }
 
-      // Auto-login as admin
-      const loginResponse = await this.login('admin@learnaia.edu', 'admin123');
-      return loginResponse.success && loginResponse.token;
+      // Removed auto-login as admin to prevent infinite loop
+      // Users must login manually
+      return false;
     } catch (error) {
       console.error('Auto-login failed:', error);
       return false;
@@ -168,10 +170,11 @@ class ApiService {
   async login(email, password) {
     console.log('API Service: Making login request for:', email) // Debug log
     
+    // Pass skipAutoLogin=true to prevent infinite loop
     const response = await this.makeRequest('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
-    });
+    }, 3, true); // skipAutoLogin = true
     
     console.log('API Service: Raw response:', response) // Debug log
     
@@ -262,6 +265,13 @@ class ApiService {
     return this.makeRequest(`/users/${id}`, {
       method: 'PUT',
       body: JSON.stringify(userData),
+    });
+  }
+
+  async changeUserPassword(id, newPassword) {
+    return this.makeRequest(`/users/${id}/password`, {
+      method: 'PUT',
+      body: JSON.stringify({ newPassword }),
     });
   }
 

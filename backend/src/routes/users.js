@@ -98,14 +98,14 @@ const createUserValidation = [
   body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
   body('role').isIn(['Student', 'Faculty', 'Staff', 'Admin']).withMessage('Invalid role'),
   body('department').isMongoId().withMessage('Valid department ID is required'),
-  body('phone').optional({ nullable: true, checkFalsy: true }).isLength({ min: 10, max: 15 }).withMessage('Phone number must be between 10-15 characters'),
+  body('phone').optional({ nullable: true, checkFalsy: true }).matches(/^\+?[1-9][\d\s\-()]{9,15}$/).withMessage('Valid phone number is required'),
   body('address').optional({ nullable: true, checkFalsy: true }).trim().isLength({ max: 500 }).withMessage('Address must be less than 500 characters')
 ];
 
 const updateUserValidation = [
   body('name').optional().trim().isLength({ min: 2, max: 100 }).withMessage('Name must be between 2 and 100 characters'),
   body('email').optional().isEmail().normalizeEmail().withMessage('Valid email is required'),
-  body('phone').optional({ nullable: true, checkFalsy: true }).matches(/^\+?[1-9][\d\s]{9,14}$/).withMessage('Valid phone number is required'),
+  body('phone').optional({ nullable: true, checkFalsy: true }).matches(/^\+?[1-9][\d\s\-()]{9,15}$/).withMessage('Valid phone number is required'),
   body('address').optional().trim().isLength({ max: 500 }).withMessage('Address must be less than 500 characters'),
   body('status').optional().isIn(['Active', 'Inactive']).withMessage('Invalid status'),
   // Role-specific field validations
@@ -118,7 +118,7 @@ const updateUserValidation = [
   body('batch').optional().matches(/^20\d{2}$/).withMessage('Batch must be a valid year (e.g., 2024)'),
   // Additional student fields
   body('guardianName').optional({ nullable: true, checkFalsy: true }).trim().isLength({ min: 2, max: 100 }).withMessage('Guardian name must be between 2 and 100 characters'),
-  body('guardianPhone').optional({ nullable: true, checkFalsy: true }).matches(/^\+?[1-9][\d\s]{9,14}$/).withMessage('Valid guardian phone number is required'),
+  body('guardianPhone').optional({ nullable: true, checkFalsy: true }).matches(/^\+?[1-9][\d\s\-()]{9,15}$/).withMessage('Valid guardian phone number is required'),
   body('studentId').optional().trim().isLength({ min: 3, max: 20 }).withMessage('Student ID must be between 3 and 20 characters'),
   body('gpa').optional().isFloat({ min: 0, max: 10 }).withMessage('GPA must be between 0 and 10'),
   // Additional faculty fields
@@ -338,6 +338,41 @@ router.get('/:id', protect, userController.getUserById);
  *         description: User not found
  */
 router.put('/:id', protect, authorize('Admin'), updateUserValidation, userController.updateUser);
+
+/**
+ * @swagger
+ * /api/users/{id}/password:
+ *   put:
+ *     summary: Change user password (Admin only)
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - newPassword
+ *             properties:
+ *               newPassword:
+ *                 type: string
+ *                 minimum: 6
+ *     responses:
+ *       200:
+ *         description: Password changed successfully
+ *       404:
+ *         description: User not found
+ */
+router.put('/:id/password', protect, authorize('Admin'), userController.changeUserPassword);
 
 /**
  * @swagger
