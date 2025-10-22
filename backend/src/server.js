@@ -23,6 +23,15 @@ const subjectRoutes = require('./routes/subjects');
 const analyticsRoutes = require('./routes/analytics');
 const uploadRoutes = require('./routes/upload');
 
+// Faculty Module Routes
+const courseRoutes = require('./routes/courses');
+const chapterRoutes = require('./routes/chapters');
+const examRoutes = require('./routes/exams');
+const questionRoutes = require('./routes/questions');
+const marksRoutes = require('./routes/marks');
+const performanceRoutes = require('./routes/performance');
+const taskRoutes = require('./routes/tasks');
+
 // Import middleware
 const errorHandler = require('./middleware/errorHandler');
 const notFound = require('./middleware/notFound');
@@ -105,6 +114,15 @@ app.use('/api/departments', departmentRoutes);
 app.use('/api/subjects', subjectRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/upload', uploadRoutes);
+
+// Faculty Module Routes
+app.use('/api/courses', courseRoutes);
+app.use('/api/chapters', chapterRoutes);
+app.use('/api/exams', examRoutes);
+app.use('/api/questions', questionRoutes);
+app.use('/api/marks', marksRoutes);
+app.use('/api/performance', performanceRoutes);
+app.use('/api/tasks', taskRoutes);
 
 // Error handling middleware
 app.use(notFound);

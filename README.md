@@ -2,7 +2,7 @@
 
 ## Overview
 
-LearnAIA is a comprehensive educational management platform designed specifically for college institutions, with administrators at the core of the system architecture. The platform empowers administrators with complete control over user management, course creation, and resource allocation.
+LearnAID is a comprehensive educational management platform designed specifically for college institutions, with administrators at the core of the system architecture. The platform empowers administrators with complete control over user management, course creation, and resource allocation.
 
 ## Key Features
 
