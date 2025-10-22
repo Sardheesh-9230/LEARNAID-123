@@ -128,7 +128,10 @@ node -e "const regex = /^\+?[1-9][\d\s\-()]{9,15}$/; console.log(regex.test('+91
 
 Current `.env` file uses MongoDB Atlas:
 ```
+MONGODB_URI=<MongoDB Atlas connection string - see .env file>
 ```
+
+**⚠️ SECURITY NOTE**: Never commit actual database credentials. Always use environment variables and keep `.env` file in `.gitignore`.
 
 ## Known Issues:
 
