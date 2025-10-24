@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import AdminLayout from '@/components/AdminLayout';
 import AdminDashboardOverview from '@/components/AdminDashboardOverview';
-import DepartmentManagement from '@/components/DepartmentManagement';
+import HierarchicalDepartmentManagement from '@/components/HierarchicalDepartmentManagement';
 import UserManagement from '@/components/UserManagement';
 
 export default function AdminPage() {
@@ -14,7 +14,7 @@ export default function AdminPage() {
       case 'dashboard':
         return <AdminDashboardOverview />;
       case 'departments':
-        return <DepartmentManagement />;
+        return <HierarchicalDepartmentManagement />;
       case 'users':
         return <UserManagement />;
       case 'subjects':
