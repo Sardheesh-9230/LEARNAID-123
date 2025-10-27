@@ -40,7 +40,11 @@ interface Department {
   code: string
 }
 
-export default function UserManagement() {
+interface UserManagementProps {
+  preSelectedUserId?: string;
+}
+
+export default function UserManagement({ preSelectedUserId }: UserManagementProps = {}) {
   const [activeTab, setActiveTab] = useState('overview')
   const [showAddForm, setShowAddForm] = useState(false)
   const [editingUser, setEditingUser] = useState<User | null>(null)
@@ -205,6 +209,22 @@ export default function UserManagement() {
   useEffect(() => {
     loadAllData()
   }, [])
+
+  // Handle pre-selected user for editing
+  useEffect(() => {
+    if (preSelectedUserId && users.length > 0) {
+      const userToEdit = users.find(u => u.id === preSelectedUserId);
+      if (userToEdit) {
+        setEditingUser(userToEdit);
+        setShowAddForm(true);
+        setActiveTab('users');
+        // Scroll to top after a brief delay
+        setTimeout(() => {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }, 100);
+      }
+    }
+  }, [preSelectedUserId, users]);
 
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault()

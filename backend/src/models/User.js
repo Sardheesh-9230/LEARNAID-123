@@ -47,11 +47,12 @@ const userSchema = new mongoose.Schema({
       validator: function(v) {
         // If phone is provided, validate it
         if (!v) return true; // Allow empty values
-        // Remove spaces and dashes, then validate
-        const cleanPhone = v.replace(/[\s-]/g, '');
-        return /^\+?[1-9]\d{9,14}$/.test(cleanPhone);
+        // Remove spaces, dashes, and parentheses, then validate
+        const cleanPhone = v.replace(/[\s\-()]/g, '');
+        // Accept 10-15 digits, optionally starting with + or country code
+        return /^(\+?\d{1,3})?[0-9]{9,14}$/.test(cleanPhone);
       },
-      message: 'Please enter a valid phone number'
+      message: 'Please enter a valid phone number (9-15 digits)'
     }
   },
   address: {

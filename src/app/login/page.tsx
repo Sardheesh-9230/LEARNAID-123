@@ -40,33 +40,47 @@ export default function LoginPage() {
         
         // Store user information
         if (typeof window !== 'undefined') {
+          // Store complete user object
+          localStorage.setItem('user', JSON.stringify(response.user))
+          localStorage.setItem('authToken', response.token)
+          
+          // Also store individual fields for backward compatibility
           localStorage.setItem('userRole', response.user.role.toLowerCase())
           localStorage.setItem('userEmail', response.user.email)
           localStorage.setItem('userName', response.user.name)
           localStorage.setItem('userDepartment', response.user.department?.name || '')
           localStorage.setItem('userDepartmentId', response.user.department?.id || '')
+          
+          console.log('Stored in localStorage:', {
+            user: localStorage.getItem('user'),
+            token: localStorage.getItem('authToken'),
+            role: localStorage.getItem('userRole')
+          })
         }
         
         // Redirect based on user role
         const role = response.user.role.toLowerCase()
         console.log('Redirecting user with role:', role) // Debug log
         
-        // Use window.location instead of router.push for more reliable redirect
-        if (typeof window !== 'undefined') {
-          switch (role) {
-            case 'admin':
-              window.location.href = '/admin'
-              break
-            case 'faculty':
-              window.location.href = '/faculty'
-              break
-            case 'student':
-              window.location.href = '/student'
-              break
-            default:
-              window.location.href = '/admin'
+        // Small delay to ensure localStorage is written
+        setTimeout(() => {
+          // Use window.location instead of router.push for more reliable redirect
+          if (typeof window !== 'undefined') {
+            switch (role) {
+              case 'admin':
+                window.location.href = '/admin'
+                break
+              case 'faculty':
+                window.location.href = '/faculty'
+                break
+              case 'student':
+                window.location.href = '/student'
+                break
+              default:
+                window.location.href = '/admin'
+            }
           }
-        }
+        }, 100) // 100ms delay
       } else {
         console.error('Login failed:', response) // Debug log
         setError(response.message || 'Login failed')

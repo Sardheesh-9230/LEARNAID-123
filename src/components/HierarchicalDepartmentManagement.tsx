@@ -12,6 +12,19 @@ interface Department {
   description?: string;
 }
 
+interface FacultyAssignment {
+  user: string | {
+    _id: string;
+    name?: string;
+    fullName?: string;
+    email: string;
+    employeeId?: string;
+  };
+  isExternal: boolean;
+  assignedDate: Date;
+  isPrimary: boolean;
+}
+
 interface Subject {
   _id: string;
   name: string;
@@ -23,6 +36,7 @@ interface Subject {
   credits: number;
   semester: number;
   description?: string;
+  faculty?: FacultyAssignment[];
 }
 
 interface Faculty {
@@ -51,20 +65,23 @@ interface Student {
   name?: string;
   fullName?: string;
   email: string;
-  rollNumber?: string;
+  studentId?: string;  // Changed from rollNumber to match backend model
   department: string;
-  year?: number;
+  year?: string;  // Changed to string to match backend ('1st Year', '2nd Year', etc.)
+  section?: string;  // Section A, B, C
   semester?: number;
   phone?: string;
+  batch?: string;  // Batch year
   role: string;
 }
 
-type ViewMode = 'list' | 'detail' | 'subjects' | 'faculty' | 'classes' | 'students';
+type ViewMode = 'list' | 'detail' | 'subjects' | 'faculty' | 'classes' | 'classDetail' | 'students';
 
 const HierarchicalDepartmentManagement: React.FC = () => {
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [departments, setDepartments] = useState<Department[]>([]);
   const [selectedDepartment, setSelectedDepartment] = useState<Department | null>(null);
+  const [selectedClass, setSelectedClass] = useState<{year: string, section: string} | null>(null);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [faculty, setFaculty] = useState<Faculty[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
@@ -114,23 +131,53 @@ const HierarchicalDepartmentManagement: React.FC = () => {
   // Student form states
   const [showStudentForm, setShowStudentForm] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
+  const [studentForm, setStudentForm] = useState({
+    name: '',
+    email: '',
+    password: '',
+    studentId: '',
+    year: '1st Year',
+    section: 'A',
+    semester: 1,
+    phone: '',
+    batch: ''
+  });
+
+  // Faculty assignment states
+  const [showFacultyAssignmentModal, setShowFacultyAssignmentModal] = useState(false);
+  const [selectedSubjectForFaculty, setSelectedSubjectForFaculty] = useState<Subject | null>(null);
+  const [selectedFacultyId, setSelectedFacultyId] = useState('');
+  const [isPrimaryFaculty, setIsPrimaryFaculty] = useState(false);
+  const [isExternalFaculty, setIsExternalFaculty] = useState(false);
 
   // Load departments
   useEffect(() => {
     fetchDepartments();
   }, []);
 
+  // Fetch faculty and students when entering classDetail view
+  useEffect(() => {
+    if (viewMode === 'classDetail' && selectedDepartment) {
+      fetchFaculty(selectedDepartment._id);
+      fetchStudents(selectedDepartment._id);
+    }
+  }, [viewMode, selectedDepartment]);
+
   const fetchDepartments = async () => {
     setLoading(true);
+    setError(null); // Clear previous errors
     try {
       const response = await apiService.getDepartments();
       if (response.success) {
         setDepartments(response.data);
+        setError(null);
       } else {
         setError(response.message || 'Failed to fetch departments');
+        console.error('Department fetch failed:', response);
       }
     } catch (err: any) {
       setError(err.message || 'Failed to fetch departments');
+      console.error('Error fetching departments:', err);
     } finally {
       setLoading(false);
     }
@@ -141,12 +188,21 @@ const HierarchicalDepartmentManagement: React.FC = () => {
     try {
       const response = await apiService.getSubjects();
       if (response.success) {
-        // Filter subjects by department
-        const filteredSubjects = response.data.filter((s: Subject) => s.department === departmentId);
+        // Filter subjects by department - handle both populated object and string ID
+        const filteredSubjects = response.data.filter((s: Subject) => {
+          const subjectDeptId = typeof s.department === 'object' && s.department !== null
+            ? (s.department as any)._id
+            : s.department;
+          return subjectDeptId === departmentId;
+        });
         setSubjects(filteredSubjects);
+        setError(null); // Clear any previous errors
+      } else {
+        setError(response.message || 'Failed to fetch subjects');
       }
     } catch (err: any) {
       setError(err.message || 'Failed to fetch subjects');
+      console.error('Error fetching subjects:', err);
     } finally {
       setLoading(false);
     }
@@ -156,11 +212,13 @@ const HierarchicalDepartmentManagement: React.FC = () => {
     setLoading(true);
     try {
       const response = await apiService.getUsers();
+      console.log('Fetching faculty - All users response:', response);
       if (response.success) {
         // Filter by role (case-insensitive)
         const allFaculty = response.data.filter((u: any) => 
           u.role && u.role.toLowerCase() === 'faculty'
         );
+        console.log('All faculty members:', allFaculty);
         
         // Filter faculty by department
         const filteredFaculty = allFaculty.filter((u: any) => {
@@ -174,7 +232,11 @@ const HierarchicalDepartmentManagement: React.FC = () => {
           return userDeptId === departmentId;
         });
         
+        console.log('Filtered faculty for department:', departmentId, filteredFaculty);
         setFaculty(filteredFaculty);
+        setError(null); // Clear any previous errors
+      } else {
+        setError(response.message || 'Failed to fetch faculty');
       }
     } catch (err: any) {
       setError(err.message || 'Failed to fetch faculty');
@@ -212,6 +274,9 @@ const HierarchicalDepartmentManagement: React.FC = () => {
         });
         
         setStudents(filteredStudents);
+        setError(null); // Clear any previous errors
+      } else {
+        setError(response.message || 'Failed to fetch students');
       }
     } catch (err: any) {
       setError(err.message || 'Failed to fetch students');
@@ -407,6 +472,141 @@ const HierarchicalDepartmentManagement: React.FC = () => {
     }
   };
 
+  // Student Management Functions
+  const generateStudentId = () => {
+    if (!selectedDepartment || !selectedClass) return '';
+    const deptCode = selectedDepartment.code;
+    const year = new Date().getFullYear().toString().slice(-2);
+    const section = selectedClass.section;
+    const timestamp = Date.now().toString().slice(-6);
+    return `${deptCode}_${year}_${section}_${timestamp}`;
+  };
+
+  const handleCreateStudent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedDepartment || !selectedClass) return;
+
+    try {
+      setLoading(true);
+      
+      // Generate student ID if not provided
+      const generatedStudentId = studentForm.studentId || generateStudentId();
+      
+      const studentData = {
+        name: studentForm.name,
+        email: studentForm.email,
+        password: studentForm.password || 'TempPass123!',
+        role: 'Student',
+        department: selectedDepartment._id,
+        studentId: generatedStudentId,
+        year: selectedClass.year,
+        section: selectedClass.section,
+        semester: studentForm.semester,
+        phone: studentForm.phone,
+        batch: studentForm.batch || new Date().getFullYear().toString(),
+        status: 'Active'
+      };
+
+      const response = await apiService.createUser(studentData);
+      
+      if (response.success) {
+        setSuccess('Student created successfully!');
+        await fetchStudents(selectedDepartment._id);
+        setShowStudentForm(false);
+        setStudentForm({
+          name: '',
+          email: '',
+          password: '',
+          studentId: '',
+          year: selectedClass.year,
+          section: selectedClass.section,
+          semester: 1,
+          phone: '',
+          batch: ''
+        });
+        setTimeout(() => setSuccess(null), 3000);
+      } else {
+        setError(response.message || 'Failed to create student');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to create student');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdateStudent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingStudent) return;
+
+    try {
+      setLoading(true);
+      
+      const updateData: any = {
+        name: studentForm.name,
+        email: studentForm.email,
+        studentId: studentForm.studentId,
+        year: studentForm.year,
+        section: studentForm.section,
+        semester: studentForm.semester,
+        phone: studentForm.phone,
+        batch: studentForm.batch
+      };
+
+      // Only include password if it's provided
+      if (studentForm.password && studentForm.password.trim()) {
+        updateData.password = studentForm.password;
+      }
+
+      const response = await apiService.updateUser(editingStudent._id, updateData);
+      
+      if (response.success) {
+        setSuccess('Student updated successfully!');
+        await fetchStudents(selectedDepartment!._id);
+        setShowStudentForm(false);
+        setEditingStudent(null);
+        setStudentForm({
+          name: '',
+          email: '',
+          password: '',
+          studentId: '',
+          year: '1st Year',
+          section: 'A',
+          semester: 1,
+          phone: '',
+          batch: ''
+        });
+        setTimeout(() => setSuccess(null), 3000);
+      } else {
+        setError(response.message || 'Failed to update student');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to update student');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteStudent = async (studentId: string) => {
+    if (confirm('Are you sure you want to delete this student?')) {
+      try {
+        setLoading(true);
+        const response = await apiService.deleteUser(studentId);
+        if (response.success && selectedDepartment) {
+          setSuccess('Student deleted successfully!');
+          await fetchStudents(selectedDepartment._id);
+          setTimeout(() => setSuccess(null), 3000);
+        } else {
+          setError(response.message || 'Failed to delete student');
+        }
+      } catch (err: any) {
+        setError(err.message || 'Failed to delete student');
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
   // Render Department List View
   const renderDepartmentList = () => (
     <div className="space-y-6">
@@ -540,18 +740,18 @@ const HierarchicalDepartmentManagement: React.FC = () => {
 
       {/* Management Options Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Subjects */}
+        {/* Classes & Subjects */}
         <div
-          onClick={handleManageSubjects}
-          className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition cursor-pointer border-2 border-transparent hover:border-indigo-500"
+          onClick={handleManageClasses}
+          className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition cursor-pointer border-2 border-transparent hover:border-purple-500"
         >
           <div className="flex items-center gap-4">
-            <div className="bg-indigo-100 p-4 rounded-lg">
-              <FaBook className="text-indigo-600 text-3xl" />
+            <div className="bg-purple-100 p-4 rounded-lg">
+              <FaUsers className="text-purple-600 text-3xl" />
             </div>
             <div className="flex-1">
-              <h3 className="text-lg font-semibold text-gray-800">Subjects</h3>
-              <p className="text-gray-600 text-sm">Manage subjects and courses</p>
+              <h3 className="text-lg font-semibold text-gray-800">Classes & Subjects</h3>
+              <p className="text-gray-600 text-sm">Manage classes, subjects & faculty assignment</p>
             </div>
             <FaChevronRight className="text-gray-400" />
           </div>
@@ -568,24 +768,7 @@ const HierarchicalDepartmentManagement: React.FC = () => {
             </div>
             <div className="flex-1">
               <h3 className="text-lg font-semibold text-gray-800">Faculty</h3>
-              <p className="text-gray-600 text-sm">Manage faculty assignments</p>
-            </div>
-            <FaChevronRight className="text-gray-400" />
-          </div>
-        </div>
-
-        {/* Classes */}
-        <div
-          onClick={handleManageClasses}
-          className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition cursor-pointer border-2 border-transparent hover:border-purple-500"
-        >
-          <div className="flex items-center gap-4">
-            <div className="bg-purple-100 p-4 rounded-lg">
-              <FaUsers className="text-purple-600 text-3xl" />
-            </div>
-            <div className="flex-1">
-              <h3 className="text-lg font-semibold text-gray-800">Classes & Sections</h3>
-              <p className="text-gray-600 text-sm">View class sections and schedules</p>
+              <p className="text-gray-600 text-sm">View all faculty members</p>
             </div>
             <FaChevronRight className="text-gray-400" />
           </div>
@@ -784,6 +967,9 @@ const HierarchicalDepartmentManagement: React.FC = () => {
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Phone
               </th>
+              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Actions
+              </th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
@@ -800,6 +986,20 @@ const HierarchicalDepartmentManagement: React.FC = () => {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <span className="text-sm text-gray-600">{fac.phone || '-'}</span>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-right">
+                  <button
+                    onClick={() => {
+                      // Redirect to User Management with this user pre-selected for editing
+                      if (typeof window !== 'undefined') {
+                        window.location.href = `/admin/users?edit=${fac._id}`;
+                      }
+                    }}
+                    className="text-blue-600 hover:text-blue-800"
+                    title="Edit Faculty"
+                  >
+                    <FaEdit />
+                  </button>
                 </td>
               </tr>
             ))}
@@ -931,11 +1131,12 @@ const HierarchicalDepartmentManagement: React.FC = () => {
                     <div className="flex gap-2 justify-end">
                       <button
                         onClick={() => {
-                          // Navigate to subjects filtered by this class
-                          setViewMode('subjects');
+                          // Navigate to class detail view showing subjects
+                          setSelectedClass({ year: group.year, section: group.section });
+                          setViewMode('classDetail');
                         }}
                         className="text-blue-600 hover:text-blue-800"
-                        title="View Subjects"
+                        title="Manage Subjects & Faculty"
                       >
                         <FaBook />
                       </button>
@@ -1019,7 +1220,7 @@ const HierarchicalDepartmentManagement: React.FC = () => {
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Roll Number
+                Student ID
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Name
@@ -1036,13 +1237,16 @@ const HierarchicalDepartmentManagement: React.FC = () => {
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Phone
               </th>
+              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Actions
+              </th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {students.map((student) => (
               <tr key={student._id} className="hover:bg-gray-50 transition">
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <span className="text-sm font-semibold text-orange-600">{student.rollNumber || '-'}</span>
+                  <span className="text-sm font-semibold text-orange-600">{student.studentId || '-'}</span>
                 </td>
                 <td className="px-6 py-4">
                   <span className="text-sm font-medium text-gray-900">{student.fullName || student.name || '-'}</span>
@@ -1051,13 +1255,27 @@ const HierarchicalDepartmentManagement: React.FC = () => {
                   <span className="text-sm text-gray-600">{student.email}</span>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <span className="text-sm text-gray-600">{student.year ? `Year ${student.year}` : '-'}</span>
+                  <span className="text-sm text-gray-600">{student.year || '-'}</span>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <span className="text-sm text-gray-600">{student.semester ? `Sem ${student.semester}` : '-'}</span>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <span className="text-sm text-gray-600">{student.phone || '-'}</span>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-right">
+                  <button
+                    onClick={() => {
+                      // Redirect to User Management with this user pre-selected for editing
+                      if (typeof window !== 'undefined') {
+                        window.location.href = `/admin/users?edit=${student._id}`;
+                      }
+                    }}
+                    className="text-blue-600 hover:text-blue-800"
+                    title="Edit Student"
+                  >
+                    <FaEdit />
+                  </button>
                 </td>
               </tr>
             ))}
@@ -1074,6 +1292,465 @@ const HierarchicalDepartmentManagement: React.FC = () => {
       </div>
     </div>
   );
+
+  // Render Class Detail View (Shows subjects of a specific class with faculty assignment)
+  const renderClassDetailView = () => {
+    if (!selectedClass) return null;
+
+    // Filter subjects for this specific class
+    const classSubjects = subjects.filter(
+      s => s.year === selectedClass.year && s.section === selectedClass.section
+    );
+
+    const handleAssignFaculty = (subject: Subject) => {
+      setSelectedSubjectForFaculty(subject);
+      setSelectedFacultyId('');
+      setIsPrimaryFaculty(false);
+      setIsExternalFaculty(false);
+      setShowFacultyAssignmentModal(true);
+    };
+
+    const handleRemoveFaculty = async (subjectId: string, facultyUserId: string) => {
+      if (!confirm('Remove this faculty assignment?')) return;
+      
+      try {
+        setLoading(true);
+        const response = await apiService.removeFacultyFromSubject(subjectId, facultyUserId);
+        
+        if (response.success) {
+          setSuccess('Faculty removed successfully!');
+          await fetchSubjects(selectedDepartment!._id);
+          setTimeout(() => setSuccess(null), 3000);
+        } else {
+          setError(response.message || 'Failed to remove faculty');
+        }
+      } catch (err: any) {
+        setError(err.message || 'Failed to remove faculty');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    const handleAddFacultyToSubject = async () => {
+      if (!selectedFacultyId || !selectedSubjectForFaculty) return;
+      
+      try {
+        setLoading(true);
+        const response = await apiService.assignFacultyToSubject(
+          selectedSubjectForFaculty._id,
+          {
+            facultyId: selectedFacultyId,
+            isPrimary: isPrimaryFaculty,
+            isExternal: isExternalFaculty
+          }
+        );
+        
+        if (response.success) {
+          setSuccess('Faculty assigned successfully!');
+          await fetchSubjects(selectedDepartment!._id);
+          setShowFacultyAssignmentModal(false);
+          setTimeout(() => setSuccess(null), 3000);
+        } else {
+          setError(response.message || 'Failed to assign faculty');
+        }
+      } catch (err: any) {
+        setError(err.message || 'Failed to assign faculty');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => {
+                setSelectedClass(null);
+                setViewMode('classes');
+              }}
+              className="text-gray-600 hover:text-gray-800"
+            >
+              <FaArrowLeft size={20} />
+            </button>
+            <div>
+              <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                <FaBook className="text-blue-600" />
+                {selectedClass.year} - Section {selectedClass.section}
+              </h2>
+              <p className="text-gray-600 mt-1">{selectedDepartment?.name} | Manage Subjects & Faculty</p>
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              setSubjectForm({
+                name: '',
+                code: '',
+                type: 'Theory',
+                year: selectedClass.year as any,
+                section: selectedClass.section as any,
+                credits: 3,
+                semester: 1,
+                description: ''
+              });
+              setEditingSubject(null);
+              setShowSubjectForm(true);
+            }}
+            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition"
+          >
+            <FaPlus /> Add Subject
+          </button>
+        </div>
+
+        {/* Subjects Table with Faculty Assignment */}
+        <div className="bg-white rounded-lg shadow-md overflow-hidden">
+          <table className="w-full">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Code
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Subject Name
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Type
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Credits
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Assigned Faculty
+                </th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {classSubjects.map((subject) => (
+                <tr key={subject._id} className="hover:bg-gray-50 transition">
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className="text-sm font-semibold text-blue-600">{subject.code}</span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className="text-sm font-medium text-gray-900">{subject.name}</span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                      subject.type === 'Theory' ? 'bg-blue-100 text-blue-800' :
+                      subject.type === 'TCPR' ? 'bg-green-100 text-green-800' :
+                      subject.type === 'TCPL' ? 'bg-purple-100 text-purple-800' :
+                      subject.type === 'Elective' ? 'bg-yellow-100 text-yellow-800' :
+                      'bg-gray-100 text-gray-800'
+                    }`}>
+                      {subject.type}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className="text-sm text-gray-600">{subject.credits}</span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="space-y-1">
+                      {subject.faculty && subject.faculty.length > 0 ? (
+                        subject.faculty.map((fac, idx) => {
+                          const facultyUser = typeof fac.user === 'object' ? fac.user : null;
+                          return (
+                            <div key={idx} className="flex items-center gap-2">
+                              <span className="text-sm text-gray-700">
+                                {facultyUser?.fullName || facultyUser?.name || 'Unknown'}
+                              </span>
+                              {fac.isPrimary && (
+                                <span className="px-2 py-0.5 text-xs bg-green-100 text-green-800 rounded">
+                                  Primary
+                                </span>
+                              )}
+                              {fac.isExternal && (
+                                <span className="px-2 py-0.5 text-xs bg-orange-100 text-orange-800 rounded">
+                                  External
+                                </span>
+                              )}
+                              <button
+                                onClick={() => handleRemoveFaculty(subject._id, facultyUser?._id || '')}
+                                className="text-red-500 hover:text-red-700 text-xs"
+                                title="Remove Faculty"
+                              >
+                                <FaTrash />
+                              </button>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <span className="text-sm text-gray-400 italic">No faculty assigned</span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-right">
+                    <div className="flex gap-2 justify-end">
+                      <button
+                        onClick={() => handleAssignFaculty(subject)}
+                        className="text-green-600 hover:text-green-800"
+                        title="Assign Faculty"
+                      >
+                        <FaPlus />
+                      </button>
+                      <button
+                        onClick={() => {
+                          setEditingSubject(subject);
+                          setSubjectForm({
+                            name: subject.name,
+                            code: subject.code,
+                            type: subject.type,
+                            year: subject.year,
+                            section: subject.section,
+                            credits: subject.credits,
+                            semester: subject.semester,
+                            description: subject.description || ''
+                          });
+                          setShowSubjectForm(true);
+                        }}
+                        className="text-blue-600 hover:text-blue-800"
+                        title="Edit Subject"
+                      >
+                        <FaEdit />
+                      </button>
+                      <button
+                        onClick={async () => {
+                          if (confirm('Delete this subject?')) {
+                            try {
+                              setLoading(true);
+                              const response = await apiService.deleteSubject(subject._id);
+                              if (response.success) {
+                                setSuccess('Subject deleted successfully!');
+                                await fetchSubjects(selectedDepartment!._id);
+                                setTimeout(() => setSuccess(null), 3000);
+                              } else {
+                                setError(response.message || 'Failed to delete subject');
+                              }
+                            } catch (err: any) {
+                              setError(err.message || 'Failed to delete subject');
+                            } finally {
+                              setLoading(false);
+                            }
+                          }
+                        }}
+                        className="text-red-600 hover:text-red-800"
+                        title="Delete Subject"
+                      >
+                        <FaTrash />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          {classSubjects.length === 0 && !loading && (
+            <div className="text-center py-12 text-gray-500">
+              <FaBook className="mx-auto text-4xl mb-2 text-gray-300" />
+              <p>No subjects found for this class.</p>
+              <p className="text-sm mt-2">Click "Add Subject" to create a subject for this class.</p>
+            </div>
+          )}
+        </div>
+
+        {/* Students Section */}
+        <div className="bg-white rounded-lg shadow-md overflow-hidden">
+          <div className="px-6 py-4 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                <FaUserGraduate className="text-orange-600" />
+                Students in this Class
+              </h3>
+              <p className="text-sm text-gray-600 mt-1">
+                {students.filter(s => s.year === selectedClass.year && s.section === selectedClass.section).length} students enrolled
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                setStudentForm({
+                  name: '',
+                  email: '',
+                  password: '',
+                  studentId: generateStudentId(),
+                  year: selectedClass.year,
+                  section: selectedClass.section,
+                  semester: 1,
+                  phone: '',
+                  batch: new Date().getFullYear().toString()
+                });
+                setEditingStudent(null);
+                setShowStudentForm(true);
+              }}
+              className="flex items-center gap-2 bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition"
+            >
+              <FaPlus /> Add Student
+            </button>
+          </div>
+
+          <table className="w-full">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Student ID
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Name
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Email
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Semester
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Phone
+                </th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {students
+                .filter(s => s.year === selectedClass.year && s.section === selectedClass.section)
+                .map((student) => (
+                <tr key={student._id} className="hover:bg-gray-50 transition">
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className="text-sm font-semibold text-orange-600">{student.studentId || '-'}</span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className="text-sm font-medium text-gray-900">{student.fullName || student.name || '-'}</span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className="text-sm text-gray-600">{student.email}</span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className="text-sm text-gray-600">Sem {student.semester || '-'}</span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className="text-sm text-gray-600">{student.phone || '-'}</span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-right">
+                    <div className="flex gap-2 justify-end">
+                      <button
+                        onClick={() => {
+                          setEditingStudent(student);
+                          setStudentForm({
+                            name: student.fullName || student.name || '',
+                            email: student.email,
+                            password: '',
+                            studentId: student.studentId || '',
+                            year: student.year || selectedClass.year,
+                            section: student.section || selectedClass.section,
+                            semester: student.semester || 1,
+                            phone: student.phone || '',
+                            batch: student.batch || ''
+                          });
+                          setShowStudentForm(true);
+                        }}
+                        className="text-blue-600 hover:text-blue-800"
+                        title="Edit Student"
+                      >
+                        <FaEdit />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteStudent(student._id)}
+                        className="text-red-600 hover:text-red-800"
+                        title="Delete Student"
+                      >
+                        <FaTrash />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          {students.filter(s => s.year === selectedClass.year && s.section === selectedClass.section).length === 0 && !loading && (
+            <div className="text-center py-12 text-gray-500">
+              <FaUserGraduate className="mx-auto text-4xl mb-2 text-gray-300" />
+              <p>No students enrolled in this class.</p>
+              <p className="text-sm mt-2">Click "Add Student" to enroll students in this class.</p>
+            </div>
+          )}
+        </div>
+
+        {/* Faculty Assignment Modal */}
+        {showFacultyAssignmentModal && selectedSubjectForFaculty && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 w-full max-w-md">
+              <h3 className="text-xl font-bold mb-4">Assign Faculty</h3>
+              <p className="text-gray-600 mb-4">
+                Subject: <span className="font-semibold">{selectedSubjectForFaculty.name}</span>
+              </p>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Select Faculty *
+                  </label>
+                  <select
+                    value={selectedFacultyId}
+                    onChange={(e) => setSelectedFacultyId(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    required
+                  >
+                    <option value="">-- Select Faculty --</option>
+                    {faculty.map((fac) => (
+                      <option key={fac._id} value={fac._id}>
+                        {fac.fullName || fac.name} ({fac.employeeId || fac.email})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-4">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={isPrimaryFaculty}
+                      onChange={(e) => setIsPrimaryFaculty(e.target.checked)}
+                      className="w-4 h-4 text-blue-600"
+                    />
+                    <span className="text-sm text-gray-700">Primary Faculty</span>
+                  </label>
+                  
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={isExternalFaculty}
+                      onChange={(e) => setIsExternalFaculty(e.target.checked)}
+                      className="w-4 h-4 text-blue-600"
+                    />
+                    <span className="text-sm text-gray-700">External Faculty</span>
+                  </label>
+                </div>
+              </div>
+
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={handleAddFacultyToSubject}
+                  disabled={!selectedFacultyId || loading}
+                  className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition"
+                >
+                  {loading ? 'Assigning...' : 'Assign Faculty'}
+                </button>
+                <button
+                  onClick={() => setShowFacultyAssignmentModal(false)}
+                  className="flex-1 bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300 transition"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="p-6">
@@ -1118,6 +1795,7 @@ const HierarchicalDepartmentManagement: React.FC = () => {
           {viewMode === 'subjects' && renderSubjectsView()}
           {viewMode === 'faculty' && renderFacultyView()}
           {viewMode === 'classes' && renderClassesView()}
+          {viewMode === 'classDetail' && renderClassDetailView()}
           {viewMode === 'students' && renderStudentsView()}
         </>
       )}
@@ -1449,6 +2127,190 @@ const HierarchicalDepartmentManagement: React.FC = () => {
                 Create & Add Subjects
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Student Form Modal */}
+      {showStudentForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+              <FaUserGraduate className="text-orange-600" />
+              {editingStudent ? 'Edit Student' : 'Add New Student'}
+            </h3>
+            <form onSubmit={editingStudent ? handleUpdateStudent : handleCreateStudent} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Full Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={studentForm.name}
+                    onChange={(e) => setStudentForm({ ...studentForm, name: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Email *
+                  </label>
+                  <input
+                    type="email"
+                    value={studentForm.email}
+                    onChange={(e) => setStudentForm({ ...studentForm, email: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Student ID * <span className="text-xs text-gray-500">(Editable)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={studentForm.studentId}
+                    onChange={(e) => setStudentForm({ ...studentForm, studentId: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 bg-yellow-50"
+                    required
+                    placeholder="e.g., CSE_24_A_001"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Password {editingStudent ? '' : '*'}
+                  </label>
+                  <input
+                    type="password"
+                    value={studentForm.password}
+                    onChange={(e) => setStudentForm({ ...studentForm, password: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    required={!editingStudent}
+                    placeholder={editingStudent ? 'Leave blank to keep current' : 'Enter password'}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Year *
+                  </label>
+                  <select
+                    value={studentForm.year}
+                    onChange={(e) => setStudentForm({ ...studentForm, year: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    required
+                  >
+                    <option value="1st Year">1st Year</option>
+                    <option value="2nd Year">2nd Year</option>
+                    <option value="3rd Year">3rd Year</option>
+                    <option value="4th Year">4th Year</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Section *
+                  </label>
+                  <select
+                    value={studentForm.section}
+                    onChange={(e) => setStudentForm({ ...studentForm, section: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    required
+                  >
+                    <option value="A">A</option>
+                    <option value="B">B</option>
+                    <option value="C">C</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Semester *
+                  </label>
+                  <select
+                    value={studentForm.semester}
+                    onChange={(e) => setStudentForm({ ...studentForm, semester: parseInt(e.target.value) })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    required
+                  >
+                    {[1, 2, 3, 4, 5, 6, 7, 8].map(sem => (
+                      <option key={sem} value={sem}>Semester {sem}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Phone
+                  </label>
+                  <input
+                    type="tel"
+                    value={studentForm.phone}
+                    onChange={(e) => setStudentForm({ ...studentForm, phone: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    placeholder="e.g., +91 9876543210"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Batch Year
+                  </label>
+                  <input
+                    type="text"
+                    value={studentForm.batch}
+                    onChange={(e) => setStudentForm({ ...studentForm, batch: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    placeholder="e.g., 2024"
+                  />
+                </div>
+              </div>
+
+              {selectedClass && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <p className="text-sm text-blue-800">
+                    <strong>Note:</strong> This student will be enrolled in <strong>{selectedClass.year} - Section {selectedClass.section}</strong>
+                  </p>
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowStudentForm(false);
+                    setEditingStudent(null);
+                    setStudentForm({
+                      name: '',
+                      email: '',
+                      password: '',
+                      studentId: '',
+                      year: '1st Year',
+                      section: 'A',
+                      semester: 1,
+                      phone: '',
+                      batch: ''
+                    });
+                  }}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition"
+                >
+                  {loading ? 'Saving...' : editingStudent ? 'Update Student' : 'Create Student'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

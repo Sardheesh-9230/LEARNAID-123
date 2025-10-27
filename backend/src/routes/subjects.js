@@ -1,6 +1,8 @@
 const express = require('express');
 const { body } = require('express-validator');
 const subjectController = require('../controllers/subjectController');
+const chapterController = require('../controllers/subjectChapterController');
+const materialController = require('../controllers/materialController');
 const { protect, authorize } = require('../middleware/auth');
 
 const router = express.Router();
@@ -230,5 +232,124 @@ router.put('/:id', protect, authorize('Admin'), updateSubjectValidation, subject
  *         description: Subject deleted successfully
  */
 router.delete('/:id', protect, authorize('Admin'), subjectController.deleteSubject);
+
+/**
+ * @swagger
+ * /api/subjects/{id}/faculty:
+ *   post:
+ *     summary: Assign faculty to subject
+ *     tags: [Subjects]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Subject ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - facultyId
+ *             properties:
+ *               facultyId:
+ *                 type: string
+ *                 description: Faculty user ID
+ *               isPrimary:
+ *                 type: boolean
+ *                 description: Is this the primary faculty for the subject
+ *               isExternal:
+ *                 type: boolean
+ *                 description: Is this an external faculty
+ *     responses:
+ *       200:
+ *         description: Faculty assigned successfully
+ */
+router.post('/:id/faculty', protect, authorize('Admin'), subjectController.assignFacultyToSubject);
+
+/**
+ * @swagger
+ * /api/subjects/{id}/faculty/{facultyId}:
+ *   delete:
+ *     summary: Remove faculty from subject
+ *     tags: [Subjects]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Subject ID
+ *       - in: path
+ *         name: facultyId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Faculty user ID
+ *     responses:
+ *       200:
+ *         description: Faculty removed successfully
+ */
+router.delete('/:id/faculty/:facultyId', protect, authorize('Admin'), subjectController.removeFacultyFromSubject);
+
+// Sync student enrollments - Auto-enroll students based on matching criteria
+router.post('/sync-enrollments', protect, authorize('Admin', 'Faculty'), subjectController.syncStudentEnrollments);
+
+// ========================================
+// CHAPTER ROUTES (Nested under subjects)
+// ========================================
+
+// Get all chapters for a subject
+router.get('/:subjectId/chapters', protect, chapterController.getChaptersBySubject);
+
+// Create chapter for a subject
+router.post('/:subjectId/chapters', protect, authorize('Faculty', 'Admin'), chapterController.createChapter);
+
+// Reorder chapters in a subject
+router.put('/:subjectId/chapters/reorder', protect, authorize('Faculty', 'Admin'), chapterController.reorderChapters);
+
+// Get single chapter
+router.get('/chapters/:id', protect, chapterController.getChapterById);
+
+// Update chapter
+router.put('/chapters/:id', protect, authorize('Faculty', 'Admin'), chapterController.updateChapter);
+
+// Delete chapter
+router.delete('/chapters/:id', protect, authorize('Faculty', 'Admin'), chapterController.deleteChapter);
+
+// ========================================
+// MATERIAL ROUTES (Nested under subjects/chapters)
+// ========================================
+
+// Get all materials for a subject
+router.get('/:subjectId/materials', protect, materialController.getMaterialsBySubject);
+
+// Get materials by chapter
+router.get('/chapters/:chapterId/materials', protect, materialController.getMaterialsByChapter);
+
+// Create material in a chapter
+router.post('/chapters/:chapterId/materials', protect, authorize('Faculty', 'Admin'), materialController.createMaterial);
+
+// Reorder materials in a chapter
+router.put('/chapters/:chapterId/materials/reorder', protect, authorize('Faculty', 'Admin'), materialController.reorderMaterials);
+
+// Get single material
+router.get('/materials/:id', protect, materialController.getMaterialById);
+
+// Update material
+router.put('/materials/:id', protect, authorize('Faculty', 'Admin'), materialController.updateMaterial);
+
+// Delete material
+router.delete('/materials/:id', protect, authorize('Faculty', 'Admin'), materialController.deleteMaterial);
+
+// Record material download
+router.post('/materials/:id/download', protect, materialController.recordDownload);
 
 module.exports = router;

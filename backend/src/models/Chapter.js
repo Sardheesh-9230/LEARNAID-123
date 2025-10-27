@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 
 /**
  * Chapter Model
- * Represents a chapter within a course with PDF materials
+ * Represents a chapter within a subject with materials
  */
 const chapterSchema = new mongoose.Schema({
   title: {
@@ -16,10 +16,10 @@ const chapterSchema = new mongoose.Schema({
     required: [true, 'Chapter number is required'],
     min: [1, 'Chapter number must be at least 1']
   },
-  course: {
+  subject: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Course',
-    required: [true, 'Course is required']
+    ref: 'Subject',
+    required: [true, 'Subject is required']
   },
   description: {
     type: String,
@@ -110,9 +110,9 @@ const chapterSchema = new mongoose.Schema({
   toObject: { virtuals: true }
 });
 
-// Compound index for course and chapter number uniqueness
-chapterSchema.index({ course: 1, chapterNumber: 1 }, { unique: true });
-chapterSchema.index({ course: 1, displayOrder: 1 });
+// Compound index for subject and chapter number uniqueness
+chapterSchema.index({ subject: 1, chapterNumber: 1 }, { unique: true });
+chapterSchema.index({ subject: 1, displayOrder: 1 });
 chapterSchema.index({ status: 1 });
 
 // Methods
@@ -122,19 +122,19 @@ chapterSchema.methods.toJSON = function() {
   return chapter;
 };
 
-// Static method to get chapters by course
-chapterSchema.statics.findByCourse = function(courseId) {
-  return this.find({ course: courseId })
+// Static method to get chapters by subject
+chapterSchema.statics.findBySubject = function(subjectId) {
+  return this.find({ subject: subjectId })
     .populate('pdfFile', 'filename originalname fileSize filePath')
     .populate('resources.fileId', 'filename originalname fileSize')
     .sort({ displayOrder: 1, chapterNumber: 1 });
 };
 
 // Static method to reorder chapters
-chapterSchema.statics.reorderChapters = async function(courseId, chapterOrders) {
+chapterSchema.statics.reorderChapters = async function(subjectId, chapterOrders) {
   const bulkOps = chapterOrders.map((order, index) => ({
     updateOne: {
-      filter: { _id: order.chapterId, course: courseId },
+      filter: { _id: order.chapterId, subject: subjectId },
       update: { displayOrder: index + 1 }
     }
   }));

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import apiService from '../services/api'
+import SubjectsManagementView from './SubjectsManagementView'
 
 interface User {
   id: string
@@ -106,16 +107,36 @@ interface StudentPerformance {
   lastUpdated: string
 }
 
-export default function TeacherDashboard() {
+interface TeacherDashboardProps {
+  activeTab?: string
+  onTabChange?: (tab: string) => void
+}
+
+export default function TeacherDashboard({ activeTab: propActiveTab, onTabChange }: TeacherDashboardProps = {}) {
   const [user, setUser] = useState<User | null>(null)
   const [mySubjects, setMySubjects] = useState<Subject[]>([])
   const [myStudents, setMyStudents] = useState<User[]>([])
   const [assignments, setAssignments] = useState<Assignment[]>([])
   const [notes, setNotes] = useState<Note[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState('overview')
+  const [activeTab, setActiveTab] = useState(propActiveTab || 'overview')
   const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null)
   const [notification, setNotification] = useState<{message: string, type: 'success' | 'error'} | null>(null)
+
+  // Sync external activeTab changes
+  useEffect(() => {
+    if (propActiveTab && propActiveTab !== activeTab) {
+      setActiveTab(propActiveTab)
+    }
+  }, [propActiveTab])
+
+  // Notify parent of tab changes
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab)
+    if (onTabChange) {
+      onTabChange(tab)
+    }
+  }
 
   // Sprint 4 Feature States
   const [uploadedPDFs, setUploadedPDFs] = useState<PDFContent[]>([])
@@ -236,9 +257,9 @@ export default function TeacherDashboard() {
     const currentIndex = tabs.indexOf(activeTab)
     
     if (direction === 'right' && currentIndex < tabs.length - 1) {
-      setActiveTab(tabs[currentIndex + 1])
+      handleTabChange(tabs[currentIndex + 1])
     } else if (direction === 'left' && currentIndex > 0) {
-      setActiveTab(tabs[currentIndex - 1])
+      handleTabChange(tabs[currentIndex - 1])
     }
   }
 
@@ -314,7 +335,7 @@ export default function TeacherDashboard() {
           await Promise.all([
             loadMySubjects(teacherId),
             loadAssignments(),
-            loadUploadedPDFs()
+            // loadUploadedPDFs() // Commented out - Sprint 4 feature not implemented yet
           ])
         } else {
           showNotification('User ID not found. Please login again.', 'error')
@@ -381,90 +402,51 @@ export default function TeacherDashboard() {
 
   const loadMySubjects = async (teacherId: string) => {
     try {
-      console.log('🔍 Loading subjects for teacher ID:', teacherId)
+      const response = await apiService.getSubjects()
+      const allSubjects = response?.data || response || []
       
-      // Try the dedicated faculty subjects API first
-      try {
-        console.log('🚀 Trying faculty subjects API...')
-        const response = await apiService.getFacultySubjects(teacherId)
-        console.log('📡 Faculty API response:', response)
-        
-        if (response && response.success && response.data && response.data.length > 0) {
-          console.log('✅ Using dedicated faculty API - found subjects:', response.data.length)
-          setMySubjects(response.data)
-          await loadStudentsForSubjects(response.data)
-          showNotification(`Successfully loaded ${response.data.length} subjects`, 'success')
-          return
-        } else {
-          console.log('⚠️ Faculty API returned no subjects, falling back to filtering')
-        }
-      } catch (apiError) {
-        console.log('❌ Faculty API failed:', apiError)
-        console.log('🔄 Falling back to manual filtering')
-      }
-      
-      // Fallback: Get all subjects and filter
-      const allSubjects = await apiService.getSubjects()
-      console.log('📚 All subjects loaded:', allSubjects.length)
-      
-      if (!allSubjects || allSubjects.length === 0) {
-        console.log('❌ No subjects found in system')
+      if (!Array.isArray(allSubjects) || allSubjects.length === 0) {
+        console.log('No subjects found in system')
         setMySubjects([])
         return
       }
       
       // Filter subjects where current user is assigned as faculty
       const mySubjects = allSubjects.filter((subject: Subject) => {
-        console.log(`📖 Checking subject: ${subject.name} (${subject.code})`)
-        
         if (!subject.faculty || !Array.isArray(subject.faculty)) {
-          console.log(`  ❌ No faculty array found`)
           return false
         }
         
-        console.log(`  👨‍🏫 Faculty count: ${subject.faculty.length}`)
-        subject.faculty.forEach((f, idx) => {
-          console.log(`  Faculty ${idx + 1}:`, {
-            id: f.id,
-            _id: f._id,
-            name: f.name,
-            user: f.user || 'N/A'
-          })
-        })
-        
-        const hasFaculty = subject.faculty.some(f => {
+        return subject.faculty.some(f => {
           // Handle different faculty structure formats
           let facultyId = null
           
-          // New structure: f.id or f._id directly
-          if (f.id) facultyId = f.id
-          else if (f._id) facultyId = f._id
-          // Old structure: f.user.id or f.user._id
-          else if (f.user) {
-            if (typeof f.user === 'string') facultyId = f.user
-            else if (f.user.id) facultyId = f.user.id
-            else if (f.user._id) facultyId = f.user._id
+          // Get the user ID from the faculty object
+          if (f.user) {
+            if (typeof f.user === 'string') {
+              facultyId = f.user
+            } else if (f.user._id) {
+              facultyId = f.user._id
+            } else if (f.user.id) {
+              facultyId = f.user.id
+            }
           }
           
-          const matches = facultyId === teacherId
-          console.log(`    🔍 Comparing: "${facultyId}" === "${teacherId}" = ${matches}`)
-          return matches
+          return facultyId === teacherId
         })
-        
-        console.log(`  ✅ Subject ${subject.name} matches: ${hasFaculty}`)
-        return hasFaculty
       })
       
-      console.log('🎯 Filtered teacher subjects:', mySubjects.length)
-      mySubjects.forEach((subject: Subject) => {
-        console.log(`  - ${subject.name} (${subject.code}) - ${getDepartmentName(subject.department)}`)
-      })
+      console.log(`📚 Loaded ${mySubjects.length} subjects assigned to faculty`)
+      
+      if (mySubjects.length === 0) {
+        showNotification('No subjects are currently assigned to you. Contact your administrator.', 'info')
+      }
       
       setMySubjects(mySubjects)
       
       // Load students for these subjects
       if (mySubjects.length > 0) {
-        // Try to sync enrollments first to ensure students are properly enrolled
+        // Sync enrollments first to ensure students are properly enrolled
         try {
           console.log('🔄 Syncing student enrollments...')
           const syncResult = await apiService.syncStudentEnrollments()
@@ -475,7 +457,7 @@ export default function TeacherDashboard() {
           }
         } catch (syncError) {
           console.error('❌ Enrollment sync failed:', syncError)
-          showNotification('Warning: Student enrollment sync failed. Some students may not appear.', 'error')
+          // Continue anyway - fallback to department/year/section matching
         }
         
         await loadStudentsForSubjects(mySubjects)
@@ -1028,290 +1010,18 @@ export default function TeacherDashboard() {
   }
 
   return (
-    <div 
-      ref={dashboardRef}
-      className={`min-h-screen transition-all duration-500 ${
-        isDarkMode 
-          ? 'bg-gradient-to-br from-gray-900 via-gray-800 to-indigo-900' 
-          : 'bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50'
-      }`}
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
-    >
-      {/* Modern Floating Header */}
-      <div className={`fixed top-0 left-0 right-0 z-40 transition-all duration-300 ${
-        isDarkMode ? 'bg-gray-900/80' : 'bg-white/80'
-      } backdrop-blur-xl border-b ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
-            <div className="flex items-center space-x-4">
-              {/* Hamburger Menu */}
-              <button
-                onClick={() => setIsMenuOpen(!isMenuOpen)}
-                className={`p-2 rounded-xl transition-all duration-200 ${
-                  isDarkMode 
-                    ? 'hover:bg-gray-800 text-gray-200' 
-                    : 'hover:bg-gray-100 text-gray-700'
-                } md:hidden`}
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
-              </button>
-
-              {/* Logo with Animation */}
-              <div className="flex items-center space-x-3">
-                <div className="relative group">
-                  <div className="w-12 h-12 bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 rounded-xl flex items-center justify-center shadow-lg transform transition-all duration-300 group-hover:scale-110 group-hover:rotate-6">
-                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                    </svg>
-                  </div>
-                  <div className="absolute -inset-1 bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl blur opacity-30 group-hover:opacity-100 transition duration-1000 group-hover:duration-200 animate-tilt"></div>
-                </div>
-                <div className="hidden md:block">
-                  <h1 className={`text-2xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent`}>
-                    TeacherSpace
-                  </h1>
-                  <p className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                    Welcome back, {user?.name?.split(' ')[0] || user?.email}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex items-center space-x-2">
-              {/* Quick Stats */}
-              <div className={`hidden lg:flex items-center space-x-4 px-4 py-2 rounded-xl ${
-                isDarkMode ? 'bg-gray-800' : 'bg-white'
-              } shadow-lg`}>
-                <div className="text-center">
-                  <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Subjects</p>
-                  <p className={`font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{mySubjects.length}</p>
-                </div>
-                <div className={`w-px h-8 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'}`}></div>
-                <div className="text-center">
-                  <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Students</p>
-                  <p className={`font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{myStudents.length}</p>
-                </div>
-              </div>
-
-              {/* Dark Mode Toggle */}
-              <button
-                onClick={toggleDarkMode}
-                className={`p-3 rounded-xl transition-all duration-300 ${
-                  isDarkMode 
-                    ? 'bg-yellow-500 hover:bg-yellow-400 text-gray-900' 
-                    : 'bg-gray-800 hover:bg-gray-700 text-yellow-400'
-                } shadow-lg hover:shadow-xl transform hover:scale-105`}
-              >
-                {isDarkMode ? '☀️' : '🌙'}
-              </button>
-
-              {/* Refresh Button */}
-              <button 
-                onClick={loadDashboardData}
-                className={`p-3 rounded-xl transition-all duration-300 ${
-                  isDarkMode 
-                    ? 'bg-blue-600 hover:bg-blue-500 text-white' 
-                    : 'bg-blue-600 hover:bg-blue-700 text-white'
-                } shadow-lg hover:shadow-xl transform hover:scale-105`}
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0V9a8 8 0 1115.356 2M15 15v5h-.582M4.356 13A8.001 8.001 0 0019.418 15" />
-                </svg>
-              </button>
-
-              {/* Sync Students */}
-              <button 
-                onClick={handleSyncEnrollments}
-                className={`p-3 rounded-xl transition-all duration-300 ${
-                  isDarkMode 
-                    ? 'bg-green-600 hover:bg-green-500 text-white' 
-                    : 'bg-green-600 hover:bg-green-700 text-white'
-                } shadow-lg hover:shadow-xl transform hover:scale-105`}
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                </svg>
-              </button>
-
-              {/* Logout */}
-              <a 
-                href="/login" 
-                className={`p-3 rounded-xl transition-all duration-300 ${
-                  isDarkMode 
-                    ? 'bg-red-600 hover:bg-red-500 text-white' 
-                    : 'bg-red-600 hover:bg-red-700 text-white'
-                } shadow-lg hover:shadow-xl transform hover:scale-105`}
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                </svg>
-              </a>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Modern Notification */}
+    <div ref={dashboardRef} className="w-full">
+      {/* Notification */}
       {notification && (
-        <div className={`fixed top-20 right-4 z-50 p-6 rounded-2xl shadow-2xl border backdrop-blur-xl transform transition-all duration-500 ${
-          notification.type === 'success' 
-            ? isDarkMode 
-              ? 'bg-green-900/90 border-green-700 text-green-100' 
-              : 'bg-green-50/90 border-green-200 text-green-800'
-            : isDarkMode 
-              ? 'bg-red-900/90 border-red-700 text-red-100' 
-              : 'bg-red-50/90 border-red-200 text-red-800'
-        } animate-bounce-in`}>
-          <div className="flex items-center space-x-3">
-            <div className={`w-2 h-2 rounded-full ${
-              notification.type === 'success' ? 'bg-green-500' : 'bg-red-500'
-            } animate-pulse`}></div>
-            <p className="font-medium">{notification.message}</p>
-          </div>
+        <div className={`fixed top-4 right-4 z-50 px-6 py-3 rounded-lg shadow-lg ${
+          notification.type === 'success' ? 'bg-green-500' : 'bg-red-500'
+        } text-white`}>
+          {notification.message}
         </div>
       )}
 
-      {/* Gesture Indicator */}
-      {currentGesture && (
-        <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 bg-black/80 text-white px-6 py-3 rounded-2xl backdrop-blur-xl">
-          <div className="flex items-center space-x-2">
-            <div className="text-2xl">
-              {currentGesture === 'swipe-left' && '👈'}
-              {currentGesture === 'swipe-right' && '👉'}
-              {currentGesture === 'swipe-up' && '👆'}
-              {currentGesture === 'swipe-down' && '👇'}
-            </div>
-            <span className="capitalize">{currentGesture.replace('-', ' ')}</span>
-          </div>
-        </div>
-      )}
-
-      {/* Mobile Menu Overlay */}
-      {isMenuOpen && (
-        <div className="fixed inset-0 z-30 md:hidden">
-          <div className="fixed inset-0 bg-black opacity-50" onClick={() => setIsMenuOpen(false)}></div>
-          <div className={`fixed left-0 top-0 h-full w-80 ${
-            isDarkMode ? 'bg-gray-900' : 'bg-white'
-          } shadow-2xl transform transition-transform duration-300 ease-in-out`}>
-            <div className="p-6">
-              <div className="flex justify-between items-center mb-8">
-                <h2 className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Menu</h2>
-                <button
-                  onClick={() => setIsMenuOpen(false)}
-                  className={`p-2 rounded-lg ${isDarkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-100'}`}
-                >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-              
-              <nav className="space-y-2">
-                {[
-                  { id: 'overview', name: 'Overview', icon: '📊', color: 'blue' },
-                  { id: 'subjects', name: 'My Subjects', icon: '📚', color: 'purple' },
-                  { id: 'students', name: 'Students', icon: '👥', color: 'green' },
-                  { id: 'assignments', name: 'Assignments', icon: '📝', color: 'orange' },
-                  { id: 'mcq', name: 'MCQ Generator', icon: '🤖', color: 'pink' },
-                  { id: 'tasks', name: 'Smart Tasks', icon: '🎯', color: 'indigo' },
-                  { id: 'analytics', name: 'Analytics', icon: '📈', color: 'teal' },
-                  { id: 'schedule', name: 'Schedule', icon: '📅', color: 'red' }
-                ].map((tab) => (
-                  <button
-                    key={tab.id}
-                    onClick={() => {
-                      setActiveTab(tab.id)
-                      setIsMenuOpen(false)
-                    }}
-                    className={`w-full flex items-center space-x-3 p-4 rounded-xl transition-all duration-200 ${
-                      activeTab === tab.id
-                        ? `bg-${tab.color}-500 text-white shadow-lg`
-                        : isDarkMode 
-                          ? 'hover:bg-gray-800 text-gray-300' 
-                          : 'hover:bg-gray-100 text-gray-700'
-                    }`}
-                  >
-                    <span className="text-2xl">{tab.icon}</span>
-                    <span className="font-medium">{tab.name}</span>
-                  </button>
-                ))}
-              </nav>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className="pt-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Modern Navigation Tabs */}
-        <div className="mb-8">
-          <div className={`${isDarkMode ? 'bg-gray-800/50' : 'bg-white/70'} backdrop-blur-xl rounded-2xl p-2 shadow-xl border ${isDarkMode ? 'border-gray-700' : 'border-white'}`}>
-            <nav className="flex space-x-1 overflow-x-auto scrollbar-hide">
-              {[
-                { id: 'overview', name: 'Overview', icon: '📊', color: 'from-blue-500 to-blue-600' },
-                { id: 'subjects', name: 'Subjects', icon: '📚', color: 'from-purple-500 to-purple-600' },
-                { id: 'students', name: 'Students', icon: '👥', color: 'from-green-500 to-green-600' },
-                { id: 'assignments', name: 'Assignments', icon: '📝', color: 'from-orange-500 to-orange-600' },
-                { id: 'mcq', name: 'MCQ Gen', icon: '🤖', color: 'from-pink-500 to-pink-600' },
-                { id: 'tasks', name: 'Tasks', icon: '🎯', color: 'from-indigo-500 to-indigo-600' },
-                { id: 'analytics', name: 'Analytics', icon: '📈', color: 'from-teal-500 to-teal-600' },
-                { id: 'schedule', name: 'Schedule', icon: '📅', color: 'from-red-500 to-red-600' }
-              ].map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center space-x-2 px-4 py-3 rounded-xl font-medium text-sm transition-all duration-300 transform hover:scale-105 whitespace-nowrap ${
-                    activeTab === tab.id
-                      ? `bg-gradient-to-r ${tab.color} text-white shadow-lg shadow-${tab.color.split('-')[1]}-500/30`
-                      : isDarkMode 
-                        ? 'text-gray-300 hover:bg-gray-700/50' 
-                        : 'text-gray-600 hover:bg-gray-100/50'
-                  }`}
-                >
-                  <span className="text-lg">{tab.icon}</span>
-                  <span>{tab.name}</span>
-                </button>
-              ))}
-            </nav>
-          </div>
-        </div>
-
-        {/* Floating Action Menu */}
-        <div className="fixed bottom-8 right-8 z-30">
-          <div className="relative">
-            <button 
-              className={`group w-16 h-16 rounded-full shadow-2xl transition-all duration-500 transform hover:scale-110 ${
-                isDarkMode 
-                  ? 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700' 
-                  : 'bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700'
-              } flex items-center justify-center`}
-              onClick={() => {
-                // Cycle through main tabs
-                const tabs = ['overview', 'subjects', 'students', 'assignments', 'mcq', 'tasks', 'analytics']
-                const currentIndex = tabs.indexOf(activeTab)
-                const nextIndex = (currentIndex + 1) % tabs.length
-                setActiveTab(tabs[nextIndex])
-              }}
-            >
-              <div className="absolute inset-0 rounded-full bg-gradient-to-r from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-              <svg className="w-8 h-8 text-white group-hover:rotate-180 transition-transform duration-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-            </button>
-            
-            {/* Tooltip */}
-            <div className={`absolute bottom-20 right-0 px-3 py-1 rounded-lg text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity duration-300 ${
-              isDarkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-800'
-            } shadow-lg whitespace-nowrap`}>
-              Quick Navigate
-            </div>
-          </div>
-        </div>
-
+      {/* Main Content */}
+      <div className="w-full">
         {/* Overview Tab */}
         {activeTab === 'overview' && (
           <div className="space-y-8">
@@ -1328,7 +1038,7 @@ export default function TeacherDashboard() {
                 onDragStart={(e) => handleDragStart(e, 'subjects')}
                 onDragOver={handleDragOver}
                 onDrop={(e) => handleDrop(e, 'subjects')}
-                onClick={() => setActiveTab('subjects')}
+                onClick={() => handleTabChange('subjects')}
               >
                 <div className="absolute inset-0 bg-gradient-to-r from-purple-500/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
                 <div className="relative z-10">
@@ -1556,109 +1266,12 @@ export default function TeacherDashboard() {
 
         {/* Modern Subjects Tab */}
         {activeTab === 'subjects' && (
-          <div className="space-y-8">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-              <div>
-                <h2 className={`text-3xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent`}>
-                  My Subjects
-                </h2>
-                <p className={`mt-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                  Manage your courses and learning materials
-                </p>
-              </div>
-              <div className="flex items-center gap-4">
-                <button 
-                  onClick={() => setShowUploadNote(true)}
-                  className="group relative overflow-hidden bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-3 rounded-2xl hover:from-green-600 hover:to-green-700 transition-all duration-300 text-sm flex items-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105"
-                >
-                  <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-20 transition-opacity duration-300"></div>
-                  <svg className="w-5 h-5 group-hover:rotate-180 transition-transform duration-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                  </svg>
-                  Upload Note
-                </button>
-                <div className={`px-4 py-2 rounded-2xl ${isDarkMode ? 'bg-gray-800' : 'bg-white'} shadow-lg border ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse"></div>
-                    <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                      {mySubjects.length} Subjects
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {mySubjects.map((subject: Subject) => (
-                <div key={subject._id} className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-shadow">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex-1">
-                      <h3 className="text-lg font-bold text-gray-800 mb-2">{subject.name}</h3>
-                      <p className="text-sm text-gray-600 mb-2">{subject.code}</p>
-                      <div className="flex flex-wrap gap-2 mb-3">
-                        <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">
-                          {getDepartmentName(subject.department)}
-                        </span>
-                        <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs">
-                          {subject.year}
-                        </span>
-                        <span className="bg-purple-100 text-purple-800 px-2 py-1 rounded text-xs">
-                          Section {subject.section}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2 mb-4">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Students:</span>
-                      <span className="font-medium">{getStudentsForSubject(subject).length}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Credits:</span>
-                      <span className="font-medium">{subject.credits}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Semester:</span>
-                      <span className="font-medium">{subject.semester}</span>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <button 
-                      onClick={() => setSelectedSubject(subject)}
-                      className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-4 py-3 rounded-2xl font-medium text-sm transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl"
-                    >
-                      Details
-                    </button>
-                    <button 
-                      onClick={() => openNotesModal(subject)}
-                      className={`px-4 py-3 rounded-2xl font-medium text-sm transition-all duration-300 transform hover:scale-105 ${
-                        isDarkMode 
-                          ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' 
-                          : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
-                      } shadow-lg hover:shadow-xl flex items-center justify-center gap-2`}
-                    >
-                      <span className="text-lg">📄</span>
-                      Notes
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {mySubjects.length === 0 && (
-              <div className="text-center py-12 text-gray-500">
-                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                  </svg>
-                </div>
-                <p className="text-lg font-medium">No subjects assigned</p>
-                <p className="text-sm">Contact your administrator to get subjects assigned.</p>
-              </div>
-            )}
-          </div>
+          <SubjectsManagementView
+            mySubjects={mySubjects}
+            myStudents={myStudents}
+            getDepartmentName={getDepartmentName}
+            showNotification={showNotification}
+          />
         )}
 
         {/* Students Tab */}

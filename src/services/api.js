@@ -333,10 +333,10 @@ class ApiService {
   }
 
   // Assign faculty to subject
-  async assignFacultyToSubject(facultyId, subjectData) {
-    return this.makeRequest(`/users/${facultyId}/assign-subjects`, {
+  async assignFacultyToSubject(subjectId, facultyData) {
+    return this.makeRequest(`/subjects/${subjectId}/faculty`, {
       method: 'POST',
-      body: JSON.stringify(subjectData),
+      body: JSON.stringify(facultyData),
     });
   }
 
@@ -344,6 +344,13 @@ class ApiService {
   async removeFacultyFromSubject(subjectId, facultyId) {
     return this.makeRequest(`/subjects/${subjectId}/faculty/${facultyId}`, {
       method: 'DELETE',
+    });
+  }
+
+  // Sync student enrollments based on department/year/section matching
+  async syncStudentEnrollments() {
+    return this.makeRequest('/subjects/sync-enrollments', {
+      method: 'POST',
     });
   }
 
@@ -360,6 +367,108 @@ class ApiService {
     return this.makeRequest(`/subjects/${subjectId}/students`, {
       method: 'DELETE',
       body: JSON.stringify({ studentIds }),
+    });
+  }
+
+  // ========================================
+  // CHAPTER APIs
+  // ========================================
+
+  // Get chapters by subject
+  async getChaptersBySubject(subjectId) {
+    return this.makeRequest(`/subjects/${subjectId}/chapters`);
+  }
+
+  // Get single chapter
+  async getChapter(chapterId) {
+    return this.makeRequest(`/subjects/chapters/${chapterId}`);
+  }
+
+  // Create chapter
+  async createChapter(subjectId, chapterData) {
+    return this.makeRequest(`/subjects/${subjectId}/chapters`, {
+      method: 'POST',
+      body: JSON.stringify(chapterData),
+    });
+  }
+
+  // Update chapter
+  async updateChapter(chapterId, chapterData) {
+    return this.makeRequest(`/subjects/chapters/${chapterId}`, {
+      method: 'PUT',
+      body: JSON.stringify(chapterData),
+    });
+  }
+
+  // Delete chapter
+  async deleteChapter(chapterId) {
+    return this.makeRequest(`/subjects/chapters/${chapterId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // Reorder chapters
+  async reorderChapters(subjectId, chapterOrders) {
+    return this.makeRequest(`/subjects/${subjectId}/chapters/reorder`, {
+      method: 'PUT',
+      body: JSON.stringify({ chapterOrders }),
+    });
+  }
+
+  // ========================================
+  // MATERIAL APIs
+  // ========================================
+
+  // Get materials by subject
+  async getMaterialsBySubject(subjectId) {
+    return this.makeRequest(`/subjects/${subjectId}/materials`);
+  }
+
+  // Get materials by chapter
+  async getMaterialsByChapter(chapterId) {
+    return this.makeRequest(`/subjects/chapters/${chapterId}/materials`);
+  }
+
+  // Get single material
+  async getMaterial(materialId) {
+    return this.makeRequest(`/subjects/materials/${materialId}`);
+  }
+
+  // Create material
+  async createMaterial(chapterId, materialData) {
+    return this.makeRequest(`/subjects/chapters/${chapterId}/materials`, {
+      method: 'POST',
+      body: JSON.stringify(materialData),
+    });
+  }
+
+  // Update material
+  async updateMaterial(materialId, materialData) {
+    return this.makeRequest(`/subjects/materials/${materialId}`, {
+      method: 'PUT',
+      body: JSON.stringify(materialData),
+    });
+  }
+
+  // Delete material
+  async deleteMaterial(materialId) {
+    return this.makeRequest(`/subjects/materials/${materialId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // Reorder materials
+  async reorderMaterials(chapterId, materialOrders) {
+    return this.makeRequest(`/subjects/chapters/${chapterId}/materials/reorder`, {
+      method: 'PUT',
+      body: JSON.stringify({ materialOrders }),
+    });
+  }
+
+  // Record material download
+  async recordMaterialDownload(materialId) {
+    return this.makeRequest(`/subjects/materials/${materialId}/download`, {
+      method: 'POST',
     });
   }
 
@@ -653,6 +762,24 @@ export const {
   removeFacultyFromSubject,
   enrollStudentsInSubject,
   removeStudentsFromSubject,
+  
+  // Chapters
+  getChaptersBySubject,
+  getChapter,
+  createChapter,
+  updateChapter,
+  deleteChapter,
+  reorderChapters,
+  
+  // Materials
+  getMaterialsBySubject,
+  getMaterialsByChapter,
+  getMaterial,
+  createMaterial,
+  updateMaterial,
+  deleteMaterial,
+  reorderMaterials,
+  recordMaterialDownload,
   
   // Analytics
   getDashboardStats,

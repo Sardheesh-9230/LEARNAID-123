@@ -28,7 +28,7 @@ const getSubjects = async (req, res) => {
 
     const subjects = await Subject.find(filter)
       .populate('department', 'name code')
-      .populate('faculty.user', 'name email designation')
+      .populate('faculty.user', '_id name email designation')
       .populate('prerequisite', 'name code')
       .sort({ semester: 1, name: 1 });
 
@@ -188,7 +188,7 @@ const getSubjectById = async (req, res) => {
   try {
     const subject = await Subject.findById(req.params.id)
       .populate('department', 'name code')
-      .populate('faculty.user', 'name email designation')
+      .populate('faculty.user', '_id name email designation')
       .populate('prerequisite', 'name code credits semester');
 
     if (!subject) {
@@ -429,10 +429,253 @@ const deleteSubject = async (req, res) => {
   }
 };
 
+// @desc    Assign faculty to subject
+// @route   POST /api/subjects/:id/faculty
+// @access  Private (Admin)
+const assignFacultyToSubject = async (req, res) => {
+  try {
+    // Debugging: log minimal request info to help trace 404/authorization issues
+    console.log('[assignFacultyToSubject] hit:', req.method, req.originalUrl, 'authHeader=', !!req.headers.authorization);
+    const { facultyId, isPrimary = false, isExternal = false } = req.body;
+
+    if (!facultyId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Faculty ID is required'
+      });
+    }
+
+    const subject = await Subject.findById(req.params.id);
+    if (!subject) {
+      return res.status(404).json({
+        success: false,
+        message: 'Subject not found'
+      });
+    }
+
+    // Verify faculty exists and is in the same department
+    const facultyUser = await User.findOne({
+      _id: facultyId,
+      role: 'Faculty',
+      department: subject.department
+    });
+
+    if (!facultyUser) {
+      return res.status(400).json({
+        success: false,
+        message: 'Faculty must be a faculty member in the same department'
+      });
+    }
+
+    // Use the model method to assign faculty
+    await subject.assignFaculty(facultyId, isExternal, isPrimary);
+
+    // Add to faculty's assignedSubjects
+    await User.findByIdAndUpdate(
+      facultyId,
+      { $addToSet: { assignedSubjects: subject._id } }
+    );
+
+    // Log activity
+    await ActivityLog.logActivity({
+      user: req.user.id,
+      action: 'UPDATE',
+      resourceType: 'Subject',
+      resourceId: subject._id,
+      details: {
+        action: 'assign_faculty',
+        facultyId: facultyId,
+        facultyName: facultyUser.name,
+        isPrimary: isPrimary,
+        isExternal: isExternal
+      },
+      ipAddress: req.ip,
+      userAgent: req.get('User-Agent')
+    });
+
+    // Return updated subject with populated faculty
+    const updatedSubject = await Subject.findById(req.params.id)
+      .populate('department', 'name code')
+      .populate('faculty.user', '_id name fullName email employeeId');
+
+    res.status(200).json({
+      success: true,
+      message: 'Faculty assigned successfully',
+      data: updatedSubject
+    });
+
+  } catch (error) {
+    console.error('Assign faculty error:', error);
+    
+    if (error.message === 'Faculty is already assigned to this subject') {
+      return res.status(400).json({
+        success: false,
+        message: error.message
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: 'Server error while assigning faculty'
+    });
+  }
+};
+
+// @desc    Remove faculty from subject
+// @route   DELETE /api/subjects/:id/faculty/:facultyId
+// @access  Private (Admin)
+const removeFacultyFromSubject = async (req, res) => {
+  try {
+    // Debugging: log minimal request info to help trace 404/authorization issues
+    console.log('[removeFacultyFromSubject] hit:', req.method, req.originalUrl, 'authHeader=', !!req.headers.authorization);
+    const { id, facultyId } = req.params;
+
+    const subject = await Subject.findById(id);
+    if (!subject) {
+      return res.status(404).json({
+        success: false,
+        message: 'Subject not found'
+      });
+    }
+
+    // Use the model method to remove faculty
+    await subject.removeFaculty(facultyId);
+
+    // Remove from faculty's assignedSubjects
+    await User.findByIdAndUpdate(
+      facultyId,
+      { $pull: { assignedSubjects: subject._id } }
+    );
+
+    // Log activity
+    await ActivityLog.logActivity({
+      user: req.user.id,
+      action: 'UPDATE',
+      resourceType: 'Subject',
+      resourceId: subject._id,
+      details: {
+        action: 'remove_faculty',
+        facultyId: facultyId
+      },
+      ipAddress: req.ip,
+      userAgent: req.get('User-Agent')
+    });
+
+    // Return updated subject with populated faculty
+    const updatedSubject = await Subject.findById(id)
+      .populate('department', 'name code')
+      .populate('faculty.user', '_id name fullName email employeeId');
+
+    res.status(200).json({
+      success: true,
+      message: 'Faculty removed successfully',
+      data: updatedSubject
+    });
+
+  } catch (error) {
+    console.error('Remove faculty error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while removing faculty'
+    });
+  }
+};
+
+// @desc    Sync student enrollments - Auto-enroll students based on department/year/section matching
+// @route   POST /api/subjects/sync-enrollments
+// @access  Private
+const syncStudentEnrollments = async (req, res) => {
+  try {
+    console.log('[syncStudentEnrollments] Starting enrollment sync...');
+    
+    // Get all active subjects
+    const subjects = await Subject.find({ status: 'Active' });
+    
+    // Get all active students
+    const students = await User.find({ role: 'Student', status: 'Active' });
+    
+    console.log(`Found ${subjects.length} subjects and ${students.length} students`);
+    
+    let enrollmentsCreated = 0;
+    let enrollmentsSkipped = 0;
+    const updates = [];
+    
+    // For each subject, find matching students and enroll them
+    for (const subject of subjects) {
+      const matchingStudents = students.filter(student => {
+        // Match by department, year, and section
+        const deptMatch = String(student.department) === String(subject.department);
+        const yearMatch = student.year === subject.year;
+        const sectionMatch = student.section === subject.section;
+        
+        return deptMatch && yearMatch && sectionMatch;
+      });
+      
+      console.log(`Subject ${subject.name} (${subject.year} - ${subject.section}): ${matchingStudents.length} matching students`);
+      
+      for (const student of matchingStudents) {
+        // Check if student is already enrolled
+        const alreadyEnrolled = subject.enrolledStudents.some(
+          enrolledId => String(enrolledId) === String(student._id)
+        );
+        
+        if (!alreadyEnrolled) {
+          subject.enrolledStudents.push(student._id);
+          enrollmentsCreated++;
+          
+          // Also update the student's enrolledSubjects array
+          if (!student.enrolledSubjects) {
+            student.enrolledSubjects = [];
+          }
+          if (!student.enrolledSubjects.some(subId => String(subId) === String(subject._id))) {
+            student.enrolledSubjects.push(subject._id);
+            await student.save();
+          }
+        } else {
+          enrollmentsSkipped++;
+        }
+      }
+      
+      if (matchingStudents.length > 0) {
+        await subject.save();
+        updates.push({
+          subject: subject.name,
+          code: subject.code,
+          enrolled: matchingStudents.length
+        });
+      }
+    }
+    
+    console.log(`Enrollment sync complete: ${enrollmentsCreated} created, ${enrollmentsSkipped} skipped`);
+    
+    res.status(200).json({
+      success: true,
+      message: 'Student enrollments synchronized successfully',
+      data: {
+        totalSubjects: subjects.length,
+        totalStudents: students.length,
+        enrollmentsCreated,
+        enrollmentsSkipped,
+        updates
+      }
+    });
+    
+  } catch (error) {
+    console.error('Sync enrollments error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while syncing enrollments'
+    });
+  }
+};
+
 module.exports = {
   getSubjects,
   createSubject,
   getSubjectById,
   updateSubject,
-  deleteSubject
+  deleteSubject,
+  assignFacultyToSubject,
+  removeFacultyFromSubject,
+  syncStudentEnrollments
 };
