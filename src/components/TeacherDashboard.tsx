@@ -668,8 +668,11 @@ export default function TeacherDashboard({ activeTab: propActiveTab, onTabChange
 
   const loadNotesForSubject = async (subjectId: string) => {
     try {
-      const subjectNotes = await apiService.getNotes(subjectId)
-      setNotes(subjectNotes || [])
+      // Note: getNotes API endpoint not implemented yet
+      // const subjectNotes = await apiService.getNotes(subjectId)
+      // setNotes(subjectNotes || [])
+      setNotes([])
+      showNotification('Notes feature coming soon', 'info')
     } catch (error) {
       console.error('Error loading notes:', error)
       showNotification('Error loading notes for this subject', 'error')
@@ -686,37 +689,41 @@ export default function TeacherDashboard({ activeTab: propActiveTab, onTabChange
     }
 
     try {
+      // Note: uploadNote API endpoint not implemented yet
+      showNotification('Note upload feature coming soon', 'info')
+      return
+      
       // First upload the file
-      const formData = new FormData()
-      formData.append('file', noteForm.file)
-      formData.append('type', 'note')
-      
-      const uploadResponse = await apiService.uploadFile(formData)
-      
-      // Then create the note record
-      const noteData = {
-        title: noteForm.title,
-        description: noteForm.description,
-        fileName: noteForm.file.name,
-        filePath: uploadResponse.filePath,
-        fileSize: noteForm.file.size,
-      }
-      
-      await apiService.uploadNote(noteForm.subject, noteData)
-      
-      showNotification('Note uploaded successfully!', 'success')
-      setShowUploadNote(false)
-      setNoteForm({
-        title: '',
-        description: '',
-        file: null,
-        subject: ''
-      })
-      
-      // Refresh notes if viewing notes for this subject
-      if (selectedSubjectForNotes && selectedSubjectForNotes._id === noteForm.subject) {
-        await loadNotesForSubject(noteForm.subject)
-      }
+      // const formData = new FormData()
+      // formData.append('file', noteForm.file)
+      // formData.append('type', 'note')
+      // 
+      // const uploadResponse = await apiService.uploadFile(formData)
+      // 
+      // // Then create the note record
+      // const noteData = {
+      //   title: noteForm.title,
+      //   description: noteForm.description,
+      //   fileName: noteForm.file.name,
+      //   filePath: uploadResponse.filePath,
+      //   fileSize: noteForm.file.size,
+      // }
+      // 
+      // await apiService.uploadNote(noteForm.subject, noteData)
+      // 
+      // showNotification('Note uploaded successfully!', 'success')
+      // setShowUploadNote(false)
+      // setNoteForm({
+      //   title: '',
+      //   description: '',
+      //   file: null,
+      //   subject: ''
+      // })
+      // 
+      // // Refresh notes if viewing notes for this subject
+      // if (selectedSubjectForNotes && selectedSubjectForNotes._id === noteForm.subject) {
+      //   await loadNotesForSubject(noteForm.subject)
+      // }
     } catch (error) {
       console.error('Error uploading note:', error)
       showNotification('Error uploading note. Please try again.', 'error')
@@ -729,9 +736,11 @@ export default function TeacherDashboard({ activeTab: propActiveTab, onTabChange
     }
 
     try {
-      await apiService.deleteNote(subjectId, noteId)
-      showNotification('Note deleted successfully', 'success')
-      await loadNotesForSubject(subjectId)
+      // Note: deleteNote API endpoint not implemented yet
+      showNotification('Note delete feature coming soon', 'info')
+      // await apiService.deleteNote(subjectId, noteId)
+      // showNotification('Note deleted successfully', 'success')
+      // await loadNotesForSubject(subjectId)
     } catch (error) {
       console.error('Error deleting note:', error)
       showNotification('Error deleting note', 'error')
@@ -740,15 +749,17 @@ export default function TeacherDashboard({ activeTab: propActiveTab, onTabChange
 
   const handleDownloadNote = async (noteId: string, fileName: string) => {
     try {
-      const blob = await apiService.downloadNote(noteId)
-      const url = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = fileName
-      document.body.appendChild(a)
-      a.click()
-      window.URL.revokeObjectURL(url)
-      document.body.removeChild(a)
+      // Note: downloadNote API endpoint not implemented yet
+      showNotification('Note download feature coming soon', 'info')
+      // const blob = await apiService.downloadNote(noteId)
+      // const url = window.URL.createObjectURL(blob)
+      // const a = document.createElement('a')
+      // a.href = url
+      // a.download = fileName
+      // document.body.appendChild(a)
+      // a.click()
+      // window.URL.revokeObjectURL(url)
+      // document.body.removeChild(a)
     } catch (error) {
       console.error('Error downloading note:', error)
       showNotification('Error downloading note', 'error')
