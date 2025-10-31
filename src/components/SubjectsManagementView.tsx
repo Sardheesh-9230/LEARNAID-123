@@ -2,6 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import apiService from '../services/api';
+import ChapterForm from './ChapterForm';
+import MaterialUpload from './MaterialUpload';
+import MaterialsGrid from './MaterialsGrid';
 
 interface Subject {
   _id: string
@@ -111,7 +114,7 @@ export default function SubjectsManagementView({
     chapterNumber: 1,
     topics: '',
     learningOutcomes: '',
-    estimatedDuration: 60,
+    estimatedDuration: 1,
     status: 'Draft' as 'Draft' | 'Published' | 'Archived'
   })
   
@@ -214,7 +217,7 @@ export default function SubjectsManagementView({
       chapterNumber: chapters.length + 1,
       topics: '',
       learningOutcomes: '',
-      estimatedDuration: 60,
+      estimatedDuration: 1,
       status: 'Draft'
     })
     setShowChapterModal(true)
@@ -229,46 +232,56 @@ export default function SubjectsManagementView({
       chapterNumber: chapter.chapterNumber,
       topics: chapter.topics?.join(', ') || '',
       learningOutcomes: chapter.learningOutcomes?.join(', ') || '',
-      estimatedDuration: chapter.estimatedDuration || 60,
+      estimatedDuration: chapter.estimatedDuration || 1,
       status: chapter.status
     })
     setSelectedChapter(chapter)
     setShowChapterModal(true)
   }
 
-  const handleSaveChapter = async () => {
+  const handleSaveChapter = async (chapterData: any) => {
     if (!selectedSubject) return
     
     try {
       setLoading(true)
-      const chapterData = {
-        subject: selectedSubject._id,
-        title: chapterForm.title,
-        description: chapterForm.description,
-        content: chapterForm.content,
-        chapterNumber: chapterForm.chapterNumber,
-        topics: chapterForm.topics.split(',').map(t => t.trim()).filter(t => t),
-        learningOutcomes: chapterForm.learningOutcomes.split(',').map(l => l.trim()).filter(l => l),
-        estimatedDuration: chapterForm.estimatedDuration,
-        displayOrder: chapterForm.chapterNumber,
-        status: chapterForm.status
+      // Don't send 'subject' field - it's in the URL already
+      const dataToSave = {
+        ...chapterData,
+        displayOrder: chapterData.chapterNumber
       }
+
+      console.log('📤 Sending chapter data:', dataToSave)
+      console.log('📊 Data types:', {
+        title: typeof dataToSave.title,
+        chapterNumber: typeof dataToSave.chapterNumber,
+        estimatedDuration: typeof dataToSave.estimatedDuration,
+        topics: Array.isArray(dataToSave.topics),
+        learningOutcomes: Array.isArray(dataToSave.learningOutcomes),
+        status: typeof dataToSave.status
+      })
 
       let response
       if (isEditMode && selectedChapter) {
-        response = await apiService.updateChapter(selectedChapter._id, chapterData)
+        response = await apiService.updateChapter(selectedChapter._id, dataToSave)
       } else {
-        response = await apiService.createChapter(selectedSubject._id, chapterData)
+        response = await apiService.createChapter(selectedSubject._id, dataToSave)
       }
+
+      console.log('✅ Response:', response)
 
       if (response.success) {
         showNotification(`Chapter ${isEditMode ? 'updated' : 'created'} successfully`, 'success')
         setShowChapterModal(false)
         await loadChapters(selectedSubject._id)
+      } else {
+        console.error('❌ Backend returned error:', response)
+        showNotification(response.message || 'Failed to create chapter', 'error')
       }
-    } catch (error) {
-      console.error('Error saving chapter:', error)
-      showNotification(`Failed to ${isEditMode ? 'update' : 'create'} chapter`, 'error')
+    } catch (error: any) {
+      console.error('❌ Error saving chapter:', error)
+      console.error('Error details:', error.response?.data || error.message)
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to create chapter'
+      showNotification(errorMessage, 'error')
     } finally {
       setLoading(false)
     }
@@ -366,6 +379,43 @@ export default function SubjectsManagementView({
       showNotification('Failed to delete material', 'error')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleDownloadMaterial = async (materialId: string) => {
+    try {
+      const material = materials.find(m => m._id === materialId)
+      if (material && material.url) {
+        // Track download
+        await apiService.recordMaterialDownload(materialId)
+        // Open/download
+        window.open(material.url, '_blank')
+        showNotification('Material download started', 'success')
+        // Reload to update download count
+        if (selectedChapter) {
+          await loadMaterials(selectedChapter._id)
+        }
+      }
+    } catch (error) {
+      console.error('Error downloading material:', error)
+      showNotification('Failed to download material', 'error')
+    }
+  }
+
+  const handleViewMaterial = async (material: Material) => {
+    try {
+      // Track view
+      await apiService.recordMaterialDownload(material._id)
+      // Open material
+      if (material.url) {
+        window.open(material.url, '_blank')
+      }
+      // Reload to update view count
+      if (selectedChapter) {
+        await loadMaterials(selectedChapter._id)
+      }
+    } catch (error) {
+      console.error('Error viewing material:', error)
     }
   }
 
@@ -574,7 +624,7 @@ export default function SubjectsManagementView({
                       )}
                       <div className="flex items-center space-x-4 text-sm text-gray-600">
                         {chapter.estimatedDuration && (
-                          <span>⏱️ {chapter.estimatedDuration} mins</span>
+                          <span>⏱️ {chapter.estimatedDuration} {chapter.estimatedDuration === 1 ? 'hour' : 'hours'}</span>
                         )}
                         <span>📝 Click to view materials</span>
                       </div>
@@ -613,126 +663,25 @@ export default function SubjectsManagementView({
           )}
         </div>
 
-        {/* Chapter Modal */}
-        {showChapterModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-              <div className="sticky top-0 bg-gradient-to-r from-purple-600 to-pink-600 text-white p-6 rounded-t-2xl">
-                <h3 className="text-2xl font-bold">{isEditMode ? 'Edit Chapter' : 'Create New Chapter'}</h3>
-              </div>
-              
-              <div className="p-6 space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Chapter Number</label>
-                  <input
-                    type="number"
-                    value={chapterForm.chapterNumber}
-                    onChange={(e) => setChapterForm({...chapterForm, chapterNumber: parseInt(e.target.value)})}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    min="1"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Chapter Title *</label>
-                  <input
-                    type="text"
-                    value={chapterForm.title}
-                    onChange={(e) => setChapterForm({...chapterForm, title: e.target.value})}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    placeholder="Enter chapter title"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
-                  <textarea
-                    value={chapterForm.description}
-                    onChange={(e) => setChapterForm({...chapterForm, description: e.target.value})}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    rows={3}
-                    placeholder="Brief description of the chapter"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Content</label>
-                  <textarea
-                    value={chapterForm.content}
-                    onChange={(e) => setChapterForm({...chapterForm, content: e.target.value})}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    rows={5}
-                    placeholder="Detailed chapter content"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Topics (comma-separated)</label>
-                  <input
-                    type="text"
-                    value={chapterForm.topics}
-                    onChange={(e) => setChapterForm({...chapterForm, topics: e.target.value})}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    placeholder="Topic 1, Topic 2, Topic 3"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Learning Outcomes (comma-separated)</label>
-                  <input
-                    type="text"
-                    value={chapterForm.learningOutcomes}
-                    onChange={(e) => setChapterForm({...chapterForm, learningOutcomes: e.target.value})}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    placeholder="Outcome 1, Outcome 2"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Estimated Duration (minutes)</label>
-                  <input
-                    type="number"
-                    value={chapterForm.estimatedDuration}
-                    onChange={(e) => setChapterForm({...chapterForm, estimatedDuration: parseInt(e.target.value)})}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    min="1"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
-                  <select
-                    value={chapterForm.status}
-                    onChange={(e) => setChapterForm({...chapterForm, status: e.target.value as 'Draft' | 'Published' | 'Archived'})}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  >
-                    <option value="Draft">Draft</option>
-                    <option value="Published">Published</option>
-                    <option value="Archived">Archived</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="p-6 bg-gray-50 rounded-b-2xl flex justify-end space-x-3">
-                <button
-                  onClick={() => setShowChapterModal(false)}
-                  className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-100 transition-all"
-                  disabled={loading}
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSaveChapter}
-                  className="bg-gradient-to-r from-purple-500 to-pink-500 text-white px-6 py-2 rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all disabled:opacity-50"
-                  disabled={loading || !chapterForm.title}
-                >
-                  {loading ? 'Saving...' : isEditMode ? 'Update Chapter' : 'Create Chapter'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Chapter Form */}
+        <ChapterForm
+          isOpen={showChapterModal}
+          isEditMode={isEditMode}
+          chapterData={isEditMode && selectedChapter ? {
+            _id: selectedChapter._id,
+            title: selectedChapter.title,
+            chapterNumber: selectedChapter.chapterNumber,
+            description: selectedChapter.description || '',
+            content: selectedChapter.content || '',
+            topics: selectedChapter.topics || [],
+            learningOutcomes: selectedChapter.learningOutcomes || [],
+            estimatedDuration: selectedChapter.estimatedDuration || 1,
+            status: selectedChapter.status
+          } : undefined}
+          onClose={() => setShowChapterModal(false)}
+          onSave={handleSaveChapter}
+          loading={loading}
+        />
       </div>
     )
   }
@@ -769,7 +718,7 @@ export default function SubjectsManagementView({
                 </span>
                 {selectedChapter.estimatedDuration && (
                   <span className="bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full text-sm">
-                    ⏱️ {selectedChapter.estimatedDuration} mins
+                    ⏱️ {selectedChapter.estimatedDuration} {selectedChapter.estimatedDuration === 1 ? 'hour' : 'hours'}
                   </span>
                 )}
               </div>
@@ -783,7 +732,7 @@ export default function SubjectsManagementView({
           </div>
         </div>
 
-        {/* Materials List */}
+        {/* Materials Grid */}
         <div className="space-y-4">
           <h3 className="text-2xl font-bold text-gray-800">Learning Materials</h3>
           
@@ -791,80 +740,14 @@ export default function SubjectsManagementView({
             <div className="text-center py-8">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto"></div>
             </div>
-          ) : materials.length > 0 ? (
-            <div className="grid md:grid-cols-2 gap-4">
-              {materials.map((material) => (
-                <div
-                  key={material._id}
-                  className="bg-white rounded-xl shadow-lg p-6 hover:shadow-2xl transition-all border-l-4 border-pink-500"
-                >
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex items-center space-x-3">
-                      <span className="text-4xl">{getMaterialIcon(material.type)}</span>
-                      <div>
-                        <h4 className="font-bold text-gray-800">{material.title}</h4>
-                        <span className="text-xs text-gray-500">{material.type}</span>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => handleDeleteMaterial(material._id)}
-                      className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                      title="Delete"
-                    >
-                      🗑️
-                    </button>
-                  </div>
-
-                  {material.fileMetadata && (
-                    <div className="mb-3 p-3 bg-gray-50 rounded-lg">
-                      <p className="text-xs text-gray-600 truncate">{material.fileMetadata.originalName}</p>
-                      <p className="text-xs text-gray-500">
-                        {(material.fileMetadata.size / 1024 / 1024).toFixed(2)} MB
-                      </p>
-                    </div>
-                  )}
-
-                  {material.tags && material.tags.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mb-3">
-                      {material.tags.map((tag, idx) => (
-                        <span key={idx} className="bg-purple-50 text-purple-700 px-2 py-1 rounded text-xs">
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-
-                  <div className="flex items-center justify-between text-sm text-gray-600">
-                    <span>👁️ {material.viewCount} views</span>
-                    <span>⬇️ {material.downloadCount} downloads</span>
-                  </div>
-
-                  {material.url && (
-                    <div className="mt-4">
-                      <a
-                        href={material.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="block text-center bg-gradient-to-r from-purple-500 to-pink-500 text-white py-2 rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all font-medium"
-                      >
-                        View Material →
-                      </a>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
           ) : (
-            <div className="text-center py-12 bg-white rounded-xl">
-              <div className="text-6xl mb-4">📎</div>
-              <p className="text-gray-500 text-lg mb-4">No materials uploaded yet</p>
-              <button
-                onClick={handleCreateMaterial}
-                className="bg-gradient-to-r from-purple-500 to-pink-500 text-white px-6 py-3 rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all font-medium"
-              >
-                Upload First Material
-              </button>
-            </div>
+            <MaterialsGrid
+              materials={materials}
+              onDownload={handleDownloadMaterial}
+              onDelete={handleDeleteMaterial}
+              onView={handleViewMaterial}
+              canEdit={true}
+            />
           )}
         </div>
 

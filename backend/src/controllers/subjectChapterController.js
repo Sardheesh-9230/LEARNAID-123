@@ -87,8 +87,18 @@ const createChapter = async (req, res) => {
       displayOrder
     } = req.body;
     
+    console.log('📥 Received chapter creation request:');
+    console.log('  Subject ID:', subjectId);
+    console.log('  Title:', title);
+    console.log('  Chapter Number:', chapterNumber);
+    console.log('  Estimated Duration:', estimatedDuration, typeof estimatedDuration);
+    console.log('  Topics:', topics);
+    console.log('  Learning Outcomes:', learningOutcomes);
+    console.log('  Status:', status);
+    
     const subject = await Subject.findById(subjectId);
     if (!subject) {
+      console.error('❌ Subject not found:', subjectId);
       return res.status(404).json({
         success: false,
         message: 'Subject not found'
@@ -133,10 +143,13 @@ const createChapter = async (req, res) => {
       data: populatedChapter
     });
   } catch (error) {
-    console.error('Error creating chapter:', error);
+    console.error('❌ Error creating chapter:', error);
+    console.error('Error name:', error.name);
+    console.error('Error message:', error.message);
     
     if (error.name === 'ValidationError') {
       const messages = Object.values(error.errors).map(err => err.message);
+      console.error('Validation errors:', messages);
       return res.status(400).json({
         success: false,
         message: messages.join(', ')
