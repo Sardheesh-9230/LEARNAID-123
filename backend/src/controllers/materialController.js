@@ -119,13 +119,22 @@ const getMaterialById = async (req, res) => {
 const createMaterial = async (req, res) => {
   try {
     const { chapterId } = req.params;
+    
+    console.log('📥 Creating material:', {
+      chapterId,
+      body: req.body,
+      file: req.file ? {
+        filename: req.file.filename,
+        originalname: req.file.originalname,
+        size: req.file.size
+      } : 'No file'
+    });
+    
     const {
       title,
       description,
       type,
       url,
-      file,
-      fileMetadata,
       order,
       duration,
       status,
@@ -142,25 +151,50 @@ const createMaterial = async (req, res) => {
         message: 'Chapter not found'
       });
     }
-    
-    // Create material
-    const material = await Material.create({
+
+    // Prepare material data
+    const materialData = {
       chapter: chapterId,
       subject: chapter.subject,
       title,
-      description,
+      description: description || '',
       type,
-      url,
-      file,
-      fileMetadata,
-      order: order || 1,
-      duration,
+      order: order ? parseInt(order) : 1,
+      duration: duration ? parseInt(duration) : 0,
       status: status || 'Published',
-      isPublic: isPublic !== undefined ? isPublic : true,
-      allowDownload: allowDownload !== undefined ? allowDownload : true,
-      tags,
+      isPublic: isPublic !== undefined ? isPublic === 'true' : true,
+      allowDownload: allowDownload !== undefined ? allowDownload === 'true' : true,
       createdBy: req.user._id
-    });
+    };
+
+    // Handle file upload if present
+    if (req.file) {
+      materialData.fileMetadata = {
+        filename: req.file.filename,
+        originalname: req.file.originalname,
+        size: req.file.size,
+        mimetype: req.file.mimetype,
+        path: req.file.path
+      };
+    } else if (url) {
+      // If no file but URL provided
+      materialData.url = url;
+    }
+
+    // Handle tags if provided
+    if (tags) {
+      try {
+        materialData.tags = typeof tags === 'string' ? JSON.parse(tags) : tags;
+      } catch (e) {
+        // If tags is not JSON, split by comma
+        materialData.tags = tags.split(',').map(t => t.trim()).filter(t => t);
+      }
+    }
+    
+    console.log('📝 Material data to save:', materialData);
+    
+    // Create material
+    const material = await Material.create(materialData);
     
     // Populate the created material
     const populatedMaterial = await Material.findById(material._id)
@@ -169,13 +203,15 @@ const createMaterial = async (req, res) => {
       .populate('file', 'filename originalname fileSize filePath')
       .populate('createdBy', 'name email');
     
+    console.log('✅ Material created successfully:', material._id);
+    
     res.status(201).json({
       success: true,
       message: 'Material created successfully',
       data: populatedMaterial
     });
   } catch (error) {
-    console.error('Error creating material:', error);
+    console.error('❌ Error creating material:', error);
     
     if (error.name === 'ValidationError') {
       const messages = Object.values(error.errors).map(err => err.message);

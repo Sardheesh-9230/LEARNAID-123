@@ -156,8 +156,10 @@ export default function SubjectsManagementView({
     try {
       setLoading(true)
       const response = await apiService.getChaptersBySubject(subjectId)
+      console.log('📥 Chapters response:', response)
       if (response.success) {
-        setChapters(response.chapters || [])
+        // Backend returns chapters in 'data' field, not 'chapters'
+        setChapters(response.data || [])
       }
     } catch (error) {
       console.error('Error loading chapters:', error)

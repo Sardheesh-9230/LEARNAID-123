@@ -35,12 +35,16 @@ const activityLogSchema = new mongoose.Schema({
     type: String,
     validate: {
       validator: function(v) {
+        if (!v) return true; // Allow empty values
+        
         // IPv4 pattern
         const ipv4Pattern = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
-        // IPv6 pattern (simplified - covers most common cases including ::1)
-        const ipv6Pattern = /^(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$|^::1$|^::$/;
-        // Check if it matches either IPv4 or IPv6
-        return !v || ipv4Pattern.test(v) || ipv6Pattern.test(v) || v === 'localhost';
+        
+        // IPv6 pattern (including IPv4-mapped IPv6 like ::ffff:127.0.0.1)
+        const ipv6Pattern = /^(([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}|::1|::|::ffff:(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?))$/;
+        
+        // Check if it matches either IPv4 or IPv6 or localhost
+        return ipv4Pattern.test(v) || ipv6Pattern.test(v) || v === 'localhost';
       },
       message: 'Please enter a valid IP address'
     }

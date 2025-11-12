@@ -7,7 +7,7 @@ const path = require('path');
 
 /**
  * @desc    Create a new chapter
- * @route   POST /api/chapters
+ * @route   POST /api/subjects/:subjectId/chapters
  * @access  Private/Faculty
  */
 exports.createChapter = async (req, res, next) => {
@@ -20,60 +20,76 @@ exports.createChapter = async (req, res, next) => {
       });
     }
 
+    // Get subjectId from URL params
+    const subjectId = req.params.subjectId;
+
     const {
       title,
       chapterNumber,
-      course,
       description,
       content,
       topics,
       learningOutcomes,
       estimatedDuration,
-      displayOrder
+      displayOrder,
+      status
     } = req.body;
 
-    // Verify course exists
-    const courseExists = await Course.findById(course);
-    if (!courseExists) {
+    console.log('📥 Creating chapter with data:', {
+      subjectId,
+      title,
+      chapterNumber,
+      topics: topics,
+      learningOutcomes: learningOutcomes,
+      estimatedDuration,
+      status
+    });
+
+    // Verify subject exists (Course and Subject are the same model)
+    const subject = await Course.findById(subjectId);
+    if (!subject) {
       return res.status(404).json({
         success: false,
-        message: 'Course not found'
+        message: 'Subject not found'
       });
     }
 
-    // Check if user has permission to add chapters to this course
-    if (req.user.role === 'Faculty' && courseExists.faculty.toString() !== req.user.id) {
+    // Check if user has permission to add chapters to this subject
+    if (req.user.role === 'Faculty' && subject.faculty.toString() !== req.user.id) {
       return res.status(403).json({
         success: false,
-        message: 'Not authorized to add chapters to this course'
+        message: 'Not authorized to add chapters to this subject'
       });
     }
 
-    // Check if chapter number already exists for this course
-    const existingChapter = await Chapter.findOne({ course, chapterNumber });
+    // Check if chapter number already exists for this subject
+    const existingChapter = await Chapter.findOne({ subject: subjectId, chapterNumber });
     if (existingChapter) {
       return res.status(400).json({
         success: false,
-        message: 'Chapter number already exists for this course'
+        message: `Chapter number ${chapterNumber} already exists for this subject`
       });
     }
 
-    // Create chapter
+    // Create chapter - note: Chapter model uses 'subject' field
     const chapter = await Chapter.create({
       title,
       chapterNumber,
-      course,
-      description,
-      content,
+      subject: subjectId, // Use subject field as per Chapter model
+      description: description || '',
+      content: content || '',
       topics: topics ? (Array.isArray(topics) ? topics : [topics]) : [],
       learningOutcomes: learningOutcomes ? (Array.isArray(learningOutcomes) ? learningOutcomes : [learningOutcomes]) : [],
-      estimatedDuration,
+      estimatedDuration: estimatedDuration || 1,
       displayOrder: displayOrder || chapterNumber,
+      status: status || 'Draft',
       createdBy: req.user.id
     });
 
-    // Populate course details
-    await chapter.populate('course', 'name code');
+    // Populate subject details
+    await chapter.populate('subject', 'name code');
+
+    console.log('✅ Chapter created successfully:', chapter._id);
 
     res.status(201).json({
       success: true,
@@ -81,7 +97,7 @@ exports.createChapter = async (req, res, next) => {
       data: chapter
     });
   } catch (error) {
-    console.error('Create chapter error:', error);
+    console.error('❌ Create chapter error:', error);
     res.status(500).json({
       success: false,
       message: 'Error creating chapter',
@@ -193,6 +209,48 @@ exports.getChaptersByCourse = async (req, res, next) => {
 };
 
 /**
+ * @desc    Get chapters by subject
+ * @route   GET /api/subjects/:subjectId/chapters
+ * @access  Private
+ */
+exports.getChaptersBySubject = async (req, res, next) => {
+  try {
+    const { subjectId } = req.params;
+
+    console.log('📥 Fetching chapters for subject:', subjectId);
+
+    const subject = await Course.findById(subjectId);
+    if (!subject) {
+      return res.status(404).json({
+        success: false,
+        message: 'Subject not found'
+      });
+    }
+
+    const chapters = await Chapter.find({ subject: subjectId })
+      .populate('subject', 'name code')
+      .populate('pdfFile', 'filename originalname fileSize filePath')
+      .populate('resources.fileId', 'filename originalname fileSize')
+      .sort({ displayOrder: 1, chapterNumber: 1 });
+
+    console.log(`✅ Found ${chapters.length} chapters for subject`);
+
+    res.status(200).json({
+      success: true,
+      count: chapters.length,
+      data: chapters
+    });
+  } catch (error) {
+    console.error('❌ Get chapters by subject error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching chapters',
+      error: error.message
+    });
+  }
+};
+
+/**
  * @desc    Update chapter
  * @route   PUT /api/chapters/:id
  * @access  Private/Faculty
@@ -207,7 +265,7 @@ exports.updateChapter = async (req, res, next) => {
       });
     }
 
-    let chapter = await Chapter.findById(req.params.id).populate('course');
+    let chapter = await Chapter.findById(req.params.id).populate('subject');
 
     if (!chapter) {
       return res.status(404).json({
@@ -217,7 +275,7 @@ exports.updateChapter = async (req, res, next) => {
     }
 
     // Check permissions
-    if (req.user.role === 'Faculty' && chapter.course.faculty.toString() !== req.user.id) {
+    if (req.user.role === 'Faculty' && chapter.subject.faculty.toString() !== req.user.id) {
       return res.status(403).json({
         success: false,
         message: 'Not authorized to update this chapter'
@@ -227,7 +285,7 @@ exports.updateChapter = async (req, res, next) => {
     // If chapter number is being changed, check for duplicates
     if (req.body.chapterNumber && req.body.chapterNumber !== chapter.chapterNumber) {
       const existingChapter = await Chapter.findOne({
-        course: chapter.course._id,
+        subject: chapter.subject._id,
         chapterNumber: req.body.chapterNumber,
         _id: { $ne: chapter._id }
       });
@@ -235,7 +293,7 @@ exports.updateChapter = async (req, res, next) => {
       if (existingChapter) {
         return res.status(400).json({
           success: false,
-          message: 'Chapter number already exists for this course'
+          message: 'Chapter number already exists for this subject'
         });
       }
     }
@@ -249,7 +307,7 @@ exports.updateChapter = async (req, res, next) => {
         new: true,
         runValidators: true
       }
-    ).populate('course', 'name code')
+    ).populate('subject', 'name code')
      .populate('pdfFile', 'filename originalname fileSize');
 
     res.status(200).json({
@@ -274,7 +332,7 @@ exports.updateChapter = async (req, res, next) => {
  */
 exports.deleteChapter = async (req, res, next) => {
   try {
-    const chapter = await Chapter.findById(req.params.id).populate('course');
+    const chapter = await Chapter.findById(req.params.id).populate('subject');
 
     if (!chapter) {
       return res.status(404).json({
@@ -284,7 +342,7 @@ exports.deleteChapter = async (req, res, next) => {
     }
 
     // Check permissions
-    if (req.user.role === 'Faculty' && chapter.course.faculty.toString() !== req.user.id) {
+    if (req.user.role === 'Faculty' && chapter.subject.faculty.toString() !== req.user.id) {
       return res.status(403).json({
         success: false,
         message: 'Not authorized to delete this chapter'
