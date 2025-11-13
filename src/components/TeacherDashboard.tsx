@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import apiService from '../services/api'
 import SubjectsManagementView from './SubjectsManagementView'
+import MCQGeneratorV3 from './MCQGeneratorV3'
 
 interface User {
   id: string
@@ -147,7 +148,8 @@ export default function TeacherDashboard({ activeTab: propActiveTab, onTabChange
   const [mcqGeneration, setMcqGeneration] = useState({
     isGenerating: false,
     numQuestions: 5,
-    difficulty: 'medium' as 'easy' | 'medium' | 'hard'
+    difficulty: 'medium' as 'easy' | 'medium' | 'hard',
+    topic: ''
   })
 
   // Modal states
@@ -805,84 +807,239 @@ export default function TeacherDashboard({ activeTab: propActiveTab, onTabChange
   // Sprint 4 Feature Functions
   const loadUploadedPDFs = async () => {
     try {
-      const response = await fetch('/api/pdf', {
+      console.log('📚 Loading uploaded PDFs...')
+      
+      const response = await fetch('http://localhost:5000/api/pdf', {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
         }
       })
-      const data = await response.json()
-      if (data.success) {
-        setUploadedPDFs(data.data)
+
+      if (!response.ok) {
+        console.warn('⚠️ Failed to load PDFs:', response.status, response.statusText)
+        if (response.status === 401) {
+          showNotification('Session expired. Please log in again.', 'error')
+        }
+        return
       }
-    } catch (error) {
-      console.error('Error loading PDFs:', error)
-      showNotification('Error loading PDFs', 'error')
+
+      const data = await response.json()
+      if (data.success && data.data) {
+        console.log(`✅ Loaded ${data.data.length} PDFs`)
+        setUploadedPDFs(data.data)
+      } else {
+        console.warn('⚠️ No PDFs found or invalid response')
+        setUploadedPDFs([])
+      }
+    } catch (error: any) {
+      console.error('❌ Error loading PDFs:', error)
+      if (!error.message.includes('Failed to fetch')) {
+        showNotification('Error loading PDFs', 'error')
+      }
     }
   }
 
   const handleUploadPDF = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    // Validation
     if (!pdfForm.file) {
       showNotification('Please select a PDF file', 'error')
       return
     }
 
+    if (!pdfForm.subject || pdfForm.subject.trim().length === 0) {
+      showNotification('Please enter a subject name', 'error')
+      return
+    }
+
+    // File type validation
+    const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
+    if (!allowedTypes.includes(pdfForm.file.type)) {
+      showNotification('Only PDF and Word documents are allowed', 'error')
+      return
+    }
+
+    // File size validation (50MB)
+    const maxSize = 50 * 1024 * 1024
+    if (pdfForm.file.size > maxSize) {
+      showNotification('File size must be less than 50MB', 'error')
+      return
+    }
+
+    console.log('📤 Starting PDF upload:', {
+      fileName: pdfForm.file.name,
+      fileSize: `${(pdfForm.file.size / 1024 / 1024).toFixed(2)} MB`,
+      fileType: pdfForm.file.type,
+      subject: pdfForm.subject
+    })
+
     try {
       const formData = new FormData()
       formData.append('file', pdfForm.file)
-      formData.append('subject', pdfForm.subject)
-      formData.append('description', pdfForm.description)
+      formData.append('subject', pdfForm.subject.trim())
+      formData.append('description', pdfForm.description.trim() || '')
 
-      const response = await fetch('/api/pdf/upload', {
+      showNotification('Uploading PDF...', 'info')
+
+      const response = await fetch('http://localhost:5000/api/pdf/upload', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
         },
         body: formData
       })
 
-      const data = await response.json()
-      if (data.success) {
+      console.log('📥 Upload response status:', response.status, response.statusText)
+
+      let data
+      try {
+        const responseText = await response.text()
+        console.log('📄 Response body:', responseText)
+        data = JSON.parse(responseText)
+      } catch (parseError) {
+        console.error('❌ Failed to parse response:', parseError)
+        throw new Error('Invalid response from server. Please check if the backend is running correctly.')
+      }
+
+      if (response.ok && data.success) {
+        console.log('✅ PDF uploaded successfully:', data.data)
         showNotification('PDF uploaded and processed successfully!', 'success')
         setShowUploadPDF(false)
         setPdfForm({ file: null, subject: '', description: '' })
         await loadUploadedPDFs()
       } else {
-        throw new Error(data.error || 'Upload failed')
+        // Handle specific error codes
+        const errorMessage = data.message || data.error || 'Upload failed'
+        console.error('❌ Upload failed:', {
+          status: response.status,
+          message: errorMessage,
+          data
+        })
+
+        if (response.status === 400) {
+          showNotification(`Validation Error: ${errorMessage}`, 'error')
+        } else if (response.status === 401) {
+          showNotification('Authentication failed. Please log in again.', 'error')
+          // Optionally redirect to login
+          // router.push('/login')
+        } else if (response.status === 413) {
+          showNotification('File too large. Maximum size is 50MB.', 'error')
+        } else if (response.status === 500) {
+          showNotification('Server error. Please try again later.', 'error')
+        } else {
+          showNotification(`Upload failed: ${errorMessage}`, 'error')
+        }
+        
+        throw new Error(errorMessage)
       }
-    } catch (error) {
-      console.error('Error uploading PDF:', error)
-      showNotification('Error uploading PDF', 'error')
+    } catch (error: any) {
+      console.error('❌ Error uploading PDF:', error)
+      
+      // Network error
+      if (error.message.includes('Failed to fetch') || error.name === 'TypeError') {
+        showNotification('Network error. Please check if the backend server is running on port 5000.', 'error')
+      } else if (!error.message.includes('Upload failed') && !error.message.includes('Validation Error')) {
+        // Only show generic error if we haven't already shown a specific one
+        showNotification(`Error: ${error.message}`, 'error')
+      }
     }
   }
 
   const handleGenerateMCQs = async (pdfId: string) => {
+    // Validation
+    if (!mcqGeneration.topic || mcqGeneration.topic.trim().length === 0) {
+      showNotification('Please enter a topic for MCQ generation', 'error')
+      return
+    }
+
+    if (mcqGeneration.topic.trim().length < 3) {
+      showNotification('Topic must be at least 3 characters long', 'error')
+      return
+    }
+
     setMcqGeneration({ ...mcqGeneration, isGenerating: true })
     
+    console.log('🤖 Starting MCQ generation:', {
+      materialId: pdfId,
+      topic: mcqGeneration.topic,
+      numberOfQuestions: mcqGeneration.numQuestions,
+      difficulty: mcqGeneration.difficulty
+    })
+
     try {
-      const response = await fetch('/api/mcq/generate', {
+      showNotification('Generating MCQs with AI... This may take a moment.', 'info')
+
+      const response = await fetch('http://localhost:5000/api/mcq/generate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
         },
         body: JSON.stringify({
-          pdfId,
-          numQuestions: mcqGeneration.numQuestions,
+          materialId: pdfId,
+          topic: mcqGeneration.topic.trim(),
+          numberOfQuestions: mcqGeneration.numQuestions,
           difficulty: mcqGeneration.difficulty
         })
       })
 
-      const data = await response.json()
-      if (data.success) {
-        showNotification(`Generated ${data.data.length} MCQs successfully!`, 'success')
-        await loadMCQsForPDF(pdfId)
-      } else {
-        throw new Error(data.error || 'MCQ generation failed')
+      console.log('📥 MCQ generation response status:', response.status, response.statusText)
+
+      let data
+      try {
+        const responseText = await response.text()
+        console.log('📄 MCQ Response body (first 500 chars):', responseText.substring(0, 500))
+        data = JSON.parse(responseText)
+      } catch (parseError) {
+        console.error('❌ Failed to parse MCQ response:', parseError)
+        throw new Error('Invalid response from AI server. The response may be incomplete or malformed.')
       }
-    } catch (error) {
-      console.error('Error generating MCQs:', error)
-      showNotification('Error generating MCQs', 'error')
+
+      if (response.ok && data.success && data.data.mcqs) {
+        const mcqs = data.data.mcqs
+        console.log(`✅ Generated ${mcqs.length} MCQs successfully`)
+        
+        showNotification(`Successfully generated ${mcqs.length} MCQs!`, 'success')
+        setGeneratedMCQs(mcqs)
+        
+        // Optionally show metadata
+        if (data.data.metadata) {
+          console.log('📊 Generation metadata:', data.data.metadata)
+        }
+      } else {
+        const errorMessage = data.message || data.error || 'MCQ generation failed'
+        console.error('❌ MCQ generation failed:', {
+          status: response.status,
+          message: errorMessage,
+          data
+        })
+
+        if (response.status === 400) {
+          showNotification(`Validation Error: ${errorMessage}`, 'error')
+        } else if (response.status === 401) {
+          showNotification('Authentication failed. Please log in again.', 'error')
+        } else if (response.status === 404) {
+          showNotification('Material not found or has no PDF file.', 'error')
+        } else if (response.status === 500) {
+          showNotification('AI service error. Please try again or use a different topic.', 'error')
+        } else {
+          showNotification(`MCQ Generation failed: ${errorMessage}`, 'error')
+        }
+        
+        throw new Error(errorMessage)
+      }
+    } catch (error: any) {
+      console.error('❌ Error generating MCQs:', error)
+      
+      // Network error
+      if (error.message.includes('Failed to fetch') || error.name === 'TypeError') {
+        showNotification('Network error. Please check if the backend server is running.', 'error')
+      } else if (error.message.includes('timeout')) {
+        showNotification('Request timed out. The PDF might be too large or complex.', 'error')
+      } else if (!error.message.includes('failed') && !error.message.includes('Error:')) {
+        showNotification(`Error: ${error.message}`, 'error')
+      }
     } finally {
       setMcqGeneration({ ...mcqGeneration, isGenerating: false })
     }
@@ -890,9 +1047,9 @@ export default function TeacherDashboard({ activeTab: propActiveTab, onTabChange
 
   const loadMCQsForPDF = async (pdfId: string) => {
     try {
-      const response = await fetch(`/api/mcq/${pdfId}`, {
+      const response = await fetch(`http://localhost:5000/api/mcq/${pdfId}`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
         }
       })
       const data = await response.json()
@@ -907,11 +1064,11 @@ export default function TeacherDashboard({ activeTab: propActiveTab, onTabChange
 
   const handleAssignTask = async (studentId: string, pdfId: string) => {
     try {
-      const response = await fetch('/api/task/assign', {
+      const response = await fetch('http://localhost:5000/api/task/assign', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
         },
         body: JSON.stringify({ studentId, pdfId })
       })
@@ -1439,151 +1596,10 @@ export default function TeacherDashboard({ activeTab: propActiveTab, onTabChange
           </div>
         )}
 
-        {/* MCQ Generator Tab */}
+        {/* MCQ Generator Tab - New V3 Component */}
         {activeTab === 'mcq' && (
-          <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold text-gray-800">🤖 MCQ Generator</h2>
-              <button 
-                onClick={() => setShowUploadPDF(true)}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                </svg>
-                Upload PDF
-              </button>
-            </div>
-
-            <div className="grid md:grid-cols-2 gap-6">
-              {/* Uploaded PDFs */}
-              <div className="bg-white rounded-xl shadow-lg p-6">
-                <h3 className="text-lg font-bold mb-4">📄 Uploaded PDFs</h3>
-                <div className="space-y-3">
-                  {uploadedPDFs.map((pdf) => (
-                    <div key={pdf._id} className="border border-gray-200 rounded-lg p-3">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-medium text-gray-800">{pdf.originalname}</p>
-                          <p className="text-sm text-gray-500">
-                            {new Date(pdf.uploadDate).toLocaleDateString()}
-                          </p>
-                        </div>
-                        <button
-                          onClick={() => {
-                            setSelectedPDF(pdf)
-                            loadMCQsForPDF(pdf._id)
-                          }}
-                          className="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700"
-                        >
-                          Generate MCQs
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                  {uploadedPDFs.length === 0 && (
-                    <p className="text-gray-500 text-center py-4">No PDFs uploaded yet</p>
-                  )}
-                </div>
-              </div>
-
-              {/* MCQ Generation Controls */}
-              <div className="bg-white rounded-xl shadow-lg p-6">
-                <h3 className="text-lg font-bold mb-4">⚙️ Generation Settings</h3>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Number of Questions
-                    </label>
-                    <select
-                      value={mcqGeneration.numQuestions}
-                      onChange={(e) => setMcqGeneration({
-                        ...mcqGeneration, 
-                        numQuestions: parseInt(e.target.value)
-                      })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                    >
-                      <option value={5}>5 Questions</option>
-                      <option value={10}>10 Questions</option>
-                      <option value={15}>15 Questions</option>
-                      <option value={20}>20 Questions</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Difficulty Level
-                    </label>
-                    <select
-                      value={mcqGeneration.difficulty}
-                      onChange={(e) => setMcqGeneration({
-                        ...mcqGeneration, 
-                        difficulty: e.target.value as 'easy' | 'medium' | 'hard'
-                      })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                    >
-                      <option value="easy">Easy</option>
-                      <option value="medium">Medium</option>
-                      <option value="hard">Hard</option>
-                    </select>
-                  </div>
-                  
-                  {selectedPDF && (
-                    <button
-                      onClick={() => handleGenerateMCQs(selectedPDF._id)}
-                      disabled={mcqGeneration.isGenerating}
-                      className={`w-full px-4 py-2 rounded-lg transition-colors ${
-                        mcqGeneration.isGenerating
-                          ? 'bg-gray-400 cursor-not-allowed'
-                          : 'bg-purple-600 hover:bg-purple-700'
-                      } text-white`}
-                    >
-                      {mcqGeneration.isGenerating ? 'Generating...' : 'Generate MCQs'}
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Generated MCQs */}
-            {generatedMCQs.length > 0 && (
-              <div className="bg-white rounded-xl shadow-lg p-6">
-                <h3 className="text-lg font-bold mb-4">📝 Generated MCQs</h3>
-                <div className="space-y-4">
-                  {generatedMCQs.map((mcq, index) => (
-                    <div key={mcq._id} className="border border-gray-200 rounded-lg p-4">
-                      <div className="flex justify-between items-start mb-2">
-                        <h4 className="font-medium text-gray-800">Question {index + 1}</h4>
-                        <span className={`px-2 py-1 rounded text-xs ${
-                          mcq.difficulty === 'easy' ? 'bg-green-100 text-green-800' :
-                          mcq.difficulty === 'medium' ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-red-100 text-red-800'
-                        }`}>
-                          {mcq.difficulty}
-                        </span>
-                      </div>
-                      <p className="text-gray-700 mb-3">{mcq.question}</p>
-                      <div className="grid grid-cols-2 gap-2 mb-3">
-                        {mcq.options.map((option, optIndex) => (
-                          <div 
-                            key={optIndex} 
-                            className={`p-2 rounded border ${
-                              optIndex === mcq.correctAnswer 
-                                ? 'bg-green-50 border-green-300' 
-                                : 'bg-gray-50 border-gray-200'
-                            }`}
-                          >
-                            <span className="font-medium">{String.fromCharCode(65 + optIndex)}.</span> {option}
-                          </div>
-                        ))}
-                      </div>
-                      <p className="text-sm text-gray-600 bg-blue-50 p-2 rounded">
-                        <strong>Explanation:</strong> {mcq.explanation}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+          <div className="-m-6">
+            <MCQGeneratorV3 />
           </div>
         )}
 

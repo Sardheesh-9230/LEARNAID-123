@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react';
-import { FiDownload, FiEye, FiTrash2, FiFileText, FiFile, FiImage, FiVideo, FiLink, FiExternalLink } from 'react-icons/fi';
+import { FiDownload, FiEye, FiTrash2, FiFileText, FiFile, FiImage, FiVideo, FiLink, FiExternalLink, FiZap } from 'react-icons/fi';
 
 interface Material {
   _id: string;
@@ -30,6 +30,7 @@ interface MaterialsGridProps {
   onDownload: (materialId: string) => void;
   onDelete: (materialId: string) => void;
   onView: (material: Material) => void;
+  onGenerateMCQ?: (materialId: string) => void;
   canEdit: boolean;
 }
 
@@ -38,6 +39,7 @@ export default function MaterialsGrid({
   onDownload,
   onDelete,
   onView,
+  onGenerateMCQ,
   canEdit
 }: MaterialsGridProps) {
   const [filter, setFilter] = useState<string>('All');
@@ -187,7 +189,7 @@ export default function MaterialsGrid({
               </div>
 
               {/* Card Actions */}
-              <div className="border-t border-gray-200 p-3 bg-gray-50 flex gap-2">
+              <div className="border-t border-gray-200 p-3 bg-gray-50 flex gap-2 flex-wrap">
                 {/* View/Open Button */}
                 {material.type === 'Link' ? (
                   <a
@@ -215,6 +217,17 @@ export default function MaterialsGrid({
                     title="Download"
                   >
                     <FiDownload size={16} />
+                  </button>
+                )}
+
+                {/* Generate MCQ Button (only for PDF files) */}
+                {material.type === 'PDF' && onGenerateMCQ && canEdit && (
+                  <button
+                    onClick={() => onGenerateMCQ(material._id)}
+                    className="bg-purple-500 text-white px-4 py-2 rounded-lg hover:bg-purple-600 transition-all flex items-center justify-center gap-2 font-medium"
+                    title="Generate MCQs with AI"
+                  >
+                    <FiZap size={16} />
                   </button>
                 )}
 

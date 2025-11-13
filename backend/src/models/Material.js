@@ -44,8 +44,8 @@ const materialSchema = new mongoose.Schema({
     validate: {
       validator: function(v) {
         if (!v) return true; // Optional field
-        // Basic URL validation
-        return /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$/.test(v);
+        // More flexible URL validation that allows localhost, API paths, and ObjectIds
+        return /^(https?:\/\/)?([\da-z\.-]+)(:\d+)?([\/\w\.-]*)*\/?$/i.test(v);
       },
       message: 'Please enter a valid URL'
     }
@@ -194,9 +194,18 @@ materialSchema.pre('save', function(next) {
   if (this.type === 'Link' && !this.url) {
     return next(new Error('URL is required for Link type materials'));
   }
-  if (['PDF', 'Document', 'PPT', 'Image'].includes(this.type) && !this.file && !this.url) {
-    return next(new Error('File or URL is required for this material type'));
+  
+  // Check if file-based types have file or fileMetadata or url
+  if (['PDF', 'Document', 'PPT', 'Image', 'Video'].includes(this.type)) {
+    const hasFile = this.file;
+    const hasFileMetadata = this.fileMetadata && this.fileMetadata.filename;
+    const hasUrl = this.url;
+    
+    if (!hasFile && !hasFileMetadata && !hasUrl) {
+      return next(new Error('File, URL, or file metadata is required for this material type'));
+    }
   }
+  
   next();
 });
 

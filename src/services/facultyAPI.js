@@ -604,6 +604,49 @@ export const taskAPI = {
   }
 };
 
+// ==================== MCQ GENERATOR V3 ====================
+
+export const mcqGeneratorAPI = {
+  // Get subjects for faculty
+  getSubjects: async () => {
+    const response = await axios.get(`${BASE_URL}/mcq-generator/subjects`, {
+      headers: getAuthHeaders()
+    });
+    return response.data;
+  },
+
+  // Get chapters by subject
+  getChapters: async (subjectId) => {
+    const response = await axios.get(
+      `${BASE_URL}/mcq-generator/subjects/${subjectId}/chapters`,
+      { headers: getAuthHeaders() }
+    );
+    return response.data;
+  },
+
+  // Get materials by chapter (only PDFs)
+  getMaterials: async (chapterId) => {
+    const response = await axios.get(
+      `${BASE_URL}/mcq-generator/chapters/${chapterId}/materials`,
+      { headers: getAuthHeaders() }
+    );
+    return response.data;
+  },
+
+  // Generate MCQs from material
+  generate: async (generateData) => {
+    const response = await axios.post(
+      `${BASE_URL}/mcq-generator/generate`,
+      generateData,
+      { 
+        headers: getAuthHeaders(),
+        timeout: 60000 // 60 second timeout for AI generation
+      }
+    );
+    return response.data;
+  }
+};
+
 // Export all APIs
 export default {
   course: courseAPI,
@@ -612,5 +655,6 @@ export default {
   question: questionAPI,
   marks: marksAPI,
   performance: performanceAPI,
-  task: taskAPI
+  task: taskAPI,
+  mcqGenerator: mcqGeneratorAPI
 };

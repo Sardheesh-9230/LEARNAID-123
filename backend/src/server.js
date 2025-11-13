@@ -20,8 +20,13 @@ const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
 const departmentRoutes = require('./routes/departments');
 const subjectRoutes = require('./routes/subjects');
+const materialRoutes = require('./routes/materials');
 const analyticsRoutes = require('./routes/analytics');
 const uploadRoutes = require('./routes/upload');
+const pdfRoutes = require('./routes/pdf');
+const mcqRoutes = require('./routes/mcq');
+const mcqV2Routes = require('./routes/mcqV2'); // New refactored MCQ routes
+const mcqGeneratorV3Routes = require('./routes/mcqGeneratorV3'); // Enhanced MCQ Generator with hierarchical selection
 
 // Faculty Module Routes
 const courseRoutes = require('./routes/courses');
@@ -112,8 +117,13 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/departments', departmentRoutes);
 app.use('/api/subjects', subjectRoutes);
+app.use('/api/subjects/materials', materialRoutes); // Material routes (nested under subjects)
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/pdf', pdfRoutes);
+app.use('/api/mcq', mcqRoutes);
+app.use('/api/mcq/v2', mcqV2Routes); // New refactored MCQ generation
+app.use('/api/mcq-generator', mcqGeneratorV3Routes); // Enhanced MCQ Generator V3
 
 // Faculty Module Routes
 app.use('/api/courses', courseRoutes);

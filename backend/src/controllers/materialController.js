@@ -2,6 +2,8 @@ const Material = require('../models/Material');
 const Chapter = require('../models/Chapter');
 const Subject = require('../models/Subject');
 const File = require('../models/File');
+const fs = require('fs').promises;
+const path = require('path');
 
 /**
  * @desc    Get all materials for a chapter
@@ -126,8 +128,10 @@ const createMaterial = async (req, res) => {
       file: req.file ? {
         filename: req.file.filename,
         originalname: req.file.originalname,
-        size: req.file.size
-      } : 'No file'
+        size: req.file.size,
+        path: req.file.path
+      } : 'No file received',
+      headers: req.headers['content-type']
     });
     
     const {
@@ -169,6 +173,26 @@ const createMaterial = async (req, res) => {
 
     // Handle file upload if present
     if (req.file) {
+      // Create a File record first with all required fields (matching File model schema)
+      const fileData = {
+        originalName: req.file.originalname,   // File model field: originalName
+        filename: req.file.filename,           // File model field: filename  
+        path: req.file.path,                   // File model field: path (not filePath)
+        size: req.file.size,                   // File model field: size (not fileSize)
+        mimetype: req.file.mimetype,           // File model field: mimetype (not mimeType)
+        uploadedBy: req.user._id,              // File model field: uploadedBy
+        relatedTo: {
+          id: chapterId,                       // File model field: relatedTo.id
+          type: 'Subject'                      // File model field: relatedTo.type (using Subject since chapter belongs to subject)
+        },
+        category: 'document'                   // File model field: category (default is 'other', but 'document' fits better)
+      };
+      
+      console.log('📄 Creating File record with correct field names:', fileData);
+      const fileRecord = await File.create(fileData);
+      materialData.file = fileRecord._id;
+      
+      // Also store in fileMetadata for compatibility
       materialData.fileMetadata = {
         filename: req.file.filename,
         originalname: req.file.originalname,
@@ -326,24 +350,48 @@ const deleteMaterial = async (req, res) => {
       });
     }
     
-    // Optionally delete associated file
-    if (material.file) {
+    console.log('🗑️ Deleting material:', {
+      id: material._id,
+      title: material.title,
+      hasFile: !!material.file,
+      hasFileMetadata: !!material.fileMetadata
+    });
+    
+    // Delete physical file if exists
+    if (material.fileMetadata && material.fileMetadata.path) {
       try {
-        await File.findByIdAndDelete(material.file);
-      } catch (error) {
-        console.error('Error deleting associated file:', error);
-        // Continue with material deletion even if file deletion fails
+        const filePath = path.join(process.cwd(), material.fileMetadata.path);
+        await fs.unlink(filePath);
+        console.log('✅ Physical file deleted:', filePath);
+      } catch (fileError) {
+        console.error('⚠️ Error deleting physical file:', fileError.message);
+        // Continue with deletion even if physical file is missing
       }
     }
     
+    // Delete File record from database
+    if (material.file) {
+      try {
+        const fileRecord = await File.findByIdAndDelete(material.file);
+        if (fileRecord) {
+          console.log('✅ File record deleted from DB:', fileRecord._id);
+        }
+      } catch (error) {
+        console.error('⚠️ Error deleting File record:', error.message);
+        // Continue with material deletion
+      }
+    }
+    
+    // Delete Material record
     await material.deleteOne();
+    console.log('✅ Material record deleted from DB');
     
     res.status(200).json({
       success: true,
-      message: 'Material deleted successfully'
+      message: 'Material and associated files deleted successfully'
     });
   } catch (error) {
-    console.error('Error deleting material:', error);
+    console.error('❌ Error deleting material:', error);
     res.status(500).json({
       success: false,
       message: 'Server error while deleting material',
@@ -427,6 +475,147 @@ const recordDownload = async (req, res) => {
   }
 };
 
+/**
+ * @desc    Download material file
+ * @route   GET /api/materials/:id/file
+ * @access  Private (Faculty, Student, Admin)
+ */
+const downloadMaterialFile = async (req, res) => {
+  try {
+    const material = await Material.findById(req.params.id);
+    
+    if (!material) {
+      return res.status(404).json({
+        success: false,
+        message: 'Material not found'
+      });
+    }
+    
+    if (!material.allowDownload) {
+      return res.status(403).json({
+        success: false,
+        message: 'Download not allowed for this material'
+      });
+    }
+    
+    if (!material.fileMetadata || !material.fileMetadata.path) {
+      return res.status(404).json({
+        success: false,
+        message: 'File not found'
+      });
+    }
+    
+    const filePath = path.join(process.cwd(), material.fileMetadata.path);
+    
+    // Check if file exists
+    try {
+      await fs.access(filePath);
+    } catch (error) {
+      console.error('File not found:', filePath);
+      return res.status(404).json({
+        success: false,
+        message: 'Physical file not found on server'
+      });
+    }
+    
+    // Increment download count
+    await material.incrementDownloadCount();
+    
+    // Set headers for download
+    res.setHeader('Content-Type', material.fileMetadata.mimetype || 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename="${material.fileMetadata.originalname || 'download'}"`);
+    
+    // Stream the file
+    const fileStream = require('fs').createReadStream(filePath);
+    fileStream.pipe(res);
+    
+    fileStream.on('error', (error) => {
+      console.error('Error streaming file:', error);
+      if (!res.headersSent) {
+        res.status(500).json({
+          success: false,
+          message: 'Error streaming file'
+        });
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error downloading material:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while downloading material',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * @desc    View material file (open in browser)
+ * @route   GET /api/materials/:id/view
+ * @access  Private (Faculty, Student, Admin)
+ */
+const viewMaterialFile = async (req, res) => {
+  try {
+    const material = await Material.findById(req.params.id);
+    
+    if (!material) {
+      return res.status(404).json({
+        success: false,
+        message: 'Material not found'
+      });
+    }
+    
+    if (!material.fileMetadata || !material.fileMetadata.path) {
+      return res.status(404).json({
+        success: false,
+        message: 'File not found'
+      });
+    }
+    
+    const filePath = path.join(process.cwd(), material.fileMetadata.path);
+    
+    // Check if file exists
+    try {
+      await fs.access(filePath);
+    } catch (error) {
+      console.error('File not found:', filePath);
+      return res.status(404).json({
+        success: false,
+        message: 'Physical file not found on server'
+      });
+    }
+    
+    // Increment view count
+    await material.incrementViewCount();
+    
+    // Set headers for inline viewing
+    res.setHeader('Content-Type', material.fileMetadata.mimetype || 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${material.fileMetadata.originalname || 'view'}"`);
+    
+    // Stream the file
+    const fileStream = require('fs').createReadStream(filePath);
+    fileStream.pipe(res);
+    
+    fileStream.on('error', (error) => {
+      console.error('Error streaming file:', error);
+      if (!res.headersSent) {
+        res.status(500).json({
+          success: false,
+          message: 'Error streaming file'
+        });
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error viewing material:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while viewing material',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   getMaterialsByChapter,
   getMaterialsBySubject,
@@ -435,5 +624,7 @@ module.exports = {
   updateMaterial,
   deleteMaterial,
   reorderMaterials,
-  recordDownload
+  recordDownload,
+  downloadMaterialFile,
+  viewMaterialFile
 };

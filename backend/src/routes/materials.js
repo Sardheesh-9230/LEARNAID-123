@@ -10,7 +10,9 @@ const {
   updateMaterial,
   deleteMaterial,
   reorderMaterials,
-  recordDownload
+  recordDownload,
+  downloadMaterialFile,
+  viewMaterialFile
 } = require('../controllers/materialController');
 const { protect, authorize } = require('../middleware/auth');
 
@@ -58,6 +60,12 @@ router.put('/chapters/:chapterId/materials/reorder', protect, authorize('Faculty
 
 // Get single material
 router.get('/:id', protect, getMaterialById);
+
+// View material file (open in browser)
+router.get('/:id/view', protect, viewMaterialFile);
+
+// Download material file
+router.get('/:id/file', protect, downloadMaterialFile);
 
 // Update material (with optional file upload)
 router.put('/:id', protect, authorize('Faculty', 'Admin'), upload.single('file'), updateMaterial);

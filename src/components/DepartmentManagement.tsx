@@ -1,0 +1,2428 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import apiService from '../services/api'
+
+interface Department {
+  id: string
+  name: string
+  code: string
+  description: string
+  hod: string
+  hodId?: string
+  establishedYear: number
+  sections: string[]
+  facilities: any[]
+  programs: any[]
+  contactInfo: {
+    email: string
+    phone: string
+    location: string
+  }
+  status: 'Active' | 'Inactive'
+  students: number
+  faculty: number
+  staff: number
+  subjects: number
+}
+
+interface User {
+  id: string
+  name: string
+  email: string
+  role: 'Student' | 'Faculty' | 'Staff' | 'Admin'
+  department: string
+  departmentId: string
+  section?: string
+  batch?: string
+  phone: string
+  address: string
+  status: 'Active' | 'Inactive'
+  // Student specific
+  studentId?: string
+  semester?: number
+  gpa?: number
+  guardianName?: string
+  guardianPhone?: string
+  // Faculty specific
+  employeeId?: string
+  designation?: string
+  qualification?: string
+  experience?: number
+  specialization?: string[]
+}
+
+interface Subject {
+  id: string
+  name: string
+  code: string
+  credits: number
+  description: string
+  department: string
+  departmentId: string
+  year: string
+  section: string
+  semester: number
+  academicYear: string
+  type: string
+  faculty: any[]
+  enrolledStudents: string[]
+  maxStudents: number
+  status: 'Active' | 'Inactive'
+}
+
+export default function DepartmentManagement() {
+  const [activeTab, setActiveTab] = useState('overview')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  
+  // Data states
+  const [departments, setDepartments] = useState<Department[]>([])
+  const [users, setUsers] = useState<User[]>([])
+  const [subjects, setSubjects] = useState<Subject[]>([])
+  
+  // Form states
+  const [showAddForm, setShowAddForm] = useState(false)
+  const [showSubjectForm, setShowSubjectForm] = useState(false)
+  const [showHodAssignmentForm, setShowHodAssignmentForm] = useState(false)
+  const [editingDepartment, setEditingDepartment] = useState<Department | null>(null)
+  const [selectedDepartmentForHod, setSelectedDepartmentForHod] = useState<Department | null>(null)
+  
+  // Form data
+  const [departmentForm, setDepartmentForm] = useState({
+    name: '',
+    code: '',
+    description: '',
+    hod: '',
+    establishedYear: new Date().getFullYear(),
+    sections: ['A'] as string[], // Default to Section A
+    contactInfo: {
+      email: '',
+      phone: '',
+      location: ''
+    }
+  })
+
+  const [subjectForm, setSubjectForm] = useState({
+    name: '',
+    code: '',
+    credits: 3,
+    department: '',
+    year: '1st Year',
+    section: 'A',
+    semester: 1,
+    academicYear: '2024-2025',
+    type: 'Core',
+    description: '',
+    createForAllSections: false
+  })
+
+  // Notification state
+  const [notification, setNotification] = useState({
+    show: false,
+    message: '',
+    type: 'success' as 'success' | 'error' | 'warning'
+  })
+
+  // Additional states for enhanced features
+  const [showFacultyAssignmentForm, setShowFacultyAssignmentForm] = useState(false)
+  const [selectedSubjectForAssignment, setSelectedSubjectForAssignment] = useState<Subject | null>(null)
+  const [selectedFaculty, setSelectedFaculty] = useState<any[]>([])
+  const [showStudentAssignForm, setShowStudentAssignForm] = useState(false)
+  const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null)
+  
+  // Filter states
+  const [enhancedFilters, setEnhancedFilters] = useState({
+    department: '',
+    year: '',
+    section: '',
+    faculty: '',
+    enrollmentStatus: '' // full, partial, empty
+  })
+
+  const [studentFilters, setStudentFilters] = useState({
+    department: '',
+    year: '',
+    section: '',
+    status: '' // assigned, unassigned, all
+  })
+
+  const [searchSubjectTerm, setSearchSubjectTerm] = useState('')
+  const [searchStudentTerm, setSearchStudentTerm] = useState('')
+
+  // Student action states
+  const [showViewStudentPopup, setShowViewStudentPopup] = useState(false)
+  const [showReassignPopup, setShowReassignPopup] = useState(false)
+  const [showAssignPopup, setShowAssignPopup] = useState(false)
+  const [selectedStudentForAction, setSelectedStudentForAction] = useState<User | null>(null)
+
+  // Confirmation dialog state
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false)
+  const [confirmMessage, setConfirmMessage] = useState('')
+  const [confirmAction, setConfirmAction] = useState<(() => void) | null>(null)
+
+  // Load data on component mount
+  useEffect(() => {
+    loadAllData()
+  }, [])
+
+  const showNotification = (message: string, type: 'success' | 'error' | 'warning' = 'success') => {
+    setNotification({ show: true, message, type })
+    setTimeout(() => setNotification({ show: false, message: '', type: 'success' }), 5000)
+  }
+
+  const showConfirmationDialog = (message: string, action: () => void) => {
+    setConfirmMessage(message)
+    setConfirmAction(() => action)
+    setShowConfirmDialog(true)
+  }
+
+  // Helper function to get academic year from batch
+  const getAcademicYear = (batch: string): string => {
+    const currentYear = 2025;
+    const batchYear = parseInt(batch);
+    const yearOfStudy = currentYear - batchYear + 1;
+    
+    switch (yearOfStudy) {
+      case 1: return '1st Year';
+      case 2: return '2nd Year';
+      case 3: return '3rd Year';
+      case 4: return '4th Year';
+      default: return `${yearOfStudy}th Year`;
+    }
+  };
+
+  // Student allocation system functions
+  const getUnassignedStudents = () => {
+    return users.filter(user => 
+      user.role === 'Student' && 
+      user.department && 
+      user.batch && 
+      !user.section // Only students without section assignment
+    );
+  };
+
+  const getAssignedStudents = () => {
+    return users.filter(user => 
+      user.role === 'Student' && 
+      user.section // Students with section assignment
+    );
+  };
+
+  // Get class combinations (Department + Year + Section)
+  const getClassCombinations = () => {
+    const combinations: { department: string; year: string; section: string; currentCount: number }[] = [];
+    
+    departments.forEach(dept => {
+      const years = ['1st Year', '2nd Year', '3rd Year', '4th Year'];
+      years.forEach(year => {
+        // Use department's configured sections instead of hardcoded ones
+        dept.sections.forEach(section => {
+          const currentCount = users.filter(user => 
+            user.role === 'Student' && 
+            user.department === dept.name && 
+            getAcademicYear(user.batch || '') === year && 
+            user.section === section
+          ).length;
+          
+          combinations.push({
+            department: dept.name,
+            year,
+            section,
+            currentCount
+          });
+        });
+      });
+    });
+    
+    return combinations;
+  };
+
+  // Student allocation handlers
+  const handleAllocateStudent = async (studentId: string, department: string, year: string, section: string) => {
+    try {
+      // Update student section in backend
+      await apiService.updateUser(studentId, { section });
+      
+      // Reload data to reflect changes
+      loadAllData();
+      
+      const student = users.find(u => u.id === studentId);
+      if (student) {
+        showNotification(`${student.name} successfully assigned to Section ${section}`, 'success');
+      }
+    } catch (error: any) {
+      console.error('Allocate student error:', error);
+      showNotification(error.message || 'Failed to assign student', 'error');
+    }
+  };
+
+  const handleBulkAllocate = async (department: string, year: string) => {
+    const eligibleStudents = getUnassignedStudents().filter(student => 
+      student.department === department && getAcademicYear(student.batch || '') === year
+    );
+
+    if (eligibleStudents.length === 0) {
+      showNotification(`No unassigned students found for ${department} ${year}.`, 'warning');
+      return;
+    }
+
+    try {
+      // Find available sections with capacity
+      const classCombinations = getClassCombinations();
+      const availableSections = classCombinations.filter(c => 
+        c.department === department && c.year === year && c.currentCount < 65
+      ).sort((a, b) => a.currentCount - b.currentCount);
+
+      if (availableSections.length === 0) {
+        showNotification(`No available sections for ${department} ${year}`, 'error');
+        return;
+      }
+
+      let sectionIndex = 0;
+      let assignedCount = 0;
+      
+      // Assign students to sections
+      for (const student of eligibleStudents) {
+        if (sectionIndex < availableSections.length && availableSections[sectionIndex].currentCount < 65) {
+          const assignedSection = availableSections[sectionIndex].section;
+          
+          await apiService.updateUser(student.id, { section: assignedSection });
+          
+          availableSections[sectionIndex].currentCount++;
+          assignedCount++;
+
+          // Move to next section if current one is full
+          if (availableSections[sectionIndex].currentCount >= 65) {
+            sectionIndex++;
+          }
+        }
+      }
+
+      loadAllData(); // Reload data
+      showNotification(`Successfully assigned ${assignedCount} students to sections`, 'success');
+    } catch (error: any) {
+      console.error('Bulk allocate error:', error);
+      showNotification(error.message || 'Failed to bulk assign students', 'error');
+    }
+  };
+
+  const loadAllData = async () => {
+    setLoading(true)
+    try {
+      // Auto-login as admin if no token exists
+      if (!apiService.token) {
+        console.log('No token found, attempting auto-login as admin...')
+        try {
+          const loginResponse = await apiService.login('admin@learnaia.edu', 'admin123')
+          if (loginResponse.success) {
+            console.log('Auto-login successful')
+          } else {
+            throw new Error('Auto-login failed')
+          }
+        } catch (loginError) {
+          console.error('Auto-login failed:', loginError)
+          setError('Authentication failed. Please contact administrator.')
+          setLoading(false)
+          return
+        }
+      }
+
+      // Load departments, users, and subjects in parallel
+      const [departmentsData, usersData, subjectsData] = await Promise.all([
+        apiService.getDepartments(),
+        apiService.getUsers(),
+        apiService.getSubjects()
+      ])
+
+      // Transform and set departments
+      const transformedDepartments = departmentsData.data?.map(apiService.transformDepartmentData) || []
+      console.log('Raw departments data:', departmentsData.data)
+      console.log('Transformed departments:', transformedDepartments)
+      setDepartments(transformedDepartments)
+
+      // Transform and set users
+      const transformedUsers = usersData.data?.map(apiService.transformUserData) || []
+      setUsers(transformedUsers)
+
+      // Transform and set subjects
+      const transformedSubjects = subjectsData.data?.map(apiService.transformSubjectData) || []
+      setSubjects(transformedSubjects)
+
+      // Update department statistics
+      updateDepartmentStats(transformedDepartments, transformedUsers, transformedSubjects)
+
+    } catch (error: any) {
+      console.error('Failed to load data:', error)
+      setError(error.message || 'Failed to load data')
+      showNotification('Failed to load data from server', 'error')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const updateDepartmentStats = (depts: Department[], usersList: User[], subjectsList: Subject[]) => {
+    const updatedDepartments = depts.map(dept => {
+      const deptUsers = usersList.filter(user => user.department === dept.name)
+      const deptSubjects = subjectsList.filter(subject => subject.department === dept.name)
+      
+      return {
+        ...dept,
+        students: deptUsers.filter(user => user.role === 'Student').length,
+        faculty: deptUsers.filter(user => user.role === 'Faculty').length,
+        staff: deptUsers.filter(user => user.role === 'Staff').length,
+        subjects: deptSubjects.length
+      }
+    })
+    setDepartments(updatedDepartments)
+  }
+
+  const handleCreateDepartment = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    
+    try {
+      const departmentData = {
+        name: departmentForm.name,
+        code: departmentForm.code,
+        description: departmentForm.description,
+        hod: departmentForm.hod || null,
+        establishedYear: departmentForm.establishedYear,
+        sections: departmentForm.sections,
+        contactInfo: departmentForm.contactInfo,
+        facilities: [],
+        programs: []
+      }
+
+      console.log('Creating department with data:', departmentData)
+      const response = await apiService.createDepartment(departmentData)
+      console.log('Create department response:', response)
+      
+      if (response.success) {
+        showNotification('Department created successfully!')
+        setShowAddForm(false)
+        resetDepartmentForm()
+        loadAllData() // Reload data
+      } else {
+        throw new Error(response.message || 'Failed to create department')
+      }
+    } catch (error: any) {
+      console.error('Create department error:', error)
+      showNotification(error.message || 'Failed to create department', 'error')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleUpdateDepartment = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingDepartment) return
+    
+    setLoading(true)
+    
+    try {
+      const departmentData = {
+        name: departmentForm.name,
+        code: departmentForm.code,
+        description: departmentForm.description,
+        hod: departmentForm.hod || null,
+        establishedYear: departmentForm.establishedYear,
+        sections: departmentForm.sections,
+        contactInfo: departmentForm.contactInfo
+      }
+
+      const response = await apiService.updateDepartment(editingDepartment.id, departmentData)
+      
+      if (response.success) {
+        showNotification('Department updated successfully!')
+        setShowAddForm(false)
+        setEditingDepartment(null)
+        resetDepartmentForm()
+        loadAllData() // Reload data
+      } else {
+        throw new Error(response.message || 'Failed to update department')
+      }
+    } catch (error: any) {
+      console.error('Update department error:', error)
+      showNotification(error.message || 'Failed to update department', 'error')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleDeleteDepartment = async (departmentId: string) => {
+    if (!confirm('Are you sure you want to delete this department? This action cannot be undone.')) {
+      return
+    }
+    
+    setLoading(true)
+    
+    try {
+      const response = await apiService.deleteDepartment(departmentId)
+      
+      if (response.success) {
+        showNotification('Department deleted successfully!')
+        loadAllData() // Reload data
+      } else {
+        throw new Error(response.message || 'Failed to delete department')
+      }
+    } catch (error: any) {
+      console.error('Delete department error:', error)
+      showNotification(error.message || 'Failed to delete department', 'error')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleCreateSubject = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    
+    try {
+      if (subjectForm.createForAllSections) {
+        // Create subjects for all sections of the selected department
+        const selectedDept = departments.find(dept => dept.name === subjectForm.department)
+        const sections = selectedDept ? selectedDept.sections : ['A'] // Fallback to A if department not found
+        const promises = sections.map(section => {
+          const { createForAllSections, ...subjectData } = {
+            ...subjectForm,
+            section,
+            code: `${subjectForm.code}-${section}`, // Add section to code
+            department: subjectForm.department
+          }
+          return apiService.createSubject(subjectData)
+        })
+        
+        await Promise.all(promises)
+        showNotification(`Subject created for all sections successfully!`)
+      } else {
+        // Create subject for specific section
+        const { createForAllSections, ...subjectData } = subjectForm
+        
+        const response = await apiService.createSubject(subjectData)
+        
+        if (response.success) {
+          showNotification('Subject created successfully!')
+        } else {
+          throw new Error(response.message || 'Failed to create subject')
+        }
+      }
+      
+      setShowSubjectForm(false)
+      resetSubjectForm()
+      loadAllData() // Reload data
+      
+    } catch (error: any) {
+      console.error('Create subject error:', error)
+      showNotification(error.message || 'Failed to create subject', 'error')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleDeleteSubject = async (subjectId: string) => {
+    if (!confirm('Are you sure you want to delete this subject? This action cannot be undone.')) {
+      return
+    }
+    
+    setLoading(true)
+    
+    try {
+      const response = await apiService.deleteSubject(subjectId)
+      
+      if (response.success) {
+        showNotification('Subject deleted successfully!')
+        loadAllData() // Reload data
+      } else {
+        throw new Error(response.message || 'Failed to delete subject')
+      }
+    } catch (error: any) {
+      console.error('Delete subject error:', error)
+      showNotification(error.message || 'Failed to delete subject', 'error')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const resetDepartmentForm = () => {
+    setDepartmentForm({
+      name: '',
+      code: '',
+      description: '',
+      hod: '',
+      establishedYear: new Date().getFullYear(),
+      sections: [],
+      contactInfo: {
+        email: '',
+        phone: '',
+        location: ''
+      }
+    })
+  }
+
+  const resetSubjectForm = () => {
+    setSubjectForm({
+      name: '',
+      code: '',
+      credits: 3,
+      department: '',
+      year: '1st Year',
+      section: 'A',
+      semester: 1,
+      academicYear: '2024-2025',
+      type: 'Core',
+      description: '',
+      createForAllSections: false
+    })
+  }
+
+  const handleEditDepartment = (department: Department) => {
+    setEditingDepartment(department)
+    setDepartmentForm({
+      name: department.name,
+      code: department.code,
+      description: department.description,
+      hod: department.hodId || '',
+      establishedYear: department.establishedYear,
+      sections: department.sections,
+      contactInfo: department.contactInfo
+    })
+    setShowAddForm(true)
+  }
+
+  const addSection = (section: string) => {
+    if (section && !departmentForm.sections.includes(section)) {
+      setDepartmentForm({
+        ...departmentForm,
+        sections: [...departmentForm.sections, section]
+      })
+    }
+  }
+
+  const removeSection = (section: string) => {
+    setDepartmentForm({
+      ...departmentForm,
+      sections: departmentForm.sections.filter(s => s !== section)
+    })
+  }
+
+  // HOD Assignment Functions
+  const getFacultyForHodAssignment = (departmentId: string) => {
+    return users.filter(user => 
+      user.role === 'Faculty' && 
+      (user.departmentId === departmentId || user.department === departments.find(d => d.id === departmentId)?.name)
+    )
+  }
+
+  const handleAssignHod = async (facultyId: string) => {
+    if (!selectedDepartmentForHod) return
+
+    setLoading(true)
+    try {
+      const selectedFaculty = users.find(u => u.id === facultyId)
+      if (!selectedFaculty) throw new Error('Faculty not found')
+
+      // Update department with new HOD (backend expects hod field to be the faculty ObjectId)
+      const response = await apiService.updateDepartment(selectedDepartmentForHod.id, {
+        hod: selectedFaculty.id  // Send the faculty ID, backend will populate the name
+      })
+
+      if (response.success) {
+        showNotification(`${selectedFaculty.name} assigned as HOD successfully!`)
+        setShowHodAssignmentForm(false)
+        setSelectedDepartmentForHod(null)
+        loadAllData() // Reload data
+      } else {
+        throw new Error(response.message || 'Failed to assign HOD')
+      }
+    } catch (error: any) {
+      console.error('HOD assignment error:', error)
+      setError(error.message || 'Failed to assign HOD. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const renderOverview = () => (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-blue-50 to-purple-50 border rounded-lg p-6">
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
+          <div>
+            <h3 className="text-2xl font-bold text-gray-800">Department Overview</h3>
+            <p className="text-sm text-gray-600 mt-1">Manage departments, faculty, students, and academic sections</p>
+          </div>
+          <button
+            onClick={() => setShowAddForm(true)}
+            className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-lg font-medium hover:from-blue-700 hover:to-purple-700 transition-all shadow-lg flex items-center gap-2"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+            </svg>
+            Add New Department
+          </button>
+        </div>
+
+        {/* Statistics */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="bg-white rounded-lg p-4 shadow-sm border">
+            <div className="flex items-center gap-3">
+              <div className="bg-blue-100 p-2 rounded-lg">
+                <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Total Departments</p>
+                <p className="text-2xl font-bold text-blue-600">{departments.length}</p>
+              </div>
+            </div>
+          </div>
+          <div className="bg-white rounded-lg p-4 shadow-sm border">
+            <div className="flex items-center gap-3">
+              <div className="bg-green-100 p-2 rounded-lg">
+                <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Total Students</p>
+                <p className="text-2xl font-bold text-green-600">
+                  {departments.reduce((sum, dept) => sum + dept.students, 0)}
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="bg-white rounded-lg p-4 shadow-sm border">
+            <div className="flex items-center gap-3">
+              <div className="bg-purple-100 p-2 rounded-lg">
+                <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Total Faculty</p>
+                <p className="text-2xl font-bold text-purple-600">
+                  {departments.reduce((sum, dept) => sum + dept.faculty, 0)}
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="bg-white rounded-lg p-4 shadow-sm border">
+            <div className="flex items-center gap-3">
+              <div className="bg-orange-100 p-2 rounded-lg">
+                <svg className="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Total Subjects</p>
+                <p className="text-2xl font-bold text-orange-600">
+                  {departments.reduce((sum, dept) => sum + dept.subjects, 0)}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Departments Grid */}
+      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {departments.map((dept) => (
+          <div key={dept.id} className="bg-white rounded-xl shadow-lg p-6 border border-gray-200 hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+            {/* Department Header */}
+            <div className="flex justify-between items-start mb-4">
+              <div className="flex items-center gap-3">
+                <div className="bg-gradient-to-br from-blue-500 to-purple-600 p-3 rounded-lg text-white">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-gray-800">{dept.name}</h3>
+                  <p className="text-sm text-gray-500">Code: {dept.code}</p>
+                  <p className="text-sm text-gray-500">Est. {dept.establishedYear}</p>
+                </div>
+              </div>
+              <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                dept.status === 'Active' 
+                  ? 'bg-green-100 text-green-800 border border-green-200' 
+                  : 'bg-red-100 text-red-800 border border-red-200'
+              }`}>
+                {dept.status}
+              </span>
+            </div>
+            
+            {/* Description */}
+            <p className="text-gray-600 mb-6 text-sm leading-relaxed">{dept.description}</p>
+            
+            {/* Statistics */}
+            <div className="space-y-3 mb-6">
+              <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                <span className="text-sm text-gray-600">Head of Department:</span>
+                <span className="font-semibold text-gray-800 text-sm">{dept.hod || 'Not Assigned'}</span>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-blue-50 p-3 rounded-lg border border-blue-100">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-blue-600 font-medium">Students</span>
+                    <span className="text-lg font-bold text-blue-700">{dept.students}</span>
+                  </div>
+                </div>
+                <div className="bg-purple-50 p-3 rounded-lg border border-purple-100">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-purple-600 font-medium">Faculty</span>
+                    <span className="text-lg font-bold text-purple-700">{dept.faculty}</span>
+                  </div>
+                </div>
+                <div className="bg-green-50 p-3 rounded-lg border border-green-100">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-green-600 font-medium">Subjects</span>
+                    <span className="text-lg font-bold text-green-700">{dept.subjects}</span>
+                  </div>
+                </div>
+                <div className="bg-orange-50 p-3 rounded-lg border border-orange-100">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-orange-600 font-medium">Staff</span>
+                    <span className="text-lg font-bold text-orange-700">{dept.staff}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Sections */}
+            <div className="mb-6">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-sm font-medium text-gray-700">Sections:</span>
+              </div>
+              <div className="flex gap-2 flex-wrap">
+                {dept.sections.map((section) => (
+                  <span key={section} className="bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full text-xs font-semibold border border-indigo-200">
+                    Section {section}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-2 flex-wrap">
+              <button
+                onClick={() => handleEditDepartment(dept)}
+                className="flex-1 min-w-[100px] bg-gradient-to-r from-blue-500 to-blue-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:from-blue-600 hover:to-blue-700 transition-all duration-200 flex items-center justify-center gap-2 shadow-sm"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+                Edit
+              </button>
+              <button
+                onClick={() => {
+                  setSelectedDepartmentForHod(dept)
+                  setShowHodAssignmentForm(true)
+                }}
+                className="flex-1 min-w-[100px] bg-gradient-to-r from-purple-500 to-purple-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:from-purple-600 hover:to-purple-700 transition-all duration-200 flex items-center justify-center gap-2 shadow-sm"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+                {dept.hod ? 'Change HOD' : 'Assign HOD'}
+              </button>
+              <button
+                onClick={() => setActiveTab('subject-management')}
+                className="flex-1 min-w-[100px] bg-gradient-to-r from-green-500 to-green-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:from-green-600 hover:to-green-700 transition-all duration-200 flex items-center justify-center gap-2 shadow-sm"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                </svg>
+                Subjects
+              </button>
+              <button
+                onClick={() => handleDeleteDepartment(dept.id)}
+                className="bg-gradient-to-r from-red-500 to-red-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:from-red-600 hover:to-red-700 transition-all duration-200 flex items-center justify-center shadow-sm"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Empty State */}
+      {departments.length === 0 && !loading && (
+        <div className="text-center py-16 bg-white rounded-xl border-2 border-dashed border-gray-300">
+          <div className="mx-auto w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-6">
+            <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+            </svg>
+          </div>
+          <h3 className="text-xl font-semibold text-gray-700 mb-2">No Departments Yet</h3>
+          <p className="text-gray-500 mb-6 max-w-md mx-auto">
+            Get started by creating your first department. You can manage students, faculty, and subjects within each department.
+          </p>
+          <button
+            onClick={() => setShowAddForm(true)}
+            className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-3 rounded-lg font-medium hover:from-blue-700 hover:to-purple-700 transition-all shadow-lg"
+          >
+            Create First Department
+          </button>
+        </div>
+      )}
+    </div>
+  )
+
+  const renderStudentAllocation = () => {
+    const filteredStudents = users.filter(user => {
+      if (user.role !== 'Student') return false
+      
+      const matchesDepartment = !studentFilters.department || user.department === studentFilters.department
+      const matchesYear = !studentFilters.year || getAcademicYear(user.batch || '') === studentFilters.year
+      const matchesSection = !studentFilters.section || user.section === studentFilters.section
+      const matchesStatus = !studentFilters.status || 
+        (studentFilters.status === 'assigned' && user.section) ||
+        (studentFilters.status === 'unassigned' && !user.section)
+      
+      const matchesSearch = !searchStudentTerm || 
+        user.name.toLowerCase().includes(searchStudentTerm.toLowerCase()) ||
+        user.email.toLowerCase().includes(searchStudentTerm.toLowerCase()) ||
+        (user.studentId && user.studentId.toLowerCase().includes(searchStudentTerm.toLowerCase()))
+      
+      return matchesDepartment && matchesYear && matchesSection && matchesStatus && matchesSearch
+    })
+
+    const unassignedStudents = filteredStudents.filter(student => !student.section)
+    const assignedStudents = filteredStudents.filter(student => student.section)
+
+    return (
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <h3 className="text-xl font-bold text-gray-800">Student Allocation</h3>
+          <div className="flex gap-2 items-center">
+            <button
+              onClick={loadAllData}
+              className="text-blue-600 hover:text-blue-800 p-2 rounded-lg hover:bg-blue-50 transition-colors"
+              title="Refresh student data"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            </button>
+            <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
+              Total: {filteredStudents.length}
+            </span>
+            <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
+              Assigned: {assignedStudents.length}
+            </span>
+            <span className="bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-sm font-medium">
+              Unassigned: {unassignedStudents.length}
+            </span>
+          </div>
+        </div>
+
+        {/* Filters */}
+        <div className="bg-white rounded-lg p-4 shadow-sm border">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Search Students</label>
+              <input
+                type="text"
+                value={searchStudentTerm}
+                onChange={(e) => setSearchStudentTerm(e.target.value)}
+                placeholder="Name, email, or student ID..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
+              <select
+                value={studentFilters.department}
+                onChange={(e) => setStudentFilters({...studentFilters, department: e.target.value})}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">All Departments</option>
+                {departments.map(dept => (
+                  <option key={dept.id} value={dept.name}>{dept.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Academic Year</label>
+              <select
+                value={studentFilters.year}
+                onChange={(e) => setStudentFilters({...studentFilters, year: e.target.value})}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">All Years</option>
+                <option value="1st Year">1st Year</option>
+                <option value="2nd Year">2nd Year</option>
+                <option value="3rd Year">3rd Year</option>
+                <option value="4th Year">4th Year</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Section</label>
+              <select
+                value={studentFilters.section}
+                onChange={(e) => setStudentFilters({...studentFilters, section: e.target.value})}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">All Sections</option>
+                {(() => {
+                  const selectedDept = departments.find(dept => dept.name === studentFilters.department)
+                  if (selectedDept) {
+                    return selectedDept.sections.map(section => (
+                      <option key={section} value={section}>Section {section}</option>
+                    ))
+                  }
+                  // If no department selected, show all possible sections from all departments
+                  const allSections = Array.from(new Set(departments.flatMap(dept => dept.sections))).sort()
+                  return allSections.map(section => (
+                    <option key={section} value={section}>Section {section}</option>
+                  ))
+                })()}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+              <select
+                value={studentFilters.status}
+                onChange={(e) => setStudentFilters({...studentFilters, status: e.target.value})}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">All Status</option>
+                <option value="assigned">Assigned</option>
+                <option value="unassigned">Unassigned</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Students Table */}
+        <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="text-left py-3 px-4 font-medium text-gray-700">Student Info</th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-700">Department</th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-700">Academic Year</th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-700">Section</th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-700">Status</th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-700">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {filteredStudents.map((student) => (
+                  <tr key={student.id} className="hover:bg-gray-50">
+                    <td className="py-3 px-4">
+                      <div>
+                        <p className="font-medium text-gray-800">{student.name}</p>
+                        <p className="text-sm text-gray-600">{student.email}</p>
+                        {student.studentId && (
+                          <p className="text-xs text-gray-500">ID: {student.studentId}</p>
+                        )}
+                      </div>
+                    </td>
+                    <td className="py-3 px-4 text-gray-700">{student.department}</td>
+                    <td className="py-3 px-4">
+                      <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm">
+                        {getAcademicYear(student.batch || '')}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4">
+                      {student.section ? (
+                        <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-sm font-medium">
+                          Section {student.section}
+                        </span>
+                      ) : (
+                        <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-sm">
+                          Not Assigned
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-3 px-4">
+                      <span className={`px-2 py-1 rounded text-sm font-medium ${
+                        student.status === 'Active' 
+                          ? 'bg-green-100 text-green-800' 
+                          : 'bg-red-100 text-red-800'
+                      }`}>
+                        {student.status}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => {
+                            setSelectedStudentForAction(student)
+                            setShowViewStudentPopup(true)
+                          }}
+                          className="text-blue-600 hover:text-blue-800 text-xs bg-blue-50 px-2 py-1 rounded hover:bg-blue-100 transition-colors"
+                        >
+                          View
+                        </button>
+                        {student.section ? (
+                          <button
+                            onClick={() => {
+                              setSelectedStudentForAction(student)
+                              setShowReassignPopup(true)
+                            }}
+                            className="text-orange-600 hover:text-orange-800 text-xs bg-orange-50 px-2 py-1 rounded hover:bg-orange-100 transition-colors"
+                          >
+                            Reassign
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              setSelectedStudentForAction(student)
+                              setShowAssignPopup(true)
+                            }}
+                            className="text-green-600 hover:text-green-800 text-xs bg-green-50 px-2 py-1 rounded hover:bg-green-100 transition-colors"
+                          >
+                            Assign
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {filteredStudents.length === 0 && !loading && (
+          <div className="text-center py-12 text-gray-500 bg-white rounded-lg border">
+            <svg className="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+            </svg>
+            <p className="text-lg font-medium">No students found</p>
+            <p className="text-sm">Try adjusting your filters or search terms</p>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  const renderSubjectManagement = () => (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h3 className="text-xl font-bold text-gray-800">Subject Management</h3>
+        <button
+          onClick={() => setShowSubjectForm(true)}
+          className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+        >
+          Add Subject
+        </button>
+      </div>
+
+      {/* Subjects by Department */}
+      {departments.map((dept) => {
+        const deptSubjects = subjects.filter(subject => subject.department === dept.name)
+        if (deptSubjects.length === 0) return null
+
+        return (
+          <div key={dept.id} className="bg-white rounded-xl shadow-lg p-6">
+            <h4 className="text-lg font-bold text-gray-800 mb-4">{dept.name}</h4>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-200">
+                    <th className="text-left py-2 text-gray-700">Subject</th>
+                    <th className="text-left py-2 text-gray-700">Code</th>
+                    <th className="text-left py-2 text-gray-700">Credits</th>
+                    <th className="text-left py-2 text-gray-700">Year</th>
+                    <th className="text-left py-2 text-gray-700">Section</th>
+                    <th className="text-left py-2 text-gray-700">Faculty</th>
+                    <th className="text-left py-2 text-gray-700">Enrollment</th>
+                    <th className="text-left py-2 text-gray-700">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {deptSubjects.map((subject) => (
+                    <tr key={subject.id} className="border-b border-gray-100 hover:bg-gray-50">
+                      <td className="py-3 font-medium">{subject.name}</td>
+                      <td className="py-3 text-blue-600">{subject.code}</td>
+                      <td className="py-3">{subject.credits}</td>
+                      <td className="py-3">{subject.year}</td>
+                      <td className="py-3">
+                        <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">
+                          {subject.section}
+                        </span>
+                      </td>
+                      <td className="py-3">
+                        {subject.faculty.length > 0 ? (
+                          <div className="space-y-1">
+                            {subject.faculty.map((faculty, index) => (
+                              <div key={index} className="text-sm">
+                                {faculty.name}
+                                {faculty.isExternal && (
+                                  <span className="ml-1 px-1 py-0.5 bg-orange-100 text-orange-700 text-xs rounded">
+                                    External
+                                  </span>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-gray-500 italic">No faculty assigned</span>
+                        )}
+                      </td>
+                      <td className="py-3">
+                        <div className="text-sm">
+                          <span className="font-medium">{subject.enrolledStudents.length}/{subject.maxStudents}</span>
+                          <div className="w-16 bg-gray-200 rounded-full h-2 mt-1">
+                            <div 
+                              className="bg-green-600 h-2 rounded-full" 
+                              style={{ width: `${(subject.enrolledStudents.length / subject.maxStudents) * 100}%` }}
+                            ></div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-3">
+                        <div className="flex gap-1">
+                          <button 
+                            onClick={() => {
+                              setSelectedSubjectForAssignment(subject)
+                              setShowFacultyAssignmentForm(true)
+                            }}
+                            className="text-blue-600 hover:text-blue-800 text-xs bg-blue-50 px-2 py-1 rounded hover:bg-blue-100 transition-colors"
+                          >
+                            Assign Faculty
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteSubject(subject.id)}
+                            className="text-red-600 hover:text-red-800 text-xs bg-red-50 px-2 py-1 rounded hover:bg-red-100 transition-colors"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )
+      })}
+
+      {subjects.length === 0 && !loading && (
+        <div className="text-center py-12 text-gray-500 bg-white rounded-lg border">
+          <svg className="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+          </svg>
+          <p className="text-lg font-medium">No subjects created yet</p>
+          <p className="text-sm">Click "Add Subject" to create your first subject</p>
+        </div>
+      )}
+    </div>
+  )
+
+  return (
+    <div className="p-6">
+      {/* Header */}
+      <div className="mb-6">
+        <h2 className="text-2xl font-bold text-gray-800 mb-2">Department Management</h2>
+        <p className="text-gray-600">Manage departments, sections, and subjects</p>
+      </div>
+
+      {/* Loading State */}
+      {loading && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 flex items-center gap-3">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+            <span>Loading...</span>
+          </div>
+        </div>
+      )}
+
+      {/* Error State */}
+      {error && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+          <div className="flex">
+            <svg className="w-5 h-5 text-red-400 mr-2" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+            </svg>
+            <div>
+              <h3 className="text-sm font-medium text-red-800">Error loading data</h3>
+              <p className="text-sm text-red-700 mt-1">{error}</p>
+              <button 
+                onClick={loadAllData}
+                className="mt-2 text-sm text-red-600 hover:text-red-800 font-medium"
+              >
+                Try again
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Notification */}
+      {notification.show && (
+        <div className={`fixed top-4 right-4 p-4 rounded-lg shadow-lg z-50 ${
+          notification.type === 'success' ? 'bg-green-50 border border-green-200 text-green-700' :
+          notification.type === 'error' ? 'bg-red-50 border border-red-200 text-red-700' :
+          'bg-yellow-50 border border-yellow-200 text-yellow-700'
+        }`}>
+          <div className="flex items-center gap-2">
+            <span>{notification.message}</span>
+            <button 
+              onClick={() => setNotification({...notification, show: false})}
+              className="ml-2 text-gray-400 hover:text-gray-600"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Navigation Tabs */}
+      <div className="flex space-x-4 mb-6 border-b">
+        <button
+          onClick={() => setActiveTab('overview')}
+          className={`pb-2 px-1 border-b-2 font-medium ${
+            activeTab === 'overview'
+              ? 'border-blue-500 text-blue-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          📊 Department Overview
+        </button>
+        <button
+          onClick={() => setActiveTab('subject-management')}
+          className={`pb-2 px-1 border-b-2 font-medium ${
+            activeTab === 'subject-management'
+              ? 'border-blue-500 text-blue-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          📚 Subject Management
+        </button>
+        <button
+          onClick={() => setActiveTab('student-allocation')}
+          className={`pb-2 px-1 border-b-2 font-medium ${
+            activeTab === 'student-allocation'
+              ? 'border-blue-500 text-blue-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          👥 Student Allocation
+        </button>
+      </div>
+
+      {/* Content */}
+      {activeTab === 'overview' && renderOverview()}
+      {activeTab === 'subject-management' && renderSubjectManagement()}
+      {activeTab === 'student-allocation' && renderStudentAllocation()}
+
+      {/* Department Form Modal */}
+      {showAddForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-bold">
+                  {editingDepartment ? 'Edit Department' : 'Add New Department'}
+                </h3>
+                <button
+                  onClick={() => {
+                    setShowAddForm(false)
+                    setEditingDepartment(null)
+                    resetDepartmentForm()
+                  }}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <form onSubmit={editingDepartment ? handleUpdateDepartment : handleCreateDepartment} className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Department Name *
+                    </label>
+                    <input
+                      type="text"
+                      value={departmentForm.name}
+                      onChange={(e) => setDepartmentForm({...departmentForm, name: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Department Code *
+                    </label>
+                    <input
+                      type="text"
+                      value={departmentForm.code}
+                      onChange={(e) => setDepartmentForm({...departmentForm, code: e.target.value.toUpperCase()})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Description *
+                  </label>
+                  <textarea
+                    value={departmentForm.description}
+                    onChange={(e) => setDepartmentForm({...departmentForm, description: e.target.value})}
+                    rows={3}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    required
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Head of Department
+                    </label>
+                    <input
+                      type="text"
+                      value={departmentForm.hod}
+                      onChange={(e) => setDepartmentForm({...departmentForm, hod: e.target.value})}
+                      placeholder="Enter HOD name"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Established Year *
+                    </label>
+                    <input
+                      type="number"
+                      value={departmentForm.establishedYear}
+                      onChange={(e) => setDepartmentForm({...departmentForm, establishedYear: parseInt(e.target.value)})}
+                      min="1900"
+                      max={new Date().getFullYear()}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* Contact Information */}
+                <div className="border-t pt-4">
+                  <h4 className="font-medium text-gray-700 mb-3">Contact Information</h4>
+                  <div className="grid grid-cols-1 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Email *
+                      </label>
+                      <input
+                        type="email"
+                        value={departmentForm.contactInfo.email}
+                        onChange={(e) => setDepartmentForm({
+                          ...departmentForm, 
+                          contactInfo: {...departmentForm.contactInfo, email: e.target.value}
+                        })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        required
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Phone *
+                        </label>
+                        <input
+                          type="tel"
+                          value={departmentForm.contactInfo.phone}
+                          onChange={(e) => setDepartmentForm({
+                            ...departmentForm, 
+                            contactInfo: {...departmentForm.contactInfo, phone: e.target.value}
+                          })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Location *
+                        </label>
+                        <input
+                          type="text"
+                          value={departmentForm.contactInfo.location}
+                          onChange={(e) => setDepartmentForm({
+                            ...departmentForm, 
+                            contactInfo: {...departmentForm.contactInfo, location: e.target.value}
+                          })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          required
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Sections */}
+                <div className="border-t pt-4">
+                  <h4 className="font-medium text-gray-700 mb-3">Sections</h4>
+                  <div className="flex gap-2 mb-3">
+                    {['A', 'B', 'C'].map(section => (
+                      <button
+                        key={section}
+                        type="button"
+                        onClick={() => addSection(section)}
+                        disabled={departmentForm.sections.includes(section)}
+                        className={`px-3 py-1 rounded text-sm ${
+                          departmentForm.sections.includes(section)
+                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                            : 'bg-blue-100 text-blue-600 hover:bg-blue-200'
+                        }`}
+                      >
+                        Add Section {section}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex gap-2 flex-wrap">
+                    {departmentForm.sections.map(section => (
+                      <span
+                        key={section}
+                        className="bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full text-sm flex items-center gap-2"
+                      >
+                        Section {section}
+                        <button
+                          type="button"
+                          onClick={() => removeSection(section)}
+                          className="text-indigo-600 hover:text-indigo-800"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex gap-3 pt-4">
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                  >
+                    {loading ? 'Saving...' : (editingDepartment ? 'Update Department' : 'Create Department')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAddForm(false)
+                      setEditingDepartment(null)
+                      resetDepartmentForm()
+                    }}
+                    className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Subject Form Modal */}
+      {showSubjectForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-bold">Add New Subject</h3>
+                <button
+                  onClick={() => {
+                    setShowSubjectForm(false)
+                    resetSubjectForm()
+                  }}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <form onSubmit={handleCreateSubject} className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Subject Name *
+                    </label>
+                    <input
+                      type="text"
+                      value={subjectForm.name}
+                      onChange={(e) => setSubjectForm({...subjectForm, name: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Subject Code *
+                    </label>
+                    <input
+                      type="text"
+                      value={subjectForm.code}
+                      onChange={(e) => setSubjectForm({...subjectForm, code: e.target.value.toUpperCase()})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Description
+                  </label>
+                  <textarea
+                    value={subjectForm.description}
+                    onChange={(e) => setSubjectForm({...subjectForm, description: e.target.value})}
+                    rows={3}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Credits *
+                    </label>
+                    <input
+                      type="number"
+                      value={subjectForm.credits}
+                      onChange={(e) => setSubjectForm({...subjectForm, credits: parseInt(e.target.value)})}
+                      min="1"
+                      max="10"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Semester *
+                    </label>
+                    <input
+                      type="number"
+                      value={subjectForm.semester}
+                      onChange={(e) => setSubjectForm({...subjectForm, semester: parseInt(e.target.value)})}
+                      min="1"
+                      max="8"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Type *
+                    </label>
+                    <select
+                      value={subjectForm.type}
+                      onChange={(e) => setSubjectForm({...subjectForm, type: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      required
+                    >
+                      <option value="Core">Core</option>
+                      <option value="Elective">Elective</option>
+                      <option value="Lab">Lab</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Department *
+                    </label>
+                    <select
+                      value={subjectForm.department}
+                      onChange={(e) => {
+                        const selectedDept = departments.find(dept => dept.name === e.target.value)
+                        const firstSection = selectedDept?.sections[0] || 'A'
+                        setSubjectForm({...subjectForm, department: e.target.value, section: firstSection})
+                      }}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      required
+                    >
+                      <option value="">Select Department</option>
+                      {departments.map(dept => (
+                        <option key={dept.id} value={dept.id}>
+                          {dept.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Academic Year *
+                    </label>
+                    <select
+                      value={subjectForm.year}
+                      onChange={(e) => setSubjectForm({...subjectForm, year: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      required
+                    >
+                      <option value="1st Year">1st Year</option>
+                      <option value="2nd Year">2nd Year</option>
+                      <option value="3rd Year">3rd Year</option>
+                      <option value="4th Year">4th Year</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Academic Year *
+                    </label>
+                    <input
+                      type="text"
+                      value={subjectForm.academicYear}
+                      onChange={(e) => setSubjectForm({...subjectForm, academicYear: e.target.value})}
+                      placeholder="2024-2025"
+                      pattern="\d{4}-\d{4}"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Section
+                    </label>
+                    <select
+                      value={subjectForm.section}
+                      onChange={(e) => setSubjectForm({...subjectForm, section: e.target.value})}
+                      disabled={subjectForm.createForAllSections}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100"
+                    >
+                      {(() => {
+                        const selectedDept = departments.find(dept => dept.name === subjectForm.department)
+                        if (selectedDept) {
+                          return selectedDept.sections.map(section => (
+                            <option key={section} value={section}>Section {section}</option>
+                          ))
+                        }
+                        return <option value="A">Section A</option>
+                      })()}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={subjectForm.createForAllSections}
+                    onChange={(e) => setSubjectForm({...subjectForm, createForAllSections: e.target.checked})}
+                    className="mr-2"
+                  />
+                  <label className="text-sm text-gray-700">
+                    {(() => {
+                      const selectedDept = departments.find(dept => dept.name === subjectForm.department)
+                      const sectionsList = selectedDept ? selectedDept.sections.join(', ') : 'available sections'
+                      return `Create this subject for all sections (${sectionsList})`
+                    })()}
+                  </label>
+                </div>
+
+                <div className="flex gap-3 pt-4">
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="flex-1 bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
+                  >
+                    {loading ? 'Creating...' : 'Create Subject'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowSubjectForm(false)
+                      resetSubjectForm()
+                    }}
+                    className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Faculty Assignment Modal */}
+      {showFacultyAssignmentForm && selectedSubjectForAssignment && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto modal-content">
+            <h3 className="text-xl font-bold mb-4 text-black">
+              Assign Faculty to {selectedSubjectForAssignment.name}
+            </h3>
+            
+            <div className="space-y-6">
+              <div>
+                <p className="text-gray-600 mb-4">
+                  Subject: {selectedSubjectForAssignment.code} - {selectedSubjectForAssignment.department} Section {selectedSubjectForAssignment.section}
+                </p>
+              </div>
+
+              {/* Available Faculty List */}
+              <div>
+                <h4 className="font-semibold text-gray-800 mb-3">Available Faculty (Multiple Selection)</h4>
+                <div className="grid gap-3 max-h-64 overflow-y-auto">
+                  {users.filter(user => user.role === 'Faculty').map((faculty) => {
+                    const isSelected = selectedFaculty.some((f: any) => f.id === faculty.id)
+                    const isExternal = faculty.department !== selectedSubjectForAssignment.department
+                    
+                    return (
+                      <div key={faculty.id} className={`p-3 border rounded-lg cursor-pointer transition-colors ${
+                        isSelected 
+                          ? 'border-blue-500 bg-blue-50' 
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                      onClick={() => {
+                        if (isSelected) {
+                          setSelectedFaculty(selectedFaculty.filter((f: any) => f.id !== faculty.id))
+                        } else {
+                          setSelectedFaculty([...selectedFaculty, { 
+                            id: faculty.id,
+                            name: faculty.name,
+                            email: faculty.email,
+                            department: faculty.department,
+                            isExternal 
+                          }])
+                        }
+                      }}>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="font-medium text-gray-800">{faculty.name}</p>
+                            <p className="text-sm text-gray-600">{faculty.email}</p>
+                            <p className="text-sm text-gray-500">
+                              {faculty.department}
+                              {isExternal && (
+                                <span className="ml-2 px-2 py-1 bg-orange-100 text-orange-700 text-xs rounded-full">
+                                  External
+                                </span>
+                              )}
+                            </p>
+                          </div>
+                          <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
+                            isSelected 
+                              ? 'border-blue-500 bg-blue-500' 
+                              : 'border-gray-300'
+                          }`}>
+                            {isSelected && (
+                              <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                              </svg>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Selected Faculty Preview */}
+              <div>
+                <h4 className="font-semibold text-gray-800 mb-3">Selected Faculty ({selectedFaculty.length})</h4>
+                <div className="space-y-2">
+                  {selectedFaculty.map((faculty: any, index) => (
+                    <div key={index} className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-lg">
+                      <div>
+                        <p className="font-medium text-gray-800">{faculty.name}</p>
+                        <p className="text-sm text-gray-600">{faculty.email}</p>
+                        <p className="text-sm text-gray-500">
+                          {faculty.department}
+                          {faculty.isExternal && (
+                            <span className="ml-2 px-2 py-1 bg-orange-100 text-orange-700 text-xs rounded-full">
+                              External
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setSelectedFaculty(selectedFaculty.filter((f: any) => f.id !== faculty.id))}
+                        className="bg-red-500 text-white px-3 py-1 rounded text-sm hover:bg-red-600"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                  {selectedFaculty.length === 0 && (
+                    <p className="text-gray-500 text-center py-4">No faculty selected</p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-6 mt-6 border-t">
+              <button
+                onClick={() => {
+                  setShowFacultyAssignmentForm(false)
+                  setSelectedSubjectForAssignment(null)
+                  setSelectedFaculty([])
+                }}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  try {
+                    if (!selectedSubjectForAssignment) {
+                      showNotification('No subject selected', 'warning');
+                      return;
+                    }
+                    
+                    if (selectedFaculty.length === 0) {
+                      showNotification('Please select at least one faculty member', 'warning');
+                      return;
+                    }
+                    
+                    // Assign each selected faculty to the subject with sequential processing
+                    let successCount = 0;
+                    for (const faculty of selectedFaculty) {
+                      try {
+                        await apiService.assignFacultyToSubject(faculty.id, { subjectIds: [selectedSubjectForAssignment.id] });
+                        successCount++;
+                        // Small delay to prevent overwhelming the server
+                        if (selectedFaculty.length > 1) {
+                          await new Promise(resolve => setTimeout(resolve, 100));
+                        }
+                      } catch (error: any) {
+                        console.error(`Error assigning faculty ${faculty.name}:`, error);
+                        showNotification(`Failed to assign ${faculty.name}: ${error.message}`, 'error');
+                      }
+                    }
+                    
+                    if (successCount > 0) {
+                      loadAllData(); // Reload data
+                      showNotification(`${successCount} faculty assigned successfully!`, 'success');
+                      setShowFacultyAssignmentForm(false);
+                      setSelectedSubjectForAssignment(null);
+                      setSelectedFaculty([]);
+                    }
+                  } catch (error: any) {
+                    showNotification(error.message || 'Failed to assign faculty', 'error');
+                  }
+                }}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Save Assignment
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Student View Popup */}
+      {showViewStudentPopup && selectedStudentForAction && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-bold text-gray-800">Student Details</h3>
+                <button
+                  onClick={() => {
+                    setShowViewStudentPopup(false)
+                    setSelectedStudentForAction(null)
+                  }}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="space-y-6">
+                {/* Student Info */}
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg">
+                  <div className="flex items-center gap-4">
+                    <div className="bg-blue-100 p-3 rounded-full">
+                      <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h4 className="text-xl font-bold text-gray-800">{selectedStudentForAction?.name}</h4>
+                      <p className="text-gray-600">{selectedStudentForAction?.email}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Academic Information */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-3">
+                    <h5 className="font-semibold text-gray-800">Academic Information</h5>
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Department:</span>
+                        <span className="font-medium">{selectedStudentForAction?.department}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Batch:</span>
+                        <span className="font-medium">{selectedStudentForAction?.batch}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Academic Year:</span>
+                        <span className="font-medium">{getAcademicYear(selectedStudentForAction?.batch || '')}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Section:</span>
+                        <span className="font-medium">
+                          {selectedStudentForAction?.section ? (
+                            <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm">
+                              Section {selectedStudentForAction?.section}
+                            </span>
+                          ) : (
+                            <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-sm">
+                              Not Assigned
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Status:</span>
+                        <span className={`px-2 py-1 rounded text-sm font-medium ${
+                          selectedStudentForAction?.status === 'Active' 
+                            ? 'bg-green-100 text-green-800' 
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                          {selectedStudentForAction?.status}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <h5 className="font-semibold text-gray-800">Contact Information</h5>
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Phone:</span>
+                        <span className="font-medium">{selectedStudentForAction?.phone}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Address:</span>
+                        <span className="font-medium text-right">{selectedStudentForAction?.address}</span>
+                      </div>
+                      {selectedStudentForAction?.guardianName && (
+                        <>
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Guardian:</span>
+                            <span className="font-medium">{selectedStudentForAction?.guardianName}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Guardian Phone:</span>
+                            <span className="font-medium">{selectedStudentForAction?.guardianPhone}</span>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end mt-6">
+                <button
+                  onClick={() => {
+                    setShowViewStudentPopup(false)
+                    setSelectedStudentForAction(null)
+                  }}
+                  className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Student Reassign Popup */}
+      {showReassignPopup && selectedStudentForAction && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-lg w-full">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-bold text-gray-800">Reassign Student</h3>
+                <button
+                  onClick={() => {
+                    setShowReassignPopup(false)
+                    setSelectedStudentForAction(null)
+                  }}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div className="bg-blue-50 p-4 rounded-lg">
+                  <h4 className="font-semibold text-gray-800 mb-2">Student Information</h4>
+                  <p className="text-gray-700"><strong>Name:</strong> {selectedStudentForAction?.name}</p>
+                  <p className="text-gray-700"><strong>Current Section:</strong> {selectedStudentForAction?.section || 'Not Assigned'}</p>
+                  <p className="text-gray-700"><strong>Department:</strong> {selectedStudentForAction?.department}</p>
+                  <p className="text-gray-700"><strong>Academic Year:</strong> {getAcademicYear(selectedStudentForAction?.batch || '')}</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Select New Section</label>
+                  {(() => {
+                    const year = getAcademicYear(selectedStudentForAction?.batch || '')
+                    const currentClassCombinations = getClassCombinations();
+                    const availableSections = currentClassCombinations.filter(c => 
+                      c.department === selectedStudentForAction?.department && 
+                      c.year === year && 
+                      c.section !== selectedStudentForAction?.section && 
+                      c.currentCount < 65
+                    )
+
+                    if (availableSections.length === 0) {
+                      return (
+                        <div className="bg-yellow-50 border border-yellow-200 p-3 rounded-lg">
+                          <p className="text-yellow-800">No available sections for reassignment. All sections are either full or this is the student's current section.</p>
+                          <div className="flex justify-end mt-3">
+                            <button
+                              onClick={() => {
+                                setShowReassignPopup(false)
+                                setSelectedStudentForAction(null)
+                              }}
+                              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                            >
+                              OK
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    }
+
+                    return (
+                      <div className="space-y-2">
+                        {availableSections.map((section) => (
+                          <button
+                            type="button"
+                            key={section.section}
+                            onClick={async () => {
+                              if (selectedStudentForAction) {
+                                try {
+                                  await apiService.updateUser(selectedStudentForAction.id, { section: section.section });
+                                  loadAllData(); // Reload data
+                                  showNotification(`${selectedStudentForAction.name} successfully reassigned to Section ${section.section}`, 'success');
+                                  setShowReassignPopup(false);
+                                  setSelectedStudentForAction(null);
+                                } catch (error: any) {
+                                  showNotification(error.message || 'Failed to reassign student', 'error');
+                                }
+                              }
+                            }}
+                            className="w-full p-3 border border-gray-300 rounded-lg hover:bg-blue-50 hover:border-blue-300 transition-colors text-left"
+                          >
+                            <div className="flex justify-between items-center">
+                              <span className="font-medium">Section {section.section}</span>
+                              <span className="text-sm text-gray-600">
+                                {section.currentCount}/65 students
+                              </span>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                              <div 
+                                className="bg-blue-600 h-2 rounded-full" 
+                                style={{ width: `${(section.currentCount / 65) * 100}%` }}
+                              ></div>
+                            </div>
+                          </button>
+                        ))}
+                        <div className="flex justify-end gap-3 mt-4">
+                          <button
+                            onClick={() => {
+                              setShowReassignPopup(false)
+                              setSelectedStudentForAction(null)
+                            }}
+                            className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })()}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Student Assign Popup */}
+      {showAssignPopup && selectedStudentForAction && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-lg w-full">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-bold text-gray-800">Assign Student to Section</h3>
+                <button
+                  onClick={() => {
+                    setShowAssignPopup(false)
+                    setSelectedStudentForAction(null)
+                  }}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div className="bg-blue-50 p-4 rounded-lg">
+                  <h4 className="font-semibold text-gray-800 mb-2">Student Information</h4>
+                  <p className="text-gray-700"><strong>Name:</strong> {selectedStudentForAction?.name}</p>
+                  <p className="text-gray-700"><strong>Current Section:</strong> Not Assigned</p>
+                  <p className="text-gray-700"><strong>Department:</strong> {selectedStudentForAction?.department}</p>
+                  <p className="text-gray-700"><strong>Academic Year:</strong> {getAcademicYear(selectedStudentForAction?.batch || '')}</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Select Section</label>
+                  {(() => {
+                    const year = getAcademicYear(selectedStudentForAction?.batch || '')
+                    const currentClassCombinations = getClassCombinations();
+                    const availableSections = currentClassCombinations.filter(c => 
+                      c.department === selectedStudentForAction?.department && 
+                      c.year === year && 
+                      c.currentCount < 65
+                    )
+
+                    if (availableSections.length === 0) {
+                      return (
+                        <div className="bg-yellow-50 border border-yellow-200 p-3 rounded-lg">
+                          <p className="text-yellow-800">No available sections. All sections for {selectedStudentForAction?.department} {year} are full.</p>
+                          <div className="flex justify-end mt-3">
+                            <button
+                              onClick={() => {
+                                setShowAssignPopup(false)
+                                setSelectedStudentForAction(null)
+                              }}
+                              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                            >
+                              OK
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    }
+
+                    return (
+                      <div className="space-y-2">
+                        {availableSections.map((section) => (
+                          <button
+                            type="button"
+                            key={section.section}
+                            onClick={async () => {
+                              if (selectedStudentForAction) {
+                                try {
+                                  await apiService.updateUser(selectedStudentForAction.id, { section: section.section });
+                                  loadAllData(); // Reload data
+                                  showNotification(`${selectedStudentForAction.name} successfully assigned to Section ${section.section}`, 'success');
+                                  setShowAssignPopup(false);
+                                  setSelectedStudentForAction(null);
+                                } catch (error: any) {
+                                  showNotification(error.message || 'Failed to assign student', 'error');
+                                }
+                              }
+                            }}
+                            className="w-full p-3 border border-gray-300 rounded-lg hover:bg-green-50 hover:border-green-300 transition-colors text-left"
+                          >
+                            <div className="flex justify-between items-center">
+                              <span className="font-medium">Section {section.section}</span>
+                              <span className="text-sm text-gray-600">
+                                {section.currentCount}/65 students
+                              </span>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                              <div 
+                                className="bg-green-600 h-2 rounded-full" 
+                                style={{ width: `${(section.currentCount / 65) * 100}%` }}
+                              ></div>
+                            </div>
+                          </button>
+                        ))}
+                        <div className="flex justify-end gap-3 mt-4">
+                          <button
+                            onClick={() => {
+                              setShowAssignPopup(false)
+                              setSelectedStudentForAction(null)
+                            }}
+                            className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })()}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Dialog */}
+      {showConfirmDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-md w-full">
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="bg-red-100 p-2 rounded-full">
+                  <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-bold text-gray-800">Confirm Action</h3>
+              </div>
+              
+              <p className="text-gray-600 mb-6">{confirmMessage}</p>
+              
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => {
+                    setShowConfirmDialog(false)
+                    setConfirmAction(null)
+                  }}
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (confirmAction) {
+                      confirmAction();
+                    }
+                    setShowConfirmDialog(false);
+                    setConfirmAction(null);
+                  }}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                >
+                  Confirm
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* HOD Assignment Modal */}
+      {showHodAssignmentForm && selectedDepartmentForHod && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-bold text-gray-800">
+                  {selectedDepartmentForHod.hod ? 'Change HOD' : 'Assign HOD'} - {selectedDepartmentForHod.name}
+                </h3>
+                <button
+                  onClick={() => {
+                    setShowHodAssignmentForm(false)
+                    setSelectedDepartmentForHod(null)
+                  }}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              {selectedDepartmentForHod.hod && (
+                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-sm text-blue-800">
+                    <span className="font-medium">Current HOD:</span> {selectedDepartmentForHod.hod}
+                  </p>
+                </div>
+              )}
+
+              <div className="space-y-3">
+                <label className="block text-sm font-medium text-gray-700 mb-3">
+                  Select Faculty Member as HOD:
+                </label>
+
+                {(() => {
+                  const facultyMembers = getFacultyForHodAssignment(selectedDepartmentForHod.id)
+                  
+                  if (facultyMembers.length === 0) {
+                    return (
+                      <div className="text-center py-8 text-gray-500">
+                        <svg className="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
+                        <p className="text-sm">No faculty members found in this department.</p>
+                        <p className="text-xs text-gray-400 mt-1">Add faculty members first to assign as HOD.</p>
+                      </div>
+                    )
+                  }
+
+                  return facultyMembers.map((faculty) => (
+                    <div
+                      key={faculty.id}
+                      className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 hover:bg-blue-50 transition-colors cursor-pointer"
+                      onClick={() => handleAssignHod(faculty.id)}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="font-medium text-gray-800">{faculty.name}</h4>
+                          <p className="text-sm text-gray-600">{faculty.email}</p>
+                          <p className="text-xs text-gray-500">
+                            {faculty.designation} | {faculty.experience} years exp.
+                          </p>
+                          {faculty.specialization && faculty.specialization.length > 0 && (
+                            <div className="flex gap-1 mt-2">
+                              {faculty.specialization.slice(0, 2).map((spec, index) => (
+                                <span key={index} className="bg-gray-100 text-gray-700 px-2 py-1 rounded text-xs">
+                                  {spec}
+                                </span>
+                              ))}
+                              {faculty.specialization.length > 2 && (
+                                <span className="text-xs text-gray-500">+{faculty.specialization.length - 2} more</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        <div className="text-blue-600">
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                })()}
+              </div>
+
+              <div className="flex justify-end gap-3 mt-6">
+                <button
+                  onClick={() => {
+                    setShowHodAssignmentForm(false)
+                    setSelectedDepartmentForHod(null)
+                  }}
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}

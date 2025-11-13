@@ -81,7 +81,6 @@ const createChapter = async (req, res) => {
       content,
       topics,
       learningOutcomes,
-      estimatedDuration,
       resources,
       status,
       displayOrder
@@ -91,7 +90,6 @@ const createChapter = async (req, res) => {
     console.log('  Subject ID:', subjectId);
     console.log('  Title:', title);
     console.log('  Chapter Number:', chapterNumber);
-    console.log('  Estimated Duration:', estimatedDuration, typeof estimatedDuration);
     console.log('  Topics:', topics);
     console.log('  Learning Outcomes:', learningOutcomes);
     console.log('  Status:', status);
@@ -126,7 +124,6 @@ const createChapter = async (req, res) => {
       content,
       topics,
       learningOutcomes,
-      estimatedDuration,
       resources,
       status: status || 'Published',
       displayOrder: displayOrder || chapterNumber,
@@ -213,7 +210,7 @@ const updateChapter = async (req, res) => {
     if (content !== undefined) chapter.content = content;
     if (topics) chapter.topics = topics;
     if (learningOutcomes) chapter.learningOutcomes = learningOutcomes;
-    if (estimatedDuration) chapter.estimatedDuration = estimatedDuration;
+    // estimatedDuration field removed - chapters no longer track estimated duration
     if (resources) chapter.resources = resources;
     if (status) chapter.status = status;
     if (displayOrder) chapter.displayOrder = displayOrder;

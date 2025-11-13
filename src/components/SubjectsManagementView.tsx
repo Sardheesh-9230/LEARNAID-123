@@ -5,6 +5,7 @@ import apiService from '../services/api';
 import ChapterForm from './ChapterForm';
 import MaterialUpload from './MaterialUpload';
 import MaterialsGrid from './MaterialsGrid';
+import MCQDisplay from './MCQDisplay';
 
 interface Subject {
   _id: string
@@ -106,6 +107,18 @@ export default function SubjectsManagementView({
   const [showMaterialModal, setShowMaterialModal] = useState(false)
   const [isEditMode, setIsEditMode] = useState(false)
   
+  // MCQ Generation states
+  const [showMCQModal, setShowMCQModal] = useState(false)
+  const [showMCQDisplay, setShowMCQDisplay] = useState(false)
+  const [selectedMaterialForMCQ, setSelectedMaterialForMCQ] = useState<string | null>(null)
+  const [mcqTopic, setMcqTopic] = useState('')
+  const [mcqDifficulty, setMcqDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium')
+  const [mcqCount, setMcqCount] = useState(5)
+  const [generatedMCQs, setGeneratedMCQs] = useState<any[]>([])
+  const [suggestedTopics, setSuggestedTopics] = useState<string[]>([])
+  const [generatingMCQs, setGeneratingMCQs] = useState(false)
+  const [extractingTopics, setExtractingTopics] = useState(false)
+  
   // Form states
   const [chapterForm, setChapterForm] = useState({
     title: '',
@@ -120,10 +133,8 @@ export default function SubjectsManagementView({
   
   const [materialForm, setMaterialForm] = useState({
     title: '',
-    type: 'PDF' as 'PDF' | 'Video' | 'Link' | 'Document' | 'PPT' | 'Image',
-    url: '',
+    type: 'PDF' as 'PDF',
     file: null as File | null,
-    duration: 0,
     tags: ''
   })
 
@@ -173,8 +184,10 @@ export default function SubjectsManagementView({
     try {
       setLoading(true)
       const response = await apiService.getMaterialsByChapter(chapterId)
+      console.log('📥 Materials response:', response)
       if (response.success) {
-        setMaterials(response.materials || [])
+        // Backend returns materials in 'data' field, not 'materials'
+        setMaterials(response.data || [])
       }
     } catch (error) {
       console.error('Error loading materials:', error)
@@ -314,9 +327,7 @@ export default function SubjectsManagementView({
     setMaterialForm({
       title: '',
       type: 'PDF',
-      url: '',
       file: null,
-      duration: 0,
       tags: ''
     })
     setShowMaterialModal(true)
@@ -328,20 +339,17 @@ export default function SubjectsManagementView({
     try {
       setLoading(true)
       const formData = new FormData()
-      formData.append('chapter', selectedChapter._id)
+      
+      // Add required fields for both material and PDF endpoints
       formData.append('subject', selectedSubject._id)
+      formData.append('chapter', selectedChapter._id)
       formData.append('title', materialForm.title)
       formData.append('type', materialForm.type)
+      formData.append('description', `${materialForm.type} material for ${selectedChapter.title}`)
       formData.append('order', String(materials.length + 1))
       
       if (materialForm.file) {
         formData.append('file', materialForm.file)
-      } else if (materialForm.url) {
-        formData.append('url', materialForm.url)
-      }
-      
-      if (materialForm.duration) {
-        formData.append('duration', String(materialForm.duration))
       }
       
       if (materialForm.tags) {
@@ -349,29 +357,43 @@ export default function SubjectsManagementView({
         formData.append('tags', JSON.stringify(tagsArray))
       }
 
+      console.log('📤 Uploading material:', {
+        title: materialForm.title,
+        type: materialForm.type,
+        file: materialForm.file?.name,
+        chapter: selectedChapter.title,
+        subject: selectedSubject.name
+      })
+
       const response = await apiService.createMaterial(selectedChapter._id, formData)
       
       if (response.success) {
         showNotification('Material uploaded successfully', 'success')
         setShowMaterialModal(false)
+        setMaterialForm({
+          title: '',
+          type: 'PDF',
+          file: null,
+          tags: ''
+        })
         await loadMaterials(selectedChapter._id)
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving material:', error)
-      showNotification('Failed to upload material', 'error')
+      showNotification(`Failed to upload material: ${error.message || 'Unknown error'}`, 'error')
     } finally {
       setLoading(false)
     }
   }
 
   const handleDeleteMaterial = async (materialId: string) => {
-    if (!confirm('Are you sure you want to delete this material?')) return
+    if (!confirm('Are you sure you want to delete this material? This will permanently delete the file from the server.')) return
     
     try {
       setLoading(true)
       const response = await apiService.deleteMaterial(materialId)
       if (response.success) {
-        showNotification('Material deleted successfully', 'success')
+        showNotification('Material and file deleted successfully', 'success')
         if (selectedChapter) {
           await loadMaterials(selectedChapter._id)
         }
@@ -387,16 +409,22 @@ export default function SubjectsManagementView({
   const handleDownloadMaterial = async (materialId: string) => {
     try {
       const material = materials.find(m => m._id === materialId)
-      if (material && material.url) {
-        // Track download
-        await apiService.recordMaterialDownload(materialId)
-        // Open/download
-        window.open(material.url, '_blank')
-        showNotification('Material download started', 'success')
-        // Reload to update download count
-        if (selectedChapter) {
-          await loadMaterials(selectedChapter._id)
-        }
+      if (!material) {
+        showNotification('Material not found', 'error')
+        return
+      }
+      
+      // Download the file
+      await apiService.downloadMaterialFile(materialId, material.fileMetadata?.originalName || material.title)
+      
+      // Record download for analytics
+      await apiService.recordMaterialDownload(materialId)
+      
+      showNotification('Download started successfully', 'success')
+      
+      // Reload to update download count
+      if (selectedChapter) {
+        await loadMaterials(selectedChapter._id)
       }
     } catch (error) {
       console.error('Error downloading material:', error)
@@ -406,19 +434,82 @@ export default function SubjectsManagementView({
 
   const handleViewMaterial = async (material: Material) => {
     try {
-      // Track view
-      await apiService.recordMaterialDownload(material._id)
-      // Open material
-      if (material.url) {
-        window.open(material.url, '_blank')
-      }
+      // Get blob URL and open in new tab
+      const blobUrl = await apiService.viewMaterialFile(material._id)
+      window.open(blobUrl, '_blank')
+      
+      // Record view for analytics (don't wait for this)
+      apiService.recordMaterialDownload(material._id).catch(err => 
+        console.error('Failed to record view:', err)
+      )
+      
       // Reload to update view count
       if (selectedChapter) {
-        await loadMaterials(selectedChapter._id)
+        setTimeout(() => loadMaterials(selectedChapter._id), 1000)
       }
     } catch (error) {
       console.error('Error viewing material:', error)
+      showNotification('Failed to open material', 'error')
     }
+  }
+
+  // MCQ Generation Handlers
+  const handleGenerateMCQClick = async (materialId: string) => {
+    setSelectedMaterialForMCQ(materialId)
+    setShowMCQModal(true)
+    setMcqTopic('')
+    setSuggestedTopics([])
+    
+    // Extract topics from the material
+    setExtractingTopics(true)
+    try {
+      const response = await apiService.extractTopicsFromMaterial(materialId)
+      if (response.success && response.data.topics) {
+        setSuggestedTopics(response.data.topics)
+      }
+    } catch (error) {
+      console.error('Error extracting topics:', error)
+      // Don't show error notification, user can still enter topic manually
+    } finally {
+      setExtractingTopics(false)
+    }
+  }
+
+  const handleGenerateMCQs = async () => {
+    if (!selectedMaterialForMCQ || !mcqTopic.trim()) {
+      showNotification('Please enter a topic for MCQ generation', 'error')
+      return
+    }
+
+    setGeneratingMCQs(true)
+    try {
+      const response = await apiService.generateMCQs(
+        selectedMaterialForMCQ,
+        mcqTopic,
+        mcqCount,
+        mcqDifficulty
+      )
+
+      if (response.success && response.data.mcqs) {
+        setGeneratedMCQs(response.data.mcqs)
+        setShowMCQModal(false)
+        setShowMCQDisplay(true)
+        showNotification(`Successfully generated ${response.data.mcqs.length} MCQs!`, 'success')
+      } else {
+        showNotification('Failed to generate MCQs. Please try again.', 'error')
+      }
+    } catch (error: any) {
+      console.error('Error generating MCQs:', error)
+      showNotification(error.message || 'Failed to generate MCQs', 'error')
+    } finally {
+      setGeneratingMCQs(false)
+    }
+  }
+
+  const handleCloseMCQDisplay = () => {
+    setShowMCQDisplay(false)
+    setGeneratedMCQs([])
+    setSelectedMaterialForMCQ(null)
   }
 
   const getMaterialIcon = (type: string) => {
@@ -677,7 +768,6 @@ export default function SubjectsManagementView({
             content: selectedChapter.content || '',
             topics: selectedChapter.topics || [],
             learningOutcomes: selectedChapter.learningOutcomes || [],
-            estimatedDuration: selectedChapter.estimatedDuration || 1,
             status: selectedChapter.status
           } : undefined}
           onClose={() => setShowChapterModal(false)}
@@ -748,6 +838,7 @@ export default function SubjectsManagementView({
               onDownload={handleDownloadMaterial}
               onDelete={handleDeleteMaterial}
               onView={handleViewMaterial}
+              onGenerateMCQ={handleGenerateMCQClick}
               canEdit={true}
             />
           )}
@@ -782,57 +873,26 @@ export default function SubjectsManagementView({
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                   >
                     <option value="PDF">PDF Document</option>
-                    <option value="Video">Video</option>
-                    <option value="Link">External Link</option>
-                    <option value="Document">Document</option>
-                    <option value="PPT">PowerPoint</option>
-                    <option value="Image">Image</option>
                   </select>
                 </div>
 
-                {materialForm.type === 'Link' ? (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">URL *</label>
-                    <input
-                      type="url"
-                      value={materialForm.url}
-                      onChange={(e) => setMaterialForm({...materialForm, url: e.target.value})}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                      placeholder="https://example.com/resource"
-                      required
-                    />
-                  </div>
-                ) : (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Upload File *</label>
-                    <input
-                      type="file"
-                      onChange={(e) => setMaterialForm({...materialForm, file: e.target.files?.[0] || null})}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                      accept={
-                        materialForm.type === 'PDF' ? '.pdf' :
-                        materialForm.type === 'Video' ? 'video/*' :
-                        materialForm.type === 'PPT' ? '.ppt,.pptx' :
-                        materialForm.type === 'Image' ? 'image/*' :
-                        '*'
-                      }
-                      required
-                    />
-                  </div>
-                )}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Upload PDF File *</label>
+                  <input
+                    type="file"
+                    onChange={(e) => setMaterialForm({...materialForm, file: e.target.files?.[0] || null})}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    accept=".pdf"
+                    required
+                  />
+                  {materialForm.file && (
+                    <p className="mt-2 text-sm text-gray-600">
+                      📄 Selected: {materialForm.file.name} ({(materialForm.file.size / 1024 / 1024).toFixed(2)} MB)
+                    </p>
+                  )}
+                </div>
 
-                {materialForm.type === 'Video' && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Duration (minutes)</label>
-                    <input
-                      type="number"
-                      value={materialForm.duration}
-                      onChange={(e) => setMaterialForm({...materialForm, duration: parseInt(e.target.value) || 0})}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                      min="0"
-                    />
-                  </div>
-                )}
+
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Tags (comma-separated)</label>
@@ -857,13 +917,170 @@ export default function SubjectsManagementView({
                 <button
                   onClick={handleSaveMaterial}
                   className="bg-gradient-to-r from-purple-500 to-pink-500 text-white px-6 py-2 rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all disabled:opacity-50"
-                  disabled={loading || !materialForm.title || (!materialForm.file && !materialForm.url)}
+                  disabled={loading || !materialForm.title || !materialForm.file}
                 >
                   {loading ? 'Uploading...' : 'Upload Material'}
                 </button>
               </div>
             </div>
           </div>
+        )}
+
+        {/* MCQ Generation Modal */}
+        {showMCQModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full">
+              <div className="bg-gradient-to-r from-purple-600 to-pink-600 text-white p-6 rounded-t-2xl">
+                <h3 className="text-2xl font-bold">⚡ Generate MCQs with AI</h3>
+                <p className="text-purple-100 mt-2">Using Groq AI with RAG (Retrieval Augmented Generation)</p>
+              </div>
+              
+              <div className="p-6 space-y-6">
+                {/* Topic Selection */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Topic for MCQ Generation *
+                  </label>
+                  <input
+                    type="text"
+                    value={mcqTopic}
+                    onChange={(e) => setMcqTopic(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    placeholder="e.g., Data Structures, Algorithms, SCRUM Framework"
+                    disabled={generatingMCQs}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Enter the specific topic you want to generate questions about
+                  </p>
+                </div>
+
+                {/* Suggested Topics */}
+                {extractingTopics ? (
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-600"></div>
+                    Extracting topics from PDF...
+                  </div>
+                ) : suggestedTopics.length > 0 && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      💡 Suggested Topics (click to select)
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {suggestedTopics.map((topic, index) => (
+                        <button
+                          key={index}
+                          onClick={() => setMcqTopic(topic)}
+                          className="bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-sm hover:bg-purple-200 transition-all"
+                          disabled={generatingMCQs}
+                        >
+                          {topic}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Number of Questions */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Number of Questions
+                  </label>
+                  <select
+                    value={mcqCount}
+                    onChange={(e) => setMcqCount(Number(e.target.value))}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    disabled={generatingMCQs}
+                  >
+                    <option value={3}>3 Questions</option>
+                    <option value={5}>5 Questions</option>
+                    <option value={10}>10 Questions</option>
+                    <option value={15}>15 Questions</option>
+                    <option value={20}>20 Questions</option>
+                  </select>
+                </div>
+
+                {/* Difficulty Level */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Difficulty Level
+                  </label>
+                  <div className="flex gap-3">
+                    {['easy', 'medium', 'hard'].map((level) => (
+                      <button
+                        key={level}
+                        onClick={() => setMcqDifficulty(level as 'easy' | 'medium' | 'hard')}
+                        className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all ${
+                          mcqDifficulty === level
+                            ? level === 'easy'
+                              ? 'bg-green-500 text-white'
+                              : level === 'medium'
+                              ? 'bg-yellow-500 text-white'
+                              : 'bg-red-500 text-white'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                        disabled={generatingMCQs}
+                      >
+                        {level.charAt(0).toUpperCase() + level.slice(1)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Info Box */}
+                <div className="bg-blue-50 border-l-4 border-blue-400 p-4 rounded">
+                  <div className="flex items-start">
+                    <div className="flex-shrink-0">
+                      <span className="text-2xl">ℹ️</span>
+                    </div>
+                    <div className="ml-3">
+                      <p className="text-sm text-blue-800">
+                        <strong>How it works:</strong> The AI will analyze the PDF content, find relevant information about your topic using RAG, and generate multiple choice questions with explanations.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-6 bg-gray-50 rounded-b-2xl flex justify-end space-x-3">
+                <button
+                  onClick={() => setShowMCQModal(false)}
+                  className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-100 transition-all"
+                  disabled={generatingMCQs}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleGenerateMCQs}
+                  className="bg-gradient-to-r from-purple-500 to-pink-500 text-white px-6 py-2 rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all disabled:opacity-50 flex items-center gap-2"
+                  disabled={generatingMCQs || !mcqTopic.trim()}
+                >
+                  {generatingMCQs ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      ⚡ Generate MCQs
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* MCQ Display Modal */}
+        {showMCQDisplay && generatedMCQs.length > 0 && (
+          <MCQDisplay
+            mcqs={generatedMCQs}
+            onClose={handleCloseMCQDisplay}
+            metadata={{
+              materialTitle: materials.find(m => m._id === selectedMaterialForMCQ)?.title || 'Material',
+              topic: mcqTopic,
+              difficulty: mcqDifficulty
+            }}
+          />
         )}
       </div>
     )

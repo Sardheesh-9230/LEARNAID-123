@@ -14,7 +14,6 @@ interface ChapterFormProps {
     content: string;
     topics: string[];
     learningOutcomes: string[];
-    estimatedDuration: number;
     status: 'Draft' | 'Published' | 'Archived';
   };
   onClose: () => void;
@@ -37,7 +36,6 @@ export default function ChapterForm({
     content: chapterData?.content || '',
     topics: chapterData?.topics || [],
     learningOutcomes: chapterData?.learningOutcomes || [],
-    estimatedDuration: chapterData?.estimatedDuration || 1,
     status: chapterData?.status || 'Draft' as 'Draft' | 'Published' | 'Archived'
   });
 
@@ -107,36 +105,18 @@ export default function ChapterForm({
         {/* Form */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6">
           {/* Basic Info */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Chapter Number <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="number"
-                value={formData.chapterNumber}
-                onChange={(e) => setFormData({...formData, chapterNumber: parseInt(e.target.value) || 1})}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all"
-                min="1"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                ⏱️ Estimated Duration (hours) <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="number"
-                value={formData.estimatedDuration}
-                onChange={(e) => setFormData({...formData, estimatedDuration: parseInt(e.target.value) || 1})}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all"
-                min="1"
-                max="100"
-                placeholder="e.g., 2 hours"
-                required
-              />
-            </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Chapter Number <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="number"
+              value={formData.chapterNumber}
+              onChange={(e) => setFormData({...formData, chapterNumber: parseInt(e.target.value) || 1})}
+              className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all"
+              min="1"
+              required
+            />
           </div>
 
           {/* Chapter Title */}

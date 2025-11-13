@@ -426,7 +426,7 @@ class ApiService {
 
   // Get materials by chapter
   async getMaterialsByChapter(chapterId) {
-    return this.makeRequest(`/subjects/chapters/${chapterId}/materials`);
+    return this.makeRequest(`/subjects/materials/chapters/${chapterId}/materials`);
   }
 
   // Get single material
@@ -436,10 +436,36 @@ class ApiService {
 
   // Create material
   async createMaterial(chapterId, materialData) {
-    return this.makeRequest(`/subjects/chapters/${chapterId}/materials`, {
+    // Check if materialData is FormData (for file uploads)
+    const isFormData = materialData instanceof FormData;
+    
+    const options = {
       method: 'POST',
-      body: JSON.stringify(materialData),
-    });
+    };
+    
+    if (isFormData) {
+      // For file uploads, don't set Content-Type header - let browser set it with boundary
+      const headers = {};
+      if (this.token) {
+        headers.Authorization = `Bearer ${this.token}`;
+      }
+      
+      return fetch(`${this.baseURL}/subjects/materials/chapters/${chapterId}/materials`, {
+        method: 'POST',
+        headers: headers,
+        body: materialData
+      }).then(async (response) => {
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ message: 'Upload failed' }));
+          throw new Error(errorData.message || 'Failed to upload material');
+        }
+        return response.json();
+      });
+    } else {
+      // For JSON data
+      options.body = JSON.stringify(materialData);
+      return this.makeRequest(`/subjects/materials/chapters/${chapterId}/materials`, options);
+    }
   }
 
   // Update material
@@ -457,9 +483,70 @@ class ApiService {
     });
   }
 
+  // View material file (returns blob URL for opening in new tab)
+  async viewMaterialFile(materialId) {
+    const token = this.token || localStorage.getItem('authToken');
+    console.log('🔍 Viewing material:', materialId);
+    
+    const response = await fetch(`${this.baseURL}/subjects/materials/${materialId}/view`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    console.log('View response status:', response.status);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('View failed:', errorText);
+      throw new Error(`Failed to fetch material file: ${response.status} - ${errorText}`);
+    }
+
+    const blob = await response.blob();
+    console.log('Blob created:', blob.type, blob.size);
+    return URL.createObjectURL(blob);
+  }
+
+  // Download material file
+  async downloadMaterialFile(materialId, filename) {
+    const token = this.token || localStorage.getItem('authToken');
+    console.log('⬇️ Downloading material:', materialId, filename);
+    
+    const response = await fetch(`${this.baseURL}/subjects/materials/${materialId}/file`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    console.log('Download response status:', response.status);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Download failed:', errorText);
+      throw new Error(`Failed to download material file: ${response.status} - ${errorText}`);
+    }
+
+    const blob = await response.blob();
+    console.log('Download blob created:', blob.type, blob.size);
+    const url = URL.createObjectURL(blob);
+    
+    // Create temporary link and trigger download
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename || 'download';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    // Clean up the blob URL
+    setTimeout(() => URL.revokeObjectURL(url), 100);
+  }
+
   // Reorder materials
   async reorderMaterials(chapterId, materialOrders) {
-    return this.makeRequest(`/subjects/chapters/${chapterId}/materials/reorder`, {
+    return this.makeRequest(`/subjects/materials/chapters/${chapterId}/materials/reorder`, {
       method: 'PUT',
       body: JSON.stringify({ materialOrders }),
     });
@@ -469,6 +556,26 @@ class ApiService {
   async recordMaterialDownload(materialId) {
     return this.makeRequest(`/subjects/materials/${materialId}/download`, {
       method: 'POST',
+    });
+  }
+
+  // MCQ Generation APIs
+  async generateMCQs(materialId, topic, numberOfQuestions = 5, difficulty = 'medium') {
+    return this.makeRequest('/mcq/generate', {
+      method: 'POST',
+      body: JSON.stringify({
+        materialId,
+        topic,
+        numberOfQuestions,
+        difficulty
+      }),
+    });
+  }
+
+  async extractTopicsFromMaterial(materialId) {
+    return this.makeRequest('/mcq/extract-topics', {
+      method: 'POST',
+      body: JSON.stringify({ materialId }),
     });
   }
 
@@ -780,6 +887,12 @@ export const {
   deleteMaterial,
   reorderMaterials,
   recordMaterialDownload,
+  viewMaterialFile,
+  downloadMaterialFile,
+  
+  // MCQ Generation
+  generateMCQs,
+  extractTopicsFromMaterial,
   
   // Analytics
   getDashboardStats,

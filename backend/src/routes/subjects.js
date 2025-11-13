@@ -1,43 +1,10 @@
 const express = require('express');
 const { body } = require('express-validator');
-const multer = require('multer');
-const path = require('path');
 const subjectController = require('../controllers/subjectController');
 const chapterController = require('../controllers/subjectChapterController');
-const materialController = require('../controllers/materialController');
 const { protect, authorize } = require('../middleware/auth');
 
 const router = express.Router();
-
-// Configure multer for material file uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, 'uploads/materials/');
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
-  }
-});
-
-const upload = multer({
-  storage: storage,
-  limits: {
-    fileSize: 50 * 1024 * 1024 // 50MB limit
-  },
-  fileFilter: (req, file, cb) => {
-    // Allow PDF, DOC, DOCX, PPT, PPTX, XLS, XLSX, images, videos
-    const allowedTypes = /pdf|doc|docx|ppt|pptx|xls|xlsx|jpg|jpeg|png|gif|mp4|avi|mov/;
-    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-    const mimetype = allowedTypes.test(file.mimetype);
-    
-    if (mimetype && extname) {
-      return cb(null, true);
-    } else {
-      cb(new Error('Only documents, images, and videos are allowed'));
-    }
-  }
-});
 
 /**
  * @swagger
@@ -355,33 +322,5 @@ router.put('/chapters/:id', protect, authorize('Faculty', 'Admin'), chapterContr
 
 // Delete chapter
 router.delete('/chapters/:id', protect, authorize('Faculty', 'Admin'), chapterController.deleteChapter);
-
-// ========================================
-// MATERIAL ROUTES (Nested under subjects/chapters)
-// ========================================
-
-// Get all materials for a subject
-router.get('/:subjectId/materials', protect, materialController.getMaterialsBySubject);
-
-// Get materials by chapter
-router.get('/chapters/:chapterId/materials', protect, materialController.getMaterialsByChapter);
-
-// Create material in a chapter (with file upload)
-router.post('/chapters/:chapterId/materials', protect, authorize('Faculty', 'Admin'), upload.single('file'), materialController.createMaterial);
-
-// Reorder materials in a chapter
-router.put('/chapters/:chapterId/materials/reorder', protect, authorize('Faculty', 'Admin'), materialController.reorderMaterials);
-
-// Get single material
-router.get('/materials/:id', protect, materialController.getMaterialById);
-
-// Update material (with optional file upload)
-router.put('/materials/:id', protect, authorize('Faculty', 'Admin'), upload.single('file'), materialController.updateMaterial);
-
-// Delete material
-router.delete('/materials/:id', protect, authorize('Faculty', 'Admin'), materialController.deleteMaterial);
-
-// Record material download
-router.post('/materials/:id/download', protect, materialController.recordDownload);
 
 module.exports = router;
