@@ -68,10 +68,10 @@ interface Material {
   type: 'PDF' | 'Video' | 'Link' | 'Document' | 'PPT' | 'Image'
   url?: string
   fileMetadata?: {
-    filename: string
     originalName: string
+    mimeType: string
     size: number
-    mimetype: string
+    filePath: string
   }
   order: number
   duration?: number
@@ -183,11 +183,13 @@ export default function SubjectsManagementView({
   const loadMaterials = async (chapterId: string) => {
     try {
       setLoading(true)
+      console.log('📥 Loading materials for chapter:', chapterId)
       const response = await apiService.getMaterialsByChapter(chapterId)
-      console.log('📥 Materials response:', response)
+      console.log('📦 Materials response:', response)
       if (response.success) {
         // Backend returns materials in 'data' field, not 'materials'
         setMaterials(response.data || [])
+        console.log('✅ Materials loaded successfully:', response.data?.length || 0)
       }
     } catch (error) {
       console.error('Error loading materials:', error)

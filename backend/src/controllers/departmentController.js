@@ -49,9 +49,12 @@ const getDepartments = async (req, res) => {
 // @access  Private (Admin)
 const createDepartment = async (req, res) => {
   try {
+    console.log('Received department creation request:', req.body);
+    
     // Validate input
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+      console.log('Route validation errors:', errors.array());
       return res.status(400).json({
         success: false,
         message: 'Validation failed',
@@ -70,8 +73,16 @@ const createDepartment = async (req, res) => {
       });
     }
 
+    // Validate required fields
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({
+        success: false,
+        message: 'User authentication required'
+      });
+    }
+    
     // Create department without HOD - HOD will be assigned later
-    department = await Department.create({
+    const departmentData = {
       name,
       code: code.toUpperCase(),
       description,
@@ -82,9 +93,19 @@ const createDepartment = async (req, res) => {
         location: contactInfo.location
       },
       sections: sections || ['A'], // Default to section A if not provided
+      programs: req.body.programs || [
+        {
+          name: `B.Tech ${name}`,
+          duration: 4,
+          type: 'Undergraduate'
+        }
+      ], // Default program if not provided
       createdBy: req.user.id
       // HOD is not included - will be assigned separately
-    });
+    };
+    
+    console.log('Creating department with data:', departmentData);
+    department = await Department.create(departmentData);
 
     // No need to populate HOD during creation since it's not assigned yet
     // HOD will be assigned later through a separate operation
@@ -108,9 +129,31 @@ const createDepartment = async (req, res) => {
 
   } catch (error) {
     console.error('Create department error:', error);
+    
+    if (error.name === 'ValidationError') {
+      const validationErrors = Object.keys(error.errors).map(key => ({
+        field: key,
+        message: error.errors[key].message
+      }));
+      
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: validationErrors
+      });
+    }
+    
+    if (error.code === 11000) {
+      return res.status(409).json({
+        success: false,
+        message: 'Department with this code already exists'
+      });
+    }
+    
     res.status(500).json({
       success: false,
-      message: 'Server error while creating department'
+      message: 'Server error while creating department',
+      error: error.message
     });
   }
 };

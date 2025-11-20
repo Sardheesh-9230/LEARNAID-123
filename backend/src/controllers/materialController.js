@@ -85,7 +85,6 @@ const getMaterialById = async (req, res) => {
     const material = await Material.findById(req.params.id)
       .populate('chapter', 'title chapterNumber')
       .populate('subject', 'name code year section')
-      .populate('file', 'filename originalname fileSize filePath mimeType')
       .populate('createdBy', 'name email')
       .populate('updatedBy', 'name email');
     
@@ -194,11 +193,10 @@ const createMaterial = async (req, res) => {
       
       // Also store in fileMetadata for compatibility
       materialData.fileMetadata = {
-        filename: req.file.filename,
-        originalname: req.file.originalname,
+        originalName: req.file.originalname,
+        mimeType: req.file.mimetype,
         size: req.file.size,
-        mimetype: req.file.mimetype,
-        path: req.file.path
+        filePath: req.file.path
       };
     } else if (url) {
       // If no file but URL provided
@@ -224,7 +222,6 @@ const createMaterial = async (req, res) => {
     const populatedMaterial = await Material.findById(material._id)
       .populate('chapter', 'title chapterNumber')
       .populate('subject', 'name code year section')
-      .populate('file', 'filename originalname fileSize filePath')
       .populate('createdBy', 'name email');
     
     console.log('✅ Material created successfully:', material._id);
@@ -289,7 +286,6 @@ const updateMaterial = async (req, res) => {
     if (description !== undefined) material.description = description;
     if (type) material.type = type;
     if (url !== undefined) material.url = url;
-    if (file) material.file = file;
     if (fileMetadata) material.fileMetadata = fileMetadata;
     if (order) material.order = order;
     if (duration) material.duration = duration;
@@ -306,7 +302,6 @@ const updateMaterial = async (req, res) => {
     const updatedMaterial = await Material.findById(material._id)
       .populate('chapter', 'title chapterNumber')
       .populate('subject', 'name code year section')
-      .populate('file', 'filename originalname fileSize filePath')
       .populate('createdBy', 'name email')
       .populate('updatedBy', 'name email');
     
@@ -358,9 +353,9 @@ const deleteMaterial = async (req, res) => {
     });
     
     // Delete physical file if exists
-    if (material.fileMetadata && material.fileMetadata.path) {
+    if (material.fileMetadata && material.fileMetadata.filePath) {
       try {
-        const filePath = path.join(process.cwd(), material.fileMetadata.path);
+        const filePath = path.join(process.cwd(), material.fileMetadata.filePath);
         await fs.unlink(filePath);
         console.log('✅ Physical file deleted:', filePath);
       } catch (fileError) {

@@ -11,10 +11,10 @@ interface Material {
   type: 'PDF' | 'Video' | 'Link' | 'Document' | 'PPT' | 'Image';
   url?: string;
   fileMetadata?: {
-    filename: string;
     originalName: string;
+    mimeType: string;
     size: number;
-    mimetype: string;
+    filePath: string;
   };
   order: number;
   duration?: number;

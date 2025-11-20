@@ -97,8 +97,18 @@ const HierarchicalDepartmentManagement: React.FC = () => {
     name: '',
     code: '',
     description: '',
-    hod: ''
+    hod: '',
+    establishedYear: new Date().getFullYear(),
+    contactInfo: {
+      email: '',
+      phone: '',
+      location: ''
+    },
+    sections: ['A']
   });
+
+  // Available faculty for HOD selection (only loaded during edit)
+  const [availableFaculty, setAvailableFaculty] = useState<Faculty[]>([]);
 
   // Subject form states
   const [showSubjectForm, setShowSubjectForm] = useState(false);
@@ -341,44 +351,111 @@ const HierarchicalDepartmentManagement: React.FC = () => {
 
   // Department CRUD
   const handleCreateDepartment = () => {
-    setDepartmentForm({ name: '', code: '', description: '', hod: '' });
+    setDepartmentForm({
+      name: '',
+      code: '',
+      description: '',
+      hod: '', // Will not be used in creation
+      establishedYear: new Date().getFullYear(),
+      contactInfo: { email: '', phone: '', location: '' },
+      sections: ['A']
+    });
     setEditingDepartment(null);
+    setAvailableFaculty([]);
     setShowDepartmentForm(true);
   };
 
-  const handleEditDepartment = (dept: Department) => {
-    const hodValue = typeof dept.hod === 'object' && dept.hod !== null 
-      ? (dept.hod as any).name || (dept.hod as any).fullName || ''
+  const handleEditDepartment = async (dept: Department) => {
+    const hodId = typeof dept.hod === 'object' && dept.hod !== null 
+      ? (dept.hod as any)._id
       : dept.hod || '';
     
     setDepartmentForm({
       name: dept.name,
       code: dept.code,
       description: dept.description || '',
-      hod: hodValue
+      hod: hodId,
+      establishedYear: (dept as any).establishedYear || new Date().getFullYear(),
+      contactInfo: (dept as any).contactInfo || { email: '', phone: '', location: '' },
+      sections: (dept as any).sections && (dept as any).sections.length ? (dept as any).sections : ['A']
     });
     setEditingDepartment(dept);
+    
+    // Load faculty for this department
+    await loadDepartmentFaculty(dept._id);
     setShowDepartmentForm(true);
+  };
+
+  const loadDepartmentFaculty = async (departmentId: string) => {
+    try {
+      const response = await apiService.getUsers();
+      if (response.success) {
+        const departmentFaculty = response.data.filter((u: any) => {
+          if (u.role !== 'Faculty') return false;
+          const userDeptId = typeof u.department === 'object' && u.department !== null
+            ? u.department._id
+            : u.department;
+          return userDeptId === departmentId;
+        });
+        setAvailableFaculty(departmentFaculty);
+      }
+    } catch (err) {
+      console.error('Error loading faculty:', err);
+      setAvailableFaculty([]);
+    }
   };
 
   const handleSaveDepartment = async () => {
     try {
+      console.log('Saving department with data:', departmentForm);
+      
       if (editingDepartment) {
-        const response = await apiService.updateDepartment(editingDepartment._id, departmentForm);
+        // For updates, include HOD if selected
+        const updateData = { ...departmentForm };
+        if (!updateData.hod) {
+          delete updateData.hod; // Remove empty hod field
+        }
+        
+        const response = await apiService.updateDepartment(editingDepartment._id, updateData);
+        console.log('Update response:', response);
         if (response.success) {
           fetchDepartments();
           setShowDepartmentForm(false);
           setError(null);
+        } else {
+          setError(response.message || 'Failed to update department');
         }
       } else {
-        const response = await apiService.createDepartment(departmentForm);
+        // For creation, exclude HOD field entirely
+        const { hod, ...createData } = departmentForm;
+        
+        // Ensure required fields are not empty
+        const validatedData = {
+          ...createData,
+          description: createData.description || 'Department description', // Ensure description is not empty
+          contactInfo: {
+            email: createData.contactInfo.email || `${createData.code.toLowerCase()}@learnaid.edu`,
+            phone: createData.contactInfo.phone || '+919876543210',
+            location: createData.contactInfo.location || 'Academic Block'
+          }
+        };
+        
+        console.log('Sending create data:', JSON.stringify(validatedData, null, 2));
+        const response = await apiService.createDepartment(validatedData);
+        console.log('Create response:', response);
         if (response.success) {
           fetchDepartments();
           setShowDepartmentForm(false);
           setError(null);
+        } else {
+          setError(response.message || 'Failed to create department');
+          if (response.errors) {
+            console.error('Validation errors:', response.errors);
+          }
         }
       }
     } catch (err: any) {
+      console.error('Save department error:', err);
       setError(err.message || 'Failed to save department');
     }
   };
@@ -1802,8 +1879,8 @@ const HierarchicalDepartmentManagement: React.FC = () => {
 
       {/* Department Form Modal */}
       {showDepartmentForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <h3 className="text-xl font-bold mb-4">
               {editingDepartment ? 'Edit Department' : 'Create Department'}
             </h3>
@@ -1832,28 +1909,136 @@ const HierarchicalDepartmentManagement: React.FC = () => {
                   placeholder="e.g., CSE"
                 />
               </div>
+              {/* HOD Selection - Only show during edit */}
+              {editingDepartment && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Head of Department
+                  </label>
+                  <select
+                    value={departmentForm.hod}
+                    onChange={(e) => setDepartmentForm({ ...departmentForm, hod: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="">Select Faculty Member</option>
+                    {availableFaculty.map((faculty) => (
+                      <option key={faculty._id} value={faculty._id}>
+                        {faculty.name || faculty.fullName} ({faculty.employeeId})
+                      </option>
+                    ))}
+                  </select>
+                  {availableFaculty.length === 0 && (
+                    <p className="text-sm text-gray-500 mt-1">
+                      No faculty members found in this department
+                    </p>
+                  )}
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Head of Department
+                  Established Year *
                 </label>
                 <input
-                  type="text"
-                  value={departmentForm.hod}
-                  onChange={(e) => setDepartmentForm({ ...departmentForm, hod: e.target.value })}
+                  type="number"
+                  value={departmentForm.establishedYear}
+                  onChange={(e) => setDepartmentForm({ ...departmentForm, establishedYear: parseInt(e.target.value) || new Date().getFullYear() })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  placeholder="e.g., Dr. John Doe"
+                  min="1900"
+                  max={new Date().getFullYear()}
                 />
+              </div>
+              <div className="grid grid-cols-1 gap-4">
+                <h4 className="text-sm font-semibold text-gray-800">Contact Information *</h4>
+                <div className="grid grid-cols-1 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
+                    <input
+                      type="email"
+                      value={departmentForm.contactInfo.email}
+                      onChange={(e) => setDepartmentForm({
+                        ...departmentForm,
+                        contactInfo: { ...departmentForm.contactInfo, email: e.target.value }
+                      })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      placeholder="department@learnaid.edu"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Phone *</label>
+                    <input
+                      type="text"
+                      value={departmentForm.contactInfo.phone}
+                      onChange={(e) => setDepartmentForm({
+                        ...departmentForm,
+                        contactInfo: { ...departmentForm.contactInfo, phone: e.target.value }
+                      })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      placeholder="+91-9876543210"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Location *</label>
+                    <input
+                      type="text"
+                      value={departmentForm.contactInfo.location}
+                      onChange={(e) => setDepartmentForm({
+                        ...departmentForm,
+                        contactInfo: { ...departmentForm.contactInfo, location: e.target.value }
+                      })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      placeholder="Academic Block A, Floor 2"
+                      required
+                    />
+                  </div>
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Description
+                  Sections *
+                </label>
+                <div className="flex gap-2">
+                  {['A', 'B', 'C'].map((section) => (
+                    <label key={section} className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={departmentForm.sections.includes(section)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setDepartmentForm({
+                              ...departmentForm,
+                              sections: [...departmentForm.sections, section]
+                            });
+                          } else {
+                            const newSections = departmentForm.sections.filter(s => s !== section);
+                            // Ensure at least one section remains
+                            if (newSections.length > 0) {
+                              setDepartmentForm({
+                                ...departmentForm,
+                                sections: newSections
+                              });
+                            }
+                          }
+                        }}
+                        className="mr-2"
+                      />
+                      Section {section}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Description *
                 </label>
                 <textarea
                   value={departmentForm.description}
                   onChange={(e) => setDepartmentForm({ ...departmentForm, description: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   rows={3}
-                  placeholder="Brief description of the department"
+                  placeholder="Brief description of the department (required)"
+                  required
                 />
               </div>
             </div>

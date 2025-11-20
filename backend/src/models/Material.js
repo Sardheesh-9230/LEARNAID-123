@@ -162,7 +162,6 @@ materialSchema.methods.incrementDownloadCount = function() {
 // Static method to get materials by chapter
 materialSchema.statics.findByChapter = function(chapterId) {
   return this.find({ chapter: chapterId, status: { $ne: 'Archived' } })
-    .populate('file', 'filename originalname fileSize filePath')
     .populate('createdBy', 'name email')
     .sort({ order: 1, createdAt: 1 });
 };
@@ -171,7 +170,6 @@ materialSchema.statics.findByChapter = function(chapterId) {
 materialSchema.statics.findBySubject = function(subjectId) {
   return this.find({ subject: subjectId, status: { $ne: 'Archived' } })
     .populate('chapter', 'title chapterNumber')
-    .populate('file', 'filename originalname fileSize filePath')
     .populate('createdBy', 'name email')
     .sort({ order: 1, createdAt: 1 });
 };
@@ -195,10 +193,10 @@ materialSchema.pre('save', function(next) {
     return next(new Error('URL is required for Link type materials'));
   }
   
-  // Check if file-based types have file or fileMetadata or url
+  // Check if file-based types have file or fileMetadata or url (including Video type)
   if (['PDF', 'Document', 'PPT', 'Image', 'Video'].includes(this.type)) {
     const hasFile = this.file;
-    const hasFileMetadata = this.fileMetadata && this.fileMetadata.filename;
+    const hasFileMetadata = this.fileMetadata && (this.fileMetadata.filename || this.fileMetadata.originalName);
     const hasUrl = this.url;
     
     if (!hasFile && !hasFileMetadata && !hasUrl) {

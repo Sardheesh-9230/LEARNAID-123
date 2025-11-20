@@ -436,35 +436,31 @@ class ApiService {
 
   // Create material
   async createMaterial(chapterId, materialData) {
-    // Check if materialData is FormData (for file uploads)
-    const isFormData = materialData instanceof FormData;
-    
-    const options = {
-      method: 'POST',
-    };
-    
-    if (isFormData) {
-      // For file uploads, don't set Content-Type header - let browser set it with boundary
-      const headers = {};
-      if (this.token) {
-        headers.Authorization = `Bearer ${this.token}`;
-      }
-      
-      return fetch(`${this.baseURL}/subjects/materials/chapters/${chapterId}/materials`, {
+    // Check if materialData is FormData (for file uploads) or regular object
+    if (materialData instanceof FormData) {
+      // For file uploads, don't stringify and remove Content-Type header
+      const headers = this.getHeaders();
+      delete headers['Content-Type'];
+
+      return fetch(`${this.baseURL}/materials/chapters/${chapterId}/materials`, {
         method: 'POST',
-        headers: headers,
-        body: materialData
+        headers: {
+          Authorization: headers.Authorization,
+        },
+        body: materialData,
       }).then(async (response) => {
         if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ message: 'Upload failed' }));
-          throw new Error(errorData.message || 'Failed to upload material');
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.message || 'Material creation failed');
         }
         return response.json();
       });
     } else {
-      // For JSON data
-      options.body = JSON.stringify(materialData);
-      return this.makeRequest(`/subjects/materials/chapters/${chapterId}/materials`, options);
+      // For regular JSON data
+      return this.makeRequest(`/materials/chapters/${chapterId}/materials`, {
+        method: 'POST',
+        body: JSON.stringify(materialData),
+      });
     }
   }
 

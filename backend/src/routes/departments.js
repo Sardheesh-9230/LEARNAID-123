@@ -55,13 +55,18 @@ const router = express.Router();
 const createDepartmentValidation = [
   body('name').trim().isLength({ min: 2, max: 100 }).withMessage('Name must be between 2 and 100 characters'),
   body('code').trim().isLength({ min: 2, max: 10 }).withMessage('Code must be between 2 and 10 characters'),
-  body('description').optional().trim().isLength({ max: 500 }).withMessage('Description must be less than 500 characters'),
+  body('description').trim().isLength({ min: 1, max: 1000 }).withMessage('Description is required and must be between 1 and 1000 characters'),
   body('establishedYear').isInt({ min: 1900, max: new Date().getFullYear() }).withMessage(`Established year must be between 1900 and ${new Date().getFullYear()}`),
   body('contactInfo.email').isEmail().withMessage('Valid email is required'),
   body('contactInfo.phone').matches(/^\+?[1-9]\d{1,14}$/).withMessage('Valid phone number is required'),
   body('contactInfo.location').trim().isLength({ min: 1, max: 200 }).withMessage('Location must be between 1 and 200 characters'),
   body('sections').isArray({ min: 1 }).withMessage('At least one section is required'),
-  body('sections.*').isIn(['A', 'B', 'C']).withMessage('Section must be A, B, or C')
+  body('sections.*').isIn(['A', 'B', 'C']).withMessage('Section must be A, B, or C'),
+  // Programs validation (optional)
+  body('programs').optional().isArray().withMessage('Programs must be an array'),
+  body('programs.*.name').optional().trim().isLength({ min: 1 }).withMessage('Program name is required'),
+  body('programs.*.duration').optional().isInt({ min: 1, max: 6 }).withMessage('Program duration must be between 1 and 6 years'),
+  body('programs.*.type').optional().isIn(['Undergraduate', 'Postgraduate', 'Diploma', 'Certificate']).withMessage('Invalid program type')
   // HOD is not required during creation - will be assigned separately
 ];
 
