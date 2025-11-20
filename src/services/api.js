@@ -442,7 +442,7 @@ class ApiService {
       const headers = this.getHeaders();
       delete headers['Content-Type'];
 
-      return fetch(`${this.baseURL}/materials/chapters/${chapterId}/materials`, {
+      return fetch(`${this.baseURL}/subjects/materials/chapters/${chapterId}/materials`, {
         method: 'POST',
         headers: {
           Authorization: headers.Authorization,
@@ -457,7 +457,7 @@ class ApiService {
       });
     } else {
       // For regular JSON data
-      return this.makeRequest(`/materials/chapters/${chapterId}/materials`, {
+      return this.makeRequest(`/subjects/materials/chapters/${chapterId}/materials`, {
         method: 'POST',
         body: JSON.stringify(materialData),
       });
