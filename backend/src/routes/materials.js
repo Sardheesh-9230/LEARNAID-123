@@ -19,7 +19,15 @@ const { protect, authorize } = require('../middleware/auth');
 // Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, 'uploads/materials/');
+    const uploadDir = 'uploads/materials/';
+    // Ensure directory exists
+    const fs = require('fs');
+    const path = require('path');
+    const fullPath = path.resolve(uploadDir);
+    if (!fs.existsSync(fullPath)) {
+      fs.mkdirSync(fullPath, { recursive: true });
+    }
+    cb(null, uploadDir);
   },
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);

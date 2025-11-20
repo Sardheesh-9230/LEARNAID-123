@@ -5,6 +5,7 @@ const File = require('../models/File');
 const Groq = require('groq-sdk');
 const pdf = require('pdf-parse');
 const fs = require('fs').promises;
+const fsSync = require('fs');
 const path = require('path');
 const { validationResult } = require('express-validator');
 const { exec } = require('child_process');
@@ -167,8 +168,21 @@ async function validateAndGetMaterialPath(material) {
         console.log('  - Size:', fileDoc.size);
 
         // Construct the full path using the filename from File model
-        const uploadsDir = path.join(process.cwd(), 'uploads', 'materials');
-        filePath = path.join(uploadsDir, fileDoc.filename);
+        // Check if the file exists at the stored path first
+        if (fileDoc.path && fsSync.existsSync(fileDoc.path)) {
+          filePath = fileDoc.path;
+        } else {
+          // Try the project root uploads directory
+          const uploadsDir = path.join(process.cwd(), 'uploads', 'materials');
+          const possiblePath = path.join(uploadsDir, fileDoc.filename);
+          if (fsSync.existsSync(possiblePath)) {
+            filePath = possiblePath;
+          } else {
+            // Try backend uploads directory as fallback
+            const backendUploadsDir = path.join(__dirname, '../../../uploads/materials');
+            filePath = path.join(backendUploadsDir, fileDoc.filename);
+          }
+        }
       } else {
         console.warn('⚠️ File record not found for ID:', material.file);
       }
@@ -183,8 +197,16 @@ async function validateAndGetMaterialPath(material) {
       
       // Try using the filename from fileMetadata
       if (material.fileMetadata.filename) {
+        // Try multiple possible locations
         const uploadsDir = path.join(process.cwd(), 'uploads', 'materials');
-        filePath = path.join(uploadsDir, material.fileMetadata.filename);
+        const possiblePath = path.join(uploadsDir, material.fileMetadata.filename);
+        if (fsSync.existsSync(possiblePath)) {
+          filePath = possiblePath;
+        } else {
+          // Try backend uploads directory
+          const backendUploadsDir = path.join(__dirname, '../../../uploads/materials');
+          filePath = path.join(backendUploadsDir, material.fileMetadata.filename);
+        }
       } else if (material.fileMetadata.filePath) {
         filePath = material.fileMetadata.filePath;
       }
