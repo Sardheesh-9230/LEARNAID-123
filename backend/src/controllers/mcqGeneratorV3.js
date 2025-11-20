@@ -150,28 +150,65 @@ function chunkText(text, chunkSize = 1000, overlap = 200) {
 
 async function validateAndGetMaterialPath(material) {
   try {
-    // Material.file is an ObjectId reference to File model
-    if (!material.file) {
-      throw new Error('Material has no file reference');
+    let filePath = null;
+
+    // First, try the new File model approach
+    if (material.file) {
+      console.log('🔍 Checking File model reference:', material.file);
+      
+      // Query the File model to get the actual filename
+      const fileDoc = await File.findById(material.file);
+      
+      if (fileDoc) {
+        console.log('📄 File document found:');
+        console.log('  - Original Name:', fileDoc.originalName);
+        console.log('  - Filename:', fileDoc.filename);
+        console.log('  - Path:', fileDoc.path);
+        console.log('  - Size:', fileDoc.size);
+
+        // Construct the full path using the filename from File model
+        const uploadsDir = path.join(process.cwd(), 'uploads', 'materials');
+        filePath = path.join(uploadsDir, fileDoc.filename);
+      } else {
+        console.warn('⚠️ File record not found for ID:', material.file);
+      }
     }
 
-    // Query the File model to get the actual filename
-    const fileDoc = await File.findById(material.file);
-    
-    if (!fileDoc) {
-      console.error('❌ File record not found for ID:', material.file);
-      throw new Error(`File record not found for Material ID: ${material._id}`);
+    // Fallback to legacy fileMetadata approach
+    if (!filePath && material.fileMetadata) {
+      console.log('🔄 Using legacy fileMetadata approach');
+      console.log('  - Original Name:', material.fileMetadata.originalName);
+      console.log('  - Filename:', material.fileMetadata.filename);
+      console.log('  - Size:', material.fileMetadata.size);
+      
+      // Try using the filename from fileMetadata
+      if (material.fileMetadata.filename) {
+        const uploadsDir = path.join(process.cwd(), 'uploads', 'materials');
+        filePath = path.join(uploadsDir, material.fileMetadata.filename);
+      } else if (material.fileMetadata.filePath) {
+        filePath = material.fileMetadata.filePath;
+      }
     }
 
-    console.log('📄 File document found:');
-    console.log('  - Original Name:', fileDoc.originalName);
-    console.log('  - Filename:', fileDoc.filename);
-    console.log('  - Path:', fileDoc.path);
-    console.log('  - Size:', fileDoc.size);
+    // Additional fallback: check if material has a direct path field
+    if (!filePath && material.path && typeof material.path === 'string') {
+      console.log('🔄 Using direct path field:', material.path);
+      filePath = path.isAbsolute(material.path) ? 
+        material.path : 
+        path.join(process.cwd(), material.path);
+    }
 
-    // Construct the full path using the filename from File model
-    const uploadsDir = path.join(process.cwd(), 'uploads', 'materials');
-    const filePath = path.join(uploadsDir, fileDoc.filename);
+    // If we still don't have a file path, this material has no file
+    if (!filePath) {
+      console.error('❌ Material structure debug:', {
+        hasFile: !!material.file,
+        hasFileMetadata: !!material.fileMetadata,
+        hasPath: !!material.path,
+        fileMetadataKeys: material.fileMetadata ? Object.keys(material.fileMetadata) : [],
+        materialKeys: Object.keys(material.toObject ? material.toObject() : material)
+      });
+      throw new Error('Material has no file reference - please upload a file for this material');
+    }
 
     // Verify the file exists on disk
     try {
@@ -180,7 +217,7 @@ async function validateAndGetMaterialPath(material) {
       return filePath;
     } catch (error) {
       console.error('❌ File exists in database but not on disk:', filePath);
-      throw new Error(`File exists in database but not found on server: ${fileDoc.filename}`);
+      throw new Error(`File exists in database but not found on server: ${path.basename(filePath)}`);
     }
 
   } catch (error) {
