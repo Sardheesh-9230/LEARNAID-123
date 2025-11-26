@@ -16,7 +16,7 @@ const getUsers = async (req, res) => {
       department,
       status = 'Active',
       page = 1,
-      limit = 10,
+      limit = 100, // Increased default limit to show more users
       search
     } = req.query;
 

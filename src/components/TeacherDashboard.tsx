@@ -486,7 +486,7 @@ export default function TeacherDashboard({ activeTab: propActiveTab, onTabChange
       let users: User[] = []
       try {
         // First try to get only students
-        const studentUsersResponse = await apiService.getUsers({ role: 'Student', status: 'Active' })
+        const studentUsersResponse = await apiService.getUsers({ role: 'Student', status: 'Active', limit: 1000 })
         console.log('🔍 Students API response:', studentUsersResponse)
         
         // Extract data from response - backend returns { success: true, data: [...] }
@@ -504,7 +504,7 @@ export default function TeacherDashboard({ activeTab: propActiveTab, onTabChange
         console.warn('⚠️ Filtered user query failed, trying all users:', filteredError)
         try {
           // Fallback: get all users and filter client-side
-          const allUsersResponse = await apiService.getUsers()
+          const allUsersResponse = await apiService.getUsers({ limit: 1000 })
           console.log('🔍 All users API response:', allUsersResponse)
           
           let allUsers: User[] = []
@@ -1326,6 +1326,8 @@ export default function TeacherDashboard({ activeTab: propActiveTab, onTabChange
                   </p>
                 </div>
               </div>
+
+
             </div>
 
             {/* Modern Recent Activity */}
@@ -1862,6 +1864,8 @@ export default function TeacherDashboard({ activeTab: propActiveTab, onTabChange
             </div>
           </div>
         )}
+
+
       </div>
 
       {/* Create Assignment Modal */}

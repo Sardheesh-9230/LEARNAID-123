@@ -10,6 +10,7 @@ interface Department {
   code: string;
   hod?: string | { _id: string; name?: string; fullName?: string; email?: string };
   description?: string;
+  sections?: string[];
 }
 
 interface FacultyAssignment {
@@ -124,6 +125,15 @@ const HierarchicalDepartmentManagement: React.FC = () => {
     description: ''
   });
 
+  // Available sections and faculty for subject creation
+  const [availableSections, setAvailableSections] = useState<string[]>(['A']);
+  const [subjectFaculty, setSubjectFaculty] = useState<Faculty[]>([]);
+  
+  // External faculty selection states
+  const [externalDepartments, setExternalDepartments] = useState<Department[]>([]);
+  const [selectedExternalDept, setSelectedExternalDept] = useState<string>('');
+  const [externalFaculty, setExternalFaculty] = useState<Faculty[]>([]);
+
   // Faculty form states
   const [showFacultyForm, setShowFacultyForm] = useState(false);
   const [editingFaculty, setEditingFaculty] = useState<Faculty | null>(null);
@@ -179,7 +189,23 @@ const HierarchicalDepartmentManagement: React.FC = () => {
     try {
       const response = await apiService.getDepartments();
       if (response.success) {
+        console.log('Fetched departments:', response.data);
+        response.data.forEach((dept: any) => {
+          console.log(`Department ${dept.name} sections:`, dept.sections);
+        });
         setDepartments(response.data);
+        
+        // Update selected department if it exists to get latest data
+        if (selectedDepartment) {
+          const updatedSelectedDept = response.data.find((dept: Department) => dept._id === selectedDepartment._id);
+          if (updatedSelectedDept) {
+            console.log('Updating selected department with latest data:', updatedSelectedDept);
+            setSelectedDepartment(updatedSelectedDept);
+            const deptSections = updatedSelectedDept.sections || ['A'];
+            setAvailableSections(deptSections);
+          }
+        }
+        
         setError(null);
       } else {
         setError(response.message || 'Failed to fetch departments');
@@ -221,7 +247,7 @@ const HierarchicalDepartmentManagement: React.FC = () => {
   const fetchFaculty = async (departmentId: string) => {
     setLoading(true);
     try {
-      const response = await apiService.getUsers();
+      const response = await apiService.getUsers({ limit: 1000 });
       console.log('Fetching faculty - All users response:', response);
       if (response.success) {
         // Filter by role (case-insensitive)
@@ -264,7 +290,7 @@ const HierarchicalDepartmentManagement: React.FC = () => {
   const fetchStudents = async (departmentId: string) => {
     setLoading(true);
     try {
-      const response = await apiService.getUsers();
+      const response = await apiService.getUsers({ limit: 1000 });
       if (response.success) {
         // Filter by role (case-insensitive)
         const allStudents = response.data.filter((u: any) => 
@@ -298,6 +324,10 @@ const HierarchicalDepartmentManagement: React.FC = () => {
 
   const handleSelectDepartment = (dept: Department) => {
     setSelectedDepartment(dept);
+    // Update available sections from department
+    const deptSections = dept.sections || ['A'];
+    console.log('Selected department sections:', deptSections);
+    setAvailableSections(deptSections);
     setViewMode('detail');
   };
 
@@ -388,7 +418,7 @@ const HierarchicalDepartmentManagement: React.FC = () => {
 
   const loadDepartmentFaculty = async (departmentId: string) => {
     try {
-      const response = await apiService.getUsers();
+      const response = await apiService.getUsers({ limit: 1000 });
       if (response.success) {
         const departmentFaculty = response.data.filter((u: any) => {
           if (u.role !== 'Faculty') return false;
@@ -411,7 +441,7 @@ const HierarchicalDepartmentManagement: React.FC = () => {
       
       if (editingDepartment) {
         // For updates, include HOD if selected
-        const updateData = { ...departmentForm };
+        const updateData: any = { ...departmentForm };
         if (!updateData.hod) {
           delete updateData.hod; // Remove empty hod field
         }
@@ -419,9 +449,18 @@ const HierarchicalDepartmentManagement: React.FC = () => {
         const response = await apiService.updateDepartment(editingDepartment._id, updateData);
         console.log('Update response:', response);
         if (response.success) {
-          fetchDepartments();
+          await fetchDepartments();
           setShowDepartmentForm(false);
           setError(null);
+          
+          // Update selected department and available sections if we're editing the currently selected department
+          if (selectedDepartment && selectedDepartment._id === editingDepartment._id) {
+            const updatedDept = { ...selectedDepartment, ...updateData };
+            setSelectedDepartment(updatedDept);
+            const deptSections = updateData.sections || ['A'];
+            console.log('Updated department sections:', deptSections);
+            setAvailableSections(deptSections);
+          }
         } else {
           setError(response.message || 'Failed to update department');
         }
@@ -476,23 +515,95 @@ const HierarchicalDepartmentManagement: React.FC = () => {
     }
   };
 
+  // Load faculty from external department
+  const loadExternalDepartmentFaculty = async (departmentId: string) => {
+    try {
+      const response = await apiService.getUsers({ limit: 1000 });
+      if (response.success) {
+        const departmentFaculty = response.data.filter((u: any) => {
+          if (u.role !== 'Faculty') return false;
+          const userDeptId = typeof u.department === 'object' && u.department !== null
+            ? u.department._id
+            : u.department;
+          return userDeptId === departmentId;
+        });
+        setExternalFaculty(departmentFaculty);
+      }
+    } catch (err) {
+      console.error('Error loading external faculty:', err);
+      setExternalFaculty([]);
+    }
+  };
+  
+  // Handle external department selection
+  const handleExternalDepartmentChange = (deptId: string) => {
+    setSelectedExternalDept(deptId);
+    setSelectedFacultyId(''); // Reset faculty selection
+    if (deptId) {
+      loadExternalDepartmentFaculty(deptId);
+    } else {
+      setExternalFaculty([]);
+    }
+  };
+
+  // Load faculty and sections when department changes
+  const loadSubjectCreationData = async () => {
+    if (!selectedDepartment) return;
+    
+    // Load available sections from department
+    console.log('Selected Department:', selectedDepartment);
+    const deptSections = selectedDepartment.sections || ['A'];
+    console.log('Department sections:', deptSections);
+    setAvailableSections(deptSections);
+    
+    // Load faculty from this department
+    try {
+      const response = await apiService.getUsers({ limit: 1000 });
+      if (response.success) {
+        const departmentFaculty = response.data.filter((u: any) => {
+          if (u.role !== 'Faculty') return false;
+          const userDeptId = typeof u.department === 'object' && u.department !== null
+            ? u.department._id
+            : u.department;
+          return userDeptId === selectedDepartment._id;
+        });
+        setSubjectFaculty(departmentFaculty);
+      }
+    } catch (err) {
+      console.error('Error loading faculty:', err);
+      setSubjectFaculty([]);
+    }
+    
+    // Load external departments (all departments except current one)
+    try {
+      const extDepts = departments.filter(dept => dept._id !== selectedDepartment._id);
+      setExternalDepartments(extDepts);
+    } catch (err) {
+      console.error('Error loading external departments:', err);
+      setExternalDepartments([]);
+    }
+  };
+
   // Subject CRUD
-  const handleCreateSubject = () => {
+  const handleCreateSubject = async () => {
+    await loadSubjectCreationData();
     setSubjectForm({ 
       name: '', 
       code: '', 
       type: 'Theory',
       year: '1st Year',
-      section: 'A',
+      section: availableSections[0] as any,
       credits: 3, 
       semester: 1, 
-      description: '' 
+      description: ''
     });
     setEditingSubject(null);
     setShowSubjectForm(true);
   };
 
-  const handleEditSubject = (subject: Subject) => {
+  const handleEditSubject = async (subject: Subject) => {
+    await loadSubjectCreationData();
+    
     setSubjectForm({
       name: subject.name,
       code: subject.code,
@@ -503,6 +614,7 @@ const HierarchicalDepartmentManagement: React.FC = () => {
       semester: subject.semester,
       description: subject.description || ''
     });
+    
     setEditingSubject(subject);
     setShowSubjectForm(true);
   };
@@ -516,20 +628,21 @@ const HierarchicalDepartmentManagement: React.FC = () => {
         department: selectedDepartment._id
       };
 
+      let response;
       if (editingSubject) {
-        const response = await apiService.updateSubject(editingSubject._id, subjectData);
-        if (response.success) {
-          fetchSubjects(selectedDepartment._id);
-          setShowSubjectForm(false);
-          setError(null);
-        }
+        response = await apiService.updateSubject(editingSubject._id, subjectData);
       } else {
-        const response = await apiService.createSubject(subjectData);
-        if (response.success) {
-          fetchSubjects(selectedDepartment._id);
-          setShowSubjectForm(false);
-          setError(null);
-        }
+        response = await apiService.createSubject(subjectData);
+      }
+      
+      if (response.success) {
+        fetchSubjects(selectedDepartment._id);
+        setShowSubjectForm(false);
+        setError(null);
+        setSuccess(editingSubject ? 'Subject updated successfully!' : 'Subject created successfully!');
+        setTimeout(() => setSuccess(null), 3000);
+      } else {
+        setError(response.message || 'Failed to save subject');
       }
     } catch (err: any) {
       setError(err.message || 'Failed to save subject');
@@ -896,6 +1009,61 @@ const HierarchicalDepartmentManagement: React.FC = () => {
     </div>
   );
 
+  // Handle faculty assignment from subjects view
+  const handleAssignFacultyFromSubjects = async (subject: Subject) => {
+    setSelectedSubjectForFaculty(subject);
+    setSelectedFacultyId('');
+    setIsPrimaryFaculty(false);
+    setIsExternalFaculty(false);
+    
+    // Load current department faculty for internal assignment
+    if (selectedDepartment) {
+      await fetchFaculty(selectedDepartment._id);
+      
+      // Load external departments for external faculty option
+      const extDepts = departments.filter(dept => dept._id !== selectedDepartment._id);
+      setExternalDepartments(extDepts);
+    }
+    
+    setShowFacultyAssignmentModal(true);
+  };
+
+  // Handle faculty assignment to subject (shared between views)
+  const handleAddFacultyToSubject = async () => {
+    if (!selectedFacultyId || !selectedSubjectForFaculty) return;
+    
+    try {
+      setLoading(true);
+      const response = await apiService.assignFacultyToSubject(
+        selectedSubjectForFaculty._id,
+        {
+          facultyId: selectedFacultyId,
+          isPrimary: isPrimaryFaculty,
+          isExternal: isExternalFaculty
+        }
+      );
+      
+      if (response.success) {
+        setSuccess('Faculty assigned successfully!');
+        await fetchSubjects(selectedDepartment!._id);
+        setShowFacultyAssignmentModal(false);
+        // Reset form
+        setSelectedFacultyId('');
+        setIsPrimaryFaculty(false);
+        setIsExternalFaculty(false);
+        setSelectedExternalDept('');
+        setExternalFaculty([]);
+        setTimeout(() => setSuccess(null), 3000);
+      } else {
+        setError(response.message || 'Failed to assign faculty');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to assign faculty');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Render Subjects Management View
   const renderSubjectsView = () => (
     <div className="space-y-6">
@@ -978,14 +1146,23 @@ const HierarchicalDepartmentManagement: React.FC = () => {
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                   <div className="flex items-center justify-end gap-3">
                     <button
+                      onClick={() => handleAssignFacultyFromSubjects(subject)}
+                      className="text-green-600 hover:text-green-800"
+                      title="Assign Faculty"
+                    >
+                      <FaPlus />
+                    </button>
+                    <button
                       onClick={() => handleEditSubject(subject)}
                       className="text-blue-600 hover:text-blue-800"
+                      title="Edit Subject"
                     >
                       <FaEdit />
                     </button>
                     <button
                       onClick={() => handleDeleteSubject(subject._id)}
                       className="text-red-600 hover:text-red-800"
+                      title="Delete Subject"
                     >
                       <FaTrash />
                     </button>
@@ -1134,7 +1311,11 @@ const HierarchicalDepartmentManagement: React.FC = () => {
           </div>
           <button
             onClick={() => {
-              setClassForm({ name: '', year: 1, semester: 1, section: 'A' });
+              // Update available sections from current department
+              const deptSections = selectedDepartment?.sections || ['A'];
+              console.log('Opening class form with sections:', deptSections);
+              setAvailableSections(deptSections);
+              setClassForm({ name: '', year: 1, semester: 1, section: deptSections[0] || 'A' });
               setEditingClass(null);
               setShowClassForm(true);
             }}
@@ -1379,11 +1560,21 @@ const HierarchicalDepartmentManagement: React.FC = () => {
       s => s.year === selectedClass.year && s.section === selectedClass.section
     );
 
-    const handleAssignFaculty = (subject: Subject) => {
+    const handleAssignFaculty = async (subject: Subject) => {
       setSelectedSubjectForFaculty(subject);
       setSelectedFacultyId('');
       setIsPrimaryFaculty(false);
       setIsExternalFaculty(false);
+      
+      // Load current department faculty for internal assignment
+      if (selectedDepartment) {
+        await fetchFaculty(selectedDepartment._id);
+        
+        // Load external departments for external faculty option
+        const extDepts = departments.filter(dept => dept._id !== selectedDepartment._id);
+        setExternalDepartments(extDepts);
+      }
+      
       setShowFacultyAssignmentModal(true);
     };
 
@@ -1408,34 +1599,7 @@ const HierarchicalDepartmentManagement: React.FC = () => {
       }
     };
 
-    const handleAddFacultyToSubject = async () => {
-      if (!selectedFacultyId || !selectedSubjectForFaculty) return;
-      
-      try {
-        setLoading(true);
-        const response = await apiService.assignFacultyToSubject(
-          selectedSubjectForFaculty._id,
-          {
-            facultyId: selectedFacultyId,
-            isPrimary: isPrimaryFaculty,
-            isExternal: isExternalFaculty
-          }
-        );
-        
-        if (response.success) {
-          setSuccess('Faculty assigned successfully!');
-          await fetchSubjects(selectedDepartment!._id);
-          setShowFacultyAssignmentModal(false);
-          setTimeout(() => setSuccess(null), 3000);
-        } else {
-          setError(response.message || 'Failed to assign faculty');
-        }
-      } catch (err: any) {
-        setError(err.message || 'Failed to assign faculty');
-      } finally {
-        setLoading(false);
-      }
-    };
+
 
     return (
       <div className="space-y-6">
@@ -1758,33 +1922,15 @@ const HierarchicalDepartmentManagement: React.FC = () => {
         {/* Faculty Assignment Modal */}
         {showFacultyAssignmentModal && selectedSubjectForFaculty && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <div className="bg-white rounded-lg p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
               <h3 className="text-xl font-bold mb-4">Assign Faculty</h3>
               <p className="text-gray-600 mb-4">
                 Subject: <span className="font-semibold">{selectedSubjectForFaculty.name}</span>
               </p>
               
               <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Select Faculty *
-                  </label>
-                  <select
-                    value={selectedFacultyId}
-                    onChange={(e) => setSelectedFacultyId(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    required
-                  >
-                    <option value="">-- Select Faculty --</option>
-                    {faculty.map((fac) => (
-                      <option key={fac._id} value={fac._id}>
-                        {fac.fullName || fac.name} ({fac.employeeId || fac.email})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="flex items-center gap-4">
+                {/* Faculty Type Selection */}
+                <div className="flex items-center gap-4 mb-4">
                   <label className="flex items-center gap-2">
                     <input
                       type="checkbox"
@@ -1799,12 +1945,112 @@ const HierarchicalDepartmentManagement: React.FC = () => {
                     <input
                       type="checkbox"
                       checked={isExternalFaculty}
-                      onChange={(e) => setIsExternalFaculty(e.target.checked)}
+                      onChange={(e) => {
+                        setIsExternalFaculty(e.target.checked);
+                        if (!e.target.checked) {
+                          setSelectedExternalDept('');
+                          setExternalFaculty([]);
+                          setSelectedFacultyId('');
+                        } else {
+                          // Load external departments when external is selected
+                          if (selectedDepartment) {
+                            const extDepts = departments.filter(dept => dept._id !== selectedDepartment._id);
+                            setExternalDepartments(extDepts);
+                          }
+                        }
+                      }}
                       className="w-4 h-4 text-blue-600"
                     />
                     <span className="text-sm text-gray-700">External Faculty</span>
                   </label>
                 </div>
+
+                {/* Faculty Selection */}
+                {!isExternalFaculty ? (
+                  // Internal Faculty Selection
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Select Faculty from {selectedDepartment?.name} *
+                    </label>
+                    <select
+                      value={selectedFacultyId}
+                      onChange={(e) => setSelectedFacultyId(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      required
+                    >
+                      <option value="">-- Select Faculty --</option>
+                      {faculty.map((fac) => (
+                        <option key={fac._id} value={fac._id}>
+                          {fac.fullName || fac.name} ({fac.employeeId || fac.email})
+                        </option>
+                      ))}
+                    </select>
+                    {faculty.length === 0 && (
+                      <p className="text-sm text-amber-600 mt-1">
+                        No faculty members found in this department
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  // External Faculty Selection
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Select External Department *
+                      </label>
+                      <select
+                        value={selectedExternalDept}
+                        onChange={(e) => handleExternalDepartmentChange(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">Select Department</option>
+                        {externalDepartments.map((dept) => (
+                          <option key={dept._id} value={dept._id}>
+                            {dept.name} ({dept.code})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    
+                    {selectedExternalDept && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Select External Faculty *
+                        </label>
+                        <select
+                          value={selectedFacultyId}
+                          onChange={(e) => setSelectedFacultyId(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="">Select Faculty</option>
+                          {externalFaculty.map((faculty) => (
+                            <option key={faculty._id} value={faculty._id}>
+                              {faculty.name || faculty.fullName} 
+                              {faculty.employeeId && ` (${faculty.employeeId})`}
+                            </option>
+                          ))}
+                        </select>
+                        {externalFaculty.length === 0 && selectedExternalDept && (
+                          <p className="text-sm text-amber-600 mt-1">
+                            No faculty members found in selected department
+                          </p>
+                        )}
+                      </div>
+                    )}
+                    
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                      <div className="flex items-start gap-2">
+                        <svg className="w-4 h-4 text-blue-600 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                        </svg>
+                        <div className="text-sm text-blue-700">
+                          <p className="font-medium mb-1">External Faculty Assignment</p>
+                          <p>Select a faculty member from another department to teach this subject. This is useful for interdisciplinary courses or when specialized expertise is needed.</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="flex gap-3 mt-6">
@@ -1816,7 +2062,14 @@ const HierarchicalDepartmentManagement: React.FC = () => {
                   {loading ? 'Assigning...' : 'Assign Faculty'}
                 </button>
                 <button
-                  onClick={() => setShowFacultyAssignmentModal(false)}
+                  onClick={() => {
+                    setShowFacultyAssignmentModal(false);
+                    setSelectedExternalDept('');
+                    setExternalFaculty([]);
+                    setSelectedFacultyId('');
+                    setIsPrimaryFaculty(false);
+                    setIsExternalFaculty(false);
+                  }}
                   className="flex-1 bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300 transition"
                 >
                   Cancel
@@ -2245,9 +2498,9 @@ const HierarchicalDepartmentManagement: React.FC = () => {
                   onChange={(e) => setClassForm({ ...classForm, section: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
                 >
-                  <option value="A">Section A</option>
-                  <option value="B">Section B</option>
-                  <option value="C">Section C</option>
+                  {availableSections.map(section => (
+                    <option key={section} value={section}>Section {section}</option>
+                  ))}
                 </select>
               </div>
               <div>

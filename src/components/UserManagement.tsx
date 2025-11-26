@@ -150,13 +150,18 @@ export default function UserManagement({ preSelectedUserId }: UserManagementProp
         throw new Error('Authentication failed')
       }
 
-      // Load data in parallel
+      // Load data in parallel with cache-busting
+      const timestamp = Date.now()
+      console.log(`🔄 Loading data with timestamp: ${timestamp}`)
+      
       const [usersResponse, departmentsResponse] = await Promise.all([
-        apiService.getUsers(),
+        apiService.getUsers({ _t: timestamp, limit: 1000 }), // Cache-busting + higher limit to get all users
         apiService.getDepartments()
       ])
 
       if (usersResponse.success && usersResponse.data) {
+        console.log('📥 Loaded users from API:', usersResponse.data.length)
+        
         const transformedUsers = usersResponse.data.map((user: any) => ({
           id: user._id,
           name: user.name,
@@ -187,6 +192,7 @@ export default function UserManagement({ preSelectedUserId }: UserManagementProp
           assignedSubjects: user.assignedSubjects || []
         }))
         setUsers(transformedUsers)
+        console.log('✅ Users state updated, count:', transformedUsers.length)
       }
 
       if (departmentsResponse.success && departmentsResponse.data) {
@@ -321,12 +327,27 @@ export default function UserManagement({ preSelectedUserId }: UserManagementProp
 
       const response = await apiService.createUser(userData)
       if (response.success) {
-        await loadAllData() // Reload data
+        console.log('✅ User created successfully, reloading data...')
+        
+        // Small delay to ensure backend processing is complete
+        await new Promise(resolve => setTimeout(resolve, 500))
+        
+        // Force data reload
+        await loadAllData()
+        
+        // Force component re-render by updating a dummy state
+        setLoading(false)
+        setLoading(true)
+        setTimeout(() => setLoading(false), 100)
+        
         resetForm()
         setShowAddForm(false)
+        
         // Show success message with generated ID
-        setError(`User created successfully! Generated ID: ${generatedId}`)
-        setTimeout(() => setError(null), 5000) // Clear message after 5 seconds
+        setError(`✅ User created successfully! Generated ID: ${generatedId}. Total users now: ${users.length + 1}`)
+        setTimeout(() => setError(null), 7000) // Longer display time
+        
+        console.log('📊 Current users count after add:', users.length)
       } else {
         // Show detailed validation errors if available
         if (response.errors && Array.isArray(response.errors)) {
@@ -646,18 +667,33 @@ export default function UserManagement({ preSelectedUserId }: UserManagementProp
                 Staff
               </button>
             </div>
-            <button
-              onClick={() => setShowAddForm(true)}
-              className="bg-green-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-700 transition-colors flex items-center space-x-2"
-            >
-              <span>+</span>
-              <span>Add User</span>
-            </button>
+            <div className="flex space-x-2">
+              <button
+                onClick={() => {
+                  console.log('🔄 Manual refresh triggered')
+                  loadAllData()
+                }}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center space-x-2"
+              >
+                <span>🔄</span>
+                <span>Refresh</span>
+              </button>
+              <button
+                onClick={() => setShowAddForm(true)}
+                className="bg-green-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-700 transition-colors flex items-center space-x-2"
+              >
+                <span>+</span>
+                <span>Add User</span>
+              </button>
+            </div>
           </div>
         </div>
 
         {/* Users Table */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="mb-4 text-sm text-gray-600">
+            📊 Displaying {filteredUsers.length} of {users.length} total users
+          </div>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
@@ -870,9 +906,13 @@ export default function UserManagement({ preSelectedUserId }: UserManagementProp
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-black"
                         >
                           <option value="">No Section (Assigned Later)</option>
-                          <option value="A">Section A</option>
-                          <option value="B">Section B</option>
-                          <option value="C">Section C</option>
+                          {(() => {
+                            const selectedDept = departments.find(d => d.id === newUser.department);
+                            const sections = (selectedDept as any)?.sections || ['A', 'B', 'C'];
+                            return sections.map((section: string) => (
+                              <option key={section} value={section}>Section {section}</option>
+                            ));
+                          })()}
                         </select>
                       </div>
                     </div>

@@ -575,6 +575,62 @@ class ApiService {
     });
   }
 
+  // Student Mark Entry APIs
+  async enterStudentMarks(markData) {
+    return this.makeRequest('/student-marks', {
+      method: 'POST',
+      body: JSON.stringify(markData),
+    });
+  }
+
+  async bulkEnterStudentMarks(bulkMarkData) {
+    return this.makeRequest('/student-marks/bulk', {
+      method: 'POST',
+      body: JSON.stringify(bulkMarkData),
+    });
+  }
+
+  async getMarksBySubjectAndExam(subjectId, examType, params = {}) {
+    const queryString = new URLSearchParams(params).toString();
+    const url = queryString ? 
+      `/student-marks/subject/${subjectId}/exam/${examType}?${queryString}` : 
+      `/student-marks/subject/${subjectId}/exam/${examType}`;
+    return this.makeRequest(url);
+  }
+
+  async getStudentSubjectMarks(studentId, subjectId, params = {}) {
+    const queryString = new URLSearchParams(params).toString();
+    const url = queryString ? 
+      `/student-marks/student/${studentId}/subject/${subjectId}?${queryString}` : 
+      `/student-marks/student/${studentId}/subject/${subjectId}`;
+    return this.makeRequest(url);
+  }
+
+  async getFacultyMarksSummary(params = {}) {
+    const queryString = new URLSearchParams(params).toString();
+    const url = queryString ? `/student-marks/faculty/summary?${queryString}` : '/student-marks/faculty/summary';
+    return this.makeRequest(url);
+  }
+
+  async updateMarkStatus(markId, status) {
+    return this.makeRequest(`/student-marks/${markId}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ status }),
+    });
+  }
+
+  async deleteMarkEntry(markId) {
+    return this.makeRequest(`/student-marks/${markId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getMarkEntryStatistics(params = {}) {
+    const queryString = new URLSearchParams(params).toString();
+    const url = queryString ? `/student-marks/statistics?${queryString}` : '/student-marks/statistics';
+    return this.makeRequest(url);
+  }
+
   // Analytics APIs
   async getDashboardStats() {
     return this.makeRequest('/analytics/dashboard');
@@ -889,6 +945,16 @@ export const {
   // MCQ Generation
   generateMCQs,
   extractTopicsFromMaterial,
+  
+  // Student Mark Entry
+  enterStudentMarks,
+  bulkEnterStudentMarks,
+  getMarksBySubjectAndExam,
+  getStudentSubjectMarks,
+  getFacultyMarksSummary,
+  updateMarkStatus,
+  deleteMarkEntry,
+  getMarkEntryStatistics,
   
   // Analytics
   getDashboardStats,

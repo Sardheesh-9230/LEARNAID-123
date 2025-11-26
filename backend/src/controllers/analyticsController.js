@@ -2,6 +2,11 @@ const User = require('../models/User');
 const Department = require('../models/Department');
 const Subject = require('../models/Subject');
 const ActivityLog = require('../models/ActivityLog');
+const ExamMarks = require('../models/ExamMarks');
+const CIAExam = require('../models/CIAExam');
+const ExamQuestion = require('../models/ExamQuestion');
+const Chapter = require('../models/Chapter');
+const mongoose = require('mongoose');
 
 // @desc    Get dashboard analytics
 // @route   GET /api/analytics/dashboard
@@ -421,9 +426,445 @@ const getActivityLogs = async (req, res) => {
   }
 };
 
+/**
+ * @desc    Get comprehensive performance analytics
+ * @route   GET /api/analytics/performance/comprehensive
+ * @access  Private/Faculty/Admin
+ */
+const getComprehensivePerformanceAnalytics = async (req, res, next) => {
+  try {
+    const { examId, subjectId, courseId } = req.query;
+
+    // Build match criteria
+    let matchCriteria = {};
+    if (examId) matchCriteria.exam = mongoose.Types.ObjectId(examId);
+    if (subjectId) matchCriteria.subject = mongoose.Types.ObjectId(subjectId);
+    if (courseId) matchCriteria.course = mongoose.Types.ObjectId(courseId);
+
+    // Get total marks and performance for each student
+    const studentPerformances = await ExamMarks.aggregate([
+      { $match: matchCriteria },
+      {
+        $group: {
+          _id: '$student',
+          totalMarksObtained: { $sum: '$marksObtained' },
+          totalPossibleMarks: { $sum: '$totalMarks' },
+          examCount: { $sum: 1 },
+          subjectMarks: {
+            $push: {
+              subject: '$subject',
+              exam: '$exam',
+              marksObtained: '$marksObtained',
+              totalMarks: '$totalMarks',
+              chapter: '$chapter'
+            }
+          }
+        }
+      },
+      {
+        $lookup: {
+          from: 'users',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'studentInfo'
+        }
+      },
+      { $unwind: '$studentInfo' },
+      {
+        $project: {
+          studentId: '$_id',
+          studentName: '$studentInfo.name',
+          rollNumber: '$studentInfo.rollNumber',
+          totalMarks: '$totalMarksObtained',
+          totalPossible: '$totalPossibleMarks',
+          percentage: {
+            $multiply: [
+              { $divide: ['$totalMarksObtained', '$totalPossibleMarks'] },
+              100
+            ]
+          },
+          examCount: '$examCount',
+          subjectMarks: '$subjectMarks'
+        }
+      },
+      {
+        $addFields: {
+          grade: {
+            $cond: {
+              if: { $gte: ['$percentage', 90] },
+              then: 'O',
+              else: {
+                $cond: {
+                  if: { $gte: ['$percentage', 80] },
+                  then: 'A+',
+                  else: {
+                    $cond: {
+                      if: { $gte: ['$percentage', 70] },
+                      then: 'A',
+                      else: {
+                        $cond: {
+                          if: { $gte: ['$percentage', 60] },
+                          then: 'B+',
+                          else: {
+                            $cond: {
+                              if: { $gte: ['$percentage', 50] },
+                              then: 'B',
+                              else: {
+                                $cond: {
+                                  if: { $gte: ['$percentage', 40] },
+                                  then: 'C',
+                                  else: 'F'
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      { $sort: { percentage: -1 } }
+    ]);
+
+    // Get chapter-wise performance for each student to identify strong/weak areas
+    const studentsWithChapterAnalysis = await Promise.all(
+      studentPerformances.map(async (student) => {
+        // Get chapter-wise performance
+        const chapterPerformance = await ExamMarks.aggregate([
+          { 
+            $match: { 
+              student: student.studentId,
+              ...matchCriteria
+            }
+          },
+          {
+            $group: {
+              _id: '$chapter',
+              totalMarksObtained: { $sum: '$marksObtained' },
+              totalPossibleMarks: { $sum: '$totalMarks' },
+              questionCount: { $sum: 1 }
+            }
+          },
+          {
+            $lookup: {
+              from: 'chapters',
+              localField: '_id',
+              foreignField: '_id',
+              as: 'chapterInfo'
+            }
+          },
+          { $unwind: '$chapterInfo' },
+          {
+            $project: {
+              chapterTitle: '$chapterInfo.title',
+              chapterNumber: '$chapterInfo.chapterNumber',
+              percentage: {
+                $multiply: [
+                  { $divide: ['$totalMarksObtained', '$totalPossibleMarks'] },
+                  100
+                ]
+              }
+            }
+          },
+          { $sort: { chapterNumber: 1 } }
+        ]);
+
+        // Identify strong (>=75%) and weak (<50%) chapters
+        const strongChapters = chapterPerformance
+          .filter(ch => ch.percentage >= 75)
+          .map(ch => ch.chapterTitle);
+        
+        const weakChapters = chapterPerformance
+          .filter(ch => ch.percentage < 50)
+          .map(ch => ch.chapterTitle);
+
+        // Calculate CO-wise performance (assuming chapters map to COs)
+        const coPerformance = {};
+        chapterPerformance.forEach((ch, index) => {
+          const coNumber = (index % 5) + 1; // Simple mapping - can be enhanced
+          if (!coPerformance[coNumber]) {
+            coPerformance[coNumber] = [];
+          }
+          coPerformance[coNumber].push(ch.percentage);
+        });
+
+        // Average CO performance
+        Object.keys(coPerformance).forEach(co => {
+          const scores = coPerformance[co];
+          coPerformance[co] = scores.reduce((sum, score) => sum + score, 0) / scores.length;
+        });
+
+        return {
+          ...student,
+          strongChapters,
+          weakChapters,
+          coPerformance
+        };
+      })
+    );
+
+    // Calculate Course Outcome (CO) analysis
+    const coAnalysis = [];
+    const coMapping = {
+      1: "Apply knowledge of mathematics, science, and engineering fundamentals",
+      2: "Identify, formulate, and solve complex engineering problems",
+      3: "Design solutions for complex engineering problems",
+      4: "Conduct investigations using research-based knowledge",
+      5: "Create solutions that meet societal and environmental needs"
+    };
+
+    for (let coNumber = 1; coNumber <= 5; coNumber++) {
+      const coPerformances = studentsWithChapterAnalysis
+        .map(s => s.coPerformance[coNumber] || 0)
+        .filter(score => score > 0);
+
+      if (coPerformances.length > 0) {
+        const averageAttainment = coPerformances.reduce((sum, score) => sum + score, 0) / coPerformances.length;
+        const studentsAbove60 = coPerformances.filter(score => score >= 60).length;
+        const studentsBelow40 = coPerformances.filter(score => score < 40).length;
+        
+        let attainmentLevel = 'Poor';
+        if (averageAttainment >= 80) attainmentLevel = 'Excellent';
+        else if (averageAttainment >= 65) attainmentLevel = 'Good';
+        else if (averageAttainment >= 50) attainmentLevel = 'Average';
+
+        coAnalysis.push({
+          coNumber: coNumber.toString(),
+          coDescription: coMapping[coNumber],
+          averageAttainment,
+          studentsAbove60,
+          studentsBelow40,
+          totalStudents: coPerformances.length,
+          attainmentLevel
+        });
+      }
+    }
+
+    // Overall statistics
+    const totalStudents = studentsWithChapterAnalysis.length;
+    const passCount = studentsWithChapterAnalysis.filter(s => s.percentage >= 40).length;
+    const failCount = totalStudents - passCount;
+    const averageMarks = studentsWithChapterAnalysis.reduce((sum, s) => sum + s.totalMarks, 0) / totalStudents || 0;
+    const averagePercentage = studentsWithChapterAnalysis.reduce((sum, s) => sum + s.percentage, 0) / totalStudents || 0;
+
+    res.status(200).json({
+      success: true,
+      data: {
+        studentPerformances: studentsWithChapterAnalysis,
+        coAnalysis,
+        statistics: {
+          totalStudents,
+          passCount,
+          failCount,
+          passPercentage: (passCount / totalStudents * 100).toFixed(2),
+          averageMarks: Math.round(averageMarks * 100) / 100,
+          averagePercentage: Math.round(averagePercentage * 100) / 100
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Comprehensive analytics error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error generating comprehensive analytics',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * @desc    Get exam-wise total marks summary
+ * @route   GET /api/analytics/exam/:examId/total-marks
+ * @access  Private/Faculty/Admin
+ */
+const getExamTotalMarksSummary = async (req, res, next) => {
+  try {
+    const { examId } = req.params;
+
+    // Get exam details
+    const exam = await CIAExam.findById(examId)
+      .populate('course', 'name code')
+      .populate('subject', 'name code');
+
+    if (!exam) {
+      return res.status(404).json({
+        success: false,
+        message: 'Exam not found'
+      });
+    }
+
+    // Get total marks for each student
+    const studentTotalMarks = await ExamMarks.aggregate([
+      { $match: { exam: mongoose.Types.ObjectId(examId) } },
+      {
+        $group: {
+          _id: '$student',
+          totalMarksObtained: { $sum: '$marksObtained' },
+          totalPossibleMarks: { $sum: '$totalMarks' },
+          questionCount: { $sum: 1 },
+          questionMarks: {
+            $push: {
+              question: '$question',
+              chapter: '$chapter',
+              marksObtained: '$marksObtained',
+              totalMarks: '$totalMarks'
+            }
+          }
+        }
+      },
+      {
+        $lookup: {
+          from: 'users',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'studentInfo'
+        }
+      },
+      { $unwind: '$studentInfo' },
+      {
+        $project: {
+          studentId: '$_id',
+          studentName: '$studentInfo.name',
+          rollNumber: '$studentInfo.rollNumber',
+          email: '$studentInfo.email',
+          totalMarksObtained: 1,
+          totalPossibleMarks: 1,
+          percentage: {
+            $multiply: [
+              { $divide: ['$totalMarksObtained', '$totalPossibleMarks'] },
+              100
+            ]
+          },
+          grade: {
+            $cond: {
+              if: { $gte: [{ $multiply: [{ $divide: ['$totalMarksObtained', '$totalPossibleMarks'] }, 100] }, 90] },
+              then: 'O',
+              else: {
+                $cond: {
+                  if: { $gte: [{ $multiply: [{ $divide: ['$totalMarksObtained', '$totalPossibleMarks'] }, 100] }, 80] },
+                  then: 'A+',
+                  else: {
+                    $cond: {
+                      if: { $gte: [{ $multiply: [{ $divide: ['$totalMarksObtained', '$totalPossibleMarks'] }, 100] }, 70] },
+                      then: 'A',
+                      else: {
+                        $cond: {
+                          if: { $gte: [{ $multiply: [{ $divide: ['$totalMarksObtained', '$totalPossibleMarks'] }, 100] }, 60] },
+                          then: 'B+',
+                          else: {
+                            $cond: {
+                              if: { $gte: [{ $multiply: [{ $divide: ['$totalMarksObtained', '$totalPossibleMarks'] }, 100] }, 50] },
+                              then: 'B',
+                              else: {
+                                $cond: {
+                                  if: { $gte: [{ $multiply: [{ $divide: ['$totalMarksObtained', '$totalPossibleMarks'] }, 100] }, 40] },
+                                  then: 'C',
+                                  else: 'F'
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          status: {
+            $cond: {
+              if: { $gte: [{ $multiply: [{ $divide: ['$totalMarksObtained', '$totalPossibleMarks'] }, 100] }, exam.passingMarks / exam.totalMarks * 100] },
+              then: 'Pass',
+              else: 'Fail'
+            }
+          },
+          questionMarks: 1
+        }
+      },
+      { $sort: { percentage: -1 } }
+    ]);
+
+    // Calculate summary statistics
+    const totalStudents = studentTotalMarks.length;
+    const passedStudents = studentTotalMarks.filter(s => s.status === 'Pass').length;
+    const failedStudents = totalStudents - passedStudents;
+    
+    const averageMarks = totalStudents > 0 
+      ? studentTotalMarks.reduce((sum, s) => sum + s.totalMarksObtained, 0) / totalStudents 
+      : 0;
+    
+    const averagePercentage = totalStudents > 0 
+      ? studentTotalMarks.reduce((sum, s) => sum + s.percentage, 0) / totalStudents 
+      : 0;
+
+    const highestMarks = totalStudents > 0 
+      ? Math.max(...studentTotalMarks.map(s => s.totalMarksObtained)) 
+      : 0;
+    
+    const lowestMarks = totalStudents > 0 
+      ? Math.min(...studentTotalMarks.map(s => s.totalMarksObtained)) 
+      : 0;
+
+    // Grade distribution
+    const gradeDistribution = {
+      O: studentTotalMarks.filter(s => s.grade === 'O').length,
+      'A+': studentTotalMarks.filter(s => s.grade === 'A+').length,
+      A: studentTotalMarks.filter(s => s.grade === 'A').length,
+      'B+': studentTotalMarks.filter(s => s.grade === 'B+').length,
+      B: studentTotalMarks.filter(s => s.grade === 'B').length,
+      C: studentTotalMarks.filter(s => s.grade === 'C').length,
+      F: studentTotalMarks.filter(s => s.grade === 'F').length
+    };
+
+    res.status(200).json({
+      success: true,
+      data: {
+        exam: {
+          id: exam._id,
+          title: exam.title,
+          type: exam.examType,
+          totalMarks: exam.totalMarks,
+          passingMarks: exam.passingMarks,
+          course: exam.course,
+          subject: exam.subject
+        },
+        studentResults: studentTotalMarks,
+        summary: {
+          totalStudents,
+          passedStudents,
+          failedStudents,
+          passPercentage: (passedStudents / totalStudents * 100).toFixed(2),
+          averageMarks: Math.round(averageMarks * 100) / 100,
+          averagePercentage: Math.round(averagePercentage * 100) / 100,
+          highestMarks,
+          lowestMarks,
+          gradeDistribution
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Exam total marks summary error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error generating exam total marks summary',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   getDashboardAnalytics,
   getUserAnalytics,
   getDepartmentAnalytics,
-  getActivityLogs
+  getActivityLogs,
+  getComprehensivePerformanceAnalytics,
+  getExamTotalMarksSummary
 };

@@ -112,8 +112,15 @@ export default function DepartmentManagement() {
     academicYear: '2024-2025',
     type: 'Core',
     description: '',
-    createForAllSections: false
+    createForAllSections: false,
+    hasExternalFaculty: false,
+    externalFacultyId: '',
+    assignedFaculty: []
   })
+
+  // Faculty and sections data
+  const [facultyList, setFacultyList] = useState<User[]>([])
+  const [availableSections, setAvailableSections] = useState<string[]>([])
 
   // Notification state
   const [notification, setNotification] = useState({
@@ -132,13 +139,64 @@ export default function DepartmentManagement() {
     setTimeout(() => setNotification({ show: false, message: '', type: 'success' }), 5000)
   }
 
+  // Load faculty for selected department
+  const loadFacultyForDepartment = async (departmentId: string) => {
+    try {
+      const response = await apiService.getUsers({ 
+        role: 'Faculty', 
+        department: departmentId 
+      })
+      
+      if (response.success) {
+        const transformedFaculty = response.data?.map(apiService.transformUserData) || []
+        setFacultyList(transformedFaculty)
+      }
+    } catch (error) {
+      console.error('Failed to load faculty:', error)
+      setFacultyList([])
+    }
+  }
+
+  // Update sections when department changes
+  const handleDepartmentChange = (departmentId: string) => {
+    setSubjectForm(prev => ({ 
+      ...prev, 
+      department: departmentId,
+      section: '', // Reset section
+      externalFacultyId: '', // Reset faculty
+      assignedFaculty: []
+    }))
+    
+    // Load faculty for this department
+    if (departmentId) {
+      loadFacultyForDepartment(departmentId)
+      
+      // Get sections for this department
+      const selectedDept = departments.find(d => d.id === departmentId)
+      if (selectedDept && selectedDept.sections) {
+        setAvailableSections(selectedDept.sections)
+        // Set first available section as default
+        if (selectedDept.sections.length > 0) {
+          setSubjectForm(prev => ({ ...prev, section: selectedDept.sections[0] }))
+        }
+      } else {
+        // Default sections if no specific sections defined
+        setAvailableSections(['A', 'B', 'C'])
+        setSubjectForm(prev => ({ ...prev, section: 'A' }))
+      }
+    } else {
+      setFacultyList([])
+      setAvailableSections([])
+    }
+  }
+
   const loadAllData = async () => {
     setLoading(true)
     try {
       // Load departments, users, and subjects in parallel
       const [departmentsData, usersData, subjectsData] = await Promise.all([
         apiService.getDepartments(),
-        apiService.getUsers(),
+        apiService.getUsers({ limit: 1000 }),
         apiService.getSubjects()
       ])
 
@@ -282,29 +340,46 @@ export default function DepartmentManagement() {
     setLoading(true)
     
     try {
+      // Prepare faculty assignment
+      const facultyAssignment: Array<{user: string, isPrimary: boolean, isExternal: boolean}> = []
+      if (subjectForm.hasExternalFaculty && subjectForm.externalFacultyId) {
+        facultyAssignment.push({
+          user: subjectForm.externalFacultyId,
+          isPrimary: true,
+          isExternal: true
+        })
+      }
+
       if (subjectForm.createForAllSections) {
-        // Create subjects for all sections A, B, C
-        const sections = ['A', 'B', 'C']
-        const promises = sections.map(section => {
-          const { createForAllSections, ...subjectData } = {
+        // Create subjects for all available sections
+        const sectionsToCreate = availableSections.length > 0 ? availableSections : ['A', 'B', 'C']
+        const promises = sectionsToCreate.map(section => {
+          const { createForAllSections, hasExternalFaculty, externalFacultyId, assignedFaculty, ...subjectData } = {
             ...subjectForm,
             section,
             code: `${subjectForm.code}-${section}`, // Add section to code
-            department: subjectForm.department
+            department: subjectForm.department,
+            faculty: facultyAssignment
           }
           return apiService.createSubject(subjectData)
         })
         
         await Promise.all(promises)
-        showNotification(`Subject created for all sections successfully!`)
+        showNotification(`Subject created for all sections (${sectionsToCreate.join(', ')}) successfully!`)
       } else {
         // Create subject for specific section
-        const { createForAllSections, ...subjectData } = subjectForm
+        const { createForAllSections, hasExternalFaculty, externalFacultyId, assignedFaculty, ...subjectData } = {
+          ...subjectForm,
+          faculty: facultyAssignment
+        }
         
         const response = await apiService.createSubject(subjectData)
         
         if (response.success) {
-          showNotification('Subject created successfully!')
+          const facultyInfo = subjectForm.hasExternalFaculty && subjectForm.externalFacultyId 
+            ? ` with external faculty assigned` 
+            : ''
+          showNotification(`Subject created successfully${facultyInfo}!`)
         } else {
           throw new Error(response.message || 'Failed to create subject')
         }
@@ -374,8 +449,13 @@ export default function DepartmentManagement() {
       academicYear: '2024-2025',
       type: 'Core',
       description: '',
-      createForAllSections: false
+      createForAllSections: false,
+      hasExternalFaculty: false,
+      externalFacultyId: '',
+      assignedFaculty: []
     })
+    setFacultyList([])
+    setAvailableSections([])
   }
 
   const handleEditDepartment = (department: Department) => {
@@ -1152,7 +1232,7 @@ export default function DepartmentManagement() {
                     </label>
                     <select
                       value={subjectForm.department}
-                      onChange={(e) => setSubjectForm({...subjectForm, department: e.target.value})}
+                      onChange={(e) => handleDepartmentChange(e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       required
                     >
@@ -1204,12 +1284,15 @@ export default function DepartmentManagement() {
                     <select
                       value={subjectForm.section}
                       onChange={(e) => setSubjectForm({...subjectForm, section: e.target.value})}
-                      disabled={subjectForm.createForAllSections}
+                      disabled={subjectForm.createForAllSections || !subjectForm.department}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100"
                     >
-                      <option value="A">Section A</option>
-                      <option value="B">Section B</option>
-                      <option value="C">Section C</option>
+                      <option value="">Select Section</option>
+                      {availableSections.map(section => (
+                        <option key={section} value={section}>
+                          Section {section}
+                        </option>
+                      ))}
                     </select>
                   </div>
                 </div>
@@ -1222,8 +1305,68 @@ export default function DepartmentManagement() {
                     className="mr-2"
                   />
                   <label className="text-sm text-gray-700">
-                    Create this subject for all sections (A, B, C)
+                    Create this subject for all sections
                   </label>
+                </div>
+
+                {/* External Faculty Section */}
+                <div className="border-t pt-4">
+                  <div className="flex items-center mb-4">
+                    <input
+                      type="checkbox"
+                      checked={subjectForm.hasExternalFaculty}
+                      onChange={(e) => setSubjectForm({...subjectForm, hasExternalFaculty: e.target.checked, externalFacultyId: ''})}
+                      className="mr-2"
+                    />
+                    <label className="text-sm font-medium text-gray-700">
+                      Assign External Faculty (Outside Department)
+                    </label>
+                  </div>
+
+                  {subjectForm.hasExternalFaculty && (
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                      <h4 className="font-medium text-yellow-800 mb-3">External Faculty Assignment</h4>
+                      
+                      {subjectForm.department && facultyList.length > 0 ? (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Select Faculty from {departments.find(d => d.id === subjectForm.department)?.name}
+                          </label>
+                          <select
+                            value={subjectForm.externalFacultyId}
+                            onChange={(e) => setSubjectForm({...subjectForm, externalFacultyId: e.target.value})}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          >
+                            <option value="">Select Faculty Member</option>
+                            {facultyList.map(faculty => (
+                              <option key={faculty.id} value={faculty.id}>
+                                {faculty.name} ({faculty.employeeId}) - {faculty.designation}
+                              </option>
+                            ))}
+                          </select>
+                          
+                          {subjectForm.externalFacultyId && (
+                            <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded">
+                              <p className="text-sm text-blue-800">
+                                <strong>Selected Faculty:</strong> {facultyList.find(f => f.id === subjectForm.externalFacultyId)?.name}
+                              </p>
+                              <p className="text-xs text-blue-600 mt-1">
+                                This faculty member will be assigned to teach this subject across departments.
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      ) : subjectForm.department ? (
+                        <div className="text-center py-4">
+                          <p className="text-gray-600">Loading faculty members...</p>
+                        </div>
+                      ) : (
+                        <div className="text-center py-4 text-yellow-700">
+                          <p>Please select a department first to view available faculty</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex gap-3 pt-4">

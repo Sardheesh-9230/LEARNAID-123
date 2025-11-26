@@ -116,7 +116,7 @@ export default function UserManagement() {
 
       // Load data in parallel
       const [usersResponse, departmentsResponse] = await Promise.all([
-        apiService.getUsers(),
+        apiService.getUsers({ limit: 1000 }),
         apiService.getDepartments()
       ])
 

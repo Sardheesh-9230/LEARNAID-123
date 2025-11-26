@@ -122,4 +122,55 @@ router.get('/departments/:id', protect, analyticsController.getDepartmentAnalyti
  */
 router.get('/activities', protect, authorize('Admin'), analyticsController.getActivityLogs);
 
+/**
+ * @swagger
+ * /api/analytics/performance/comprehensive:
+ *   get:
+ *     summary: Get comprehensive performance analytics
+ *     tags: [Analytics]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: examId
+ *         schema:
+ *           type: string
+ *         description: Filter by exam ID
+ *       - in: query
+ *         name: subjectId
+ *         schema:
+ *           type: string
+ *         description: Filter by subject ID
+ *       - in: query
+ *         name: courseId
+ *         schema:
+ *           type: string
+ *         description: Filter by course ID
+ *     responses:
+ *       200:
+ *         description: Comprehensive performance analytics with total marks and CO analysis
+ */
+router.get('/performance/comprehensive', protect, authorize('Faculty', 'Admin'), analyticsController.getComprehensivePerformanceAnalytics);
+
+/**
+ * @swagger
+ * /api/analytics/exam/{examId}/total-marks:
+ *   get:
+ *     summary: Get exam total marks summary
+ *     tags: [Analytics]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: examId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Exam ID
+ *     responses:
+ *       200:
+ *         description: Exam total marks summary with student results and statistics
+ */
+router.get('/exam/:examId/total-marks', protect, authorize('Faculty', 'Admin'), analyticsController.getExamTotalMarksSummary);
+
 module.exports = router;

@@ -331,7 +331,7 @@ export default function DepartmentManagement() {
       // Load departments, users, and subjects in parallel
       const [departmentsData, usersData, subjectsData] = await Promise.all([
         apiService.getDepartments(),
-        apiService.getUsers(),
+        apiService.getUsers({ limit: 1000 }),
         apiService.getSubjects()
       ])
 

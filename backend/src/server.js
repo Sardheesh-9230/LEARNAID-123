@@ -34,6 +34,10 @@ const questionRoutes = require('./routes/questions');
 const marksRoutes = require('./routes/marks');
 const performanceRoutes = require('./routes/performance');
 const taskRoutes = require('./routes/tasks');
+const studentMarkEntryRoutes = require('./routes/studentMarkEntry'); // Student Mark Entry
+const studentMarksRoutes = require('./routes/studentMarks'); // Student Marks Analytics
+const improvementTasksRoutes = require('./routes/improvementTasks'); // Improvement Tasks
+const coPerformanceRoutes = require('./routes/coPerformance'); // CO Performance Analysis
 
 // Import middleware
 const errorHandler = require('./middleware/errorHandler');
@@ -129,6 +133,10 @@ app.use('/api/questions', questionRoutes);
 app.use('/api/marks', marksRoutes);
 app.use('/api/performance', performanceRoutes);
 app.use('/api/tasks', taskRoutes);
+app.use('/api/improvement-tasks', improvementTasksRoutes); // Improvement Tasks for Poor Performance
+app.use('/api/co-performance', coPerformanceRoutes); // CO Performance Analysis & Auto Task Assignment
+app.use('/api/student-marks', studentMarkEntryRoutes); // Student Mark Entry System
+app.use('/api/student-analytics', studentMarksRoutes); // Student Marks Analytics & Retrieval
 
 // Error handling middleware
 app.use(notFound);

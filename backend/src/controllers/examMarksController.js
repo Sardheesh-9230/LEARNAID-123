@@ -4,6 +4,7 @@ const ExamQuestion = require('../models/ExamQuestion');
 const User = require('../models/User');
 const StudentPerformance = require('../models/StudentPerformance');
 const TaskAssignment = require('../models/TaskAssignment');
+const QuestionWiseMarks = require('../models/QuestionWiseMarks');
 const { validationResult } = require('express-validator');
 
 /**
@@ -106,10 +107,13 @@ exports.enterMarks = async (req, res, next) => {
       { path: 'questionMarks.chapter', select: 'title chapterNumber' }
     ]);
 
+    // ✨ NEW: Create QuestionWiseMarks entries for CO analysis
+    await createQuestionWiseMarksEntries(marksEntry, examExists);
+
     // Auto-update student performance
     await updateStudentPerformance(student, examExists.course._id, examExists.subject);
 
-    // Auto-generate tasks if performance is weak
+    // Auto-generate tasks if performance is weak (includes immediate CO analysis)
     await checkAndGenerateTasks(marksEntry, examExists);
 
     res.status(201).json({
@@ -207,10 +211,13 @@ exports.bulkEnterMarks = async (req, res, next) => {
 
         results.push(marksEntry);
 
+        // ✨ NEW: Create QuestionWiseMarks entries for CO analysis
+        await createQuestionWiseMarksEntries(marksEntry, examExists);
+
         // Auto-update student performance
         await updateStudentPerformance(student, examExists.course._id, examExists.subject);
 
-        // Auto-generate tasks if needed
+        // Auto-generate tasks if needed (includes immediate CO analysis)
         await checkAndGenerateTasks(marksEntry, examExists);
 
       } catch (error) {
@@ -617,13 +624,58 @@ async function updateStudentPerformance(studentId, courseId, subjectId) {
   }
 }
 
-// Helper function to check and generate tasks for weak performance
+// Helper function to check and generate tasks for weak performance + trigger CO analysis
 async function checkAndGenerateTasks(marksEntry, exam) {
   try {
     const weakPercentage = (marksEntry.totalMarks / exam.totalMarks) * 100;
 
-    // If student scored below 50%, generate task
+    // ✨ NEW: Trigger immediate CO analysis after CIA marks entry
+    console.log(`🎯 Triggering CO analysis for student ${marksEntry.student} after ${exam.title} marks entry`);
+    
+    try {
+      const { analyzeCOPerformanceAndAssignTasks } = require('./coPerformanceController');
+      
+      // Create a mock request object for CO analysis
+      const mockReq = {
+        body: {
+          studentId: marksEntry.student.toString(),
+          subjectId: exam.subject.toString(),
+          academicYear: exam.academicYear || '2024-2025',
+          examType: exam.examType, // Include exam type for filtering
+          threshold: 50
+        },
+        user: { id: exam.createdBy } // Use exam creator as the assigner
+      };
+
+      // Mock response object to capture results
+      let coAnalysisResult = null;
+      const mockRes = {
+        status: (code) => ({
+          json: (data) => {
+            coAnalysisResult = data;
+            console.log(`📊 CO Analysis completed for ${exam.title}: ${data.success ? 'SUCCESS' : 'FAILED'}`);
+            if (data.success && data.data) {
+              console.log(`   - Total COs: ${data.data.totalCOs}`);
+              console.log(`   - COs below threshold: ${data.data.notAttainedCOs}`);
+              console.log(`   - Tasks assigned: ${data.data.tasksAssigned.filter(t => t.status === 'assigned').length}`);
+            }
+            return data;
+          }
+        })
+      };
+
+      // Execute CO analysis
+      await analyzeCOPerformanceAndAssignTasks(mockReq, mockRes);
+      
+    } catch (coError) {
+      console.error('❌ CO Analysis failed during CIA marks entry:', coError.message);
+      // Continue with regular task generation as fallback
+    }
+
+    // 🔄 EXISTING: Legacy task generation for chapter-wise weak performance (as backup)
     if (weakPercentage < 50) {
+      console.log(`📝 Creating legacy improvement tasks for overall weak performance (${weakPercentage.toFixed(1)}%)`);
+      
       // Get weak chapters
       const weakChapters = marksEntry.questionMarks
         .filter(qm => (qm.marksObtained / qm.maxMarks) * 100 < 50)
@@ -632,28 +684,138 @@ async function checkAndGenerateTasks(marksEntry, exam) {
       // Remove duplicates
       const uniqueWeakChapters = [...new Set(weakChapters.map(c => c.toString()))];
 
-      // Generate task for each weak chapter
+      // Generate task for each weak chapter (only if CO analysis didn't already create tasks)
       for (const chapterId of uniqueWeakChapters) {
-        await TaskAssignment.create({
+        // Check if CO analysis already created a task for this area
+        const existingCOTask = await TaskAssignment.findOne({
           student: marksEntry.student,
-          assignedBy: exam.course.faculty,
-          course: exam.course._id,
           subject: exam.subject,
-          chapters: [chapterId],
-          title: `Practice Task - Weak Performance in CIA`,
-          description: `Based on your performance in ${exam.title}, practice questions from this chapter`,
-          taskType: 'MCQ Practice',
-          generationReason: 'Poor CIA Performance',
-          triggerExam: exam._id,
-          dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
-          priority: weakPercentage < 40 ? 'High' : 'Medium',
-          autoGenerated: true
+          taskType: 'CO_IMPROVEMENT',
+          status: { $in: ['Assigned', 'In Progress'] },
+          createdAt: { $gte: new Date(Date.now() - 5 * 60 * 1000) } // Created in last 5 minutes
         });
+
+        if (!existingCOTask) {
+          await TaskAssignment.create({
+            student: marksEntry.student,
+            assignedBy: exam.createdBy,
+            course: exam.course._id,
+            subject: exam.subject,
+            chapters: [chapterId],
+            title: `Chapter Practice Task - ${exam.title}`,
+            description: `Based on your performance in ${exam.title}, practice questions from this chapter to improve understanding`,
+            taskType: 'MCQ Practice',
+            generationReason: 'Poor CIA Performance',
+            triggerExam: exam._id,
+            dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
+            priority: weakPercentage < 40 ? 'High' : 'Medium',
+            autoGenerated: true
+          });
+          console.log(`✅ Created legacy chapter task for weak chapter performance`);
+        } else {
+          console.log(`⚠️  Skipping legacy task - CO analysis already created improvement tasks`);
+        }
       }
+    } else {
+      console.log(`✅ Good performance (${weakPercentage.toFixed(1)}%) - no legacy tasks needed`);
     }
+
   } catch (error) {
-    console.error('Check and generate tasks error:', error);
+    console.error('❌ Error in checkAndGenerateTasks:', error);
   }
+}
+
+// Helper function to create QuestionWiseMarks entries for CO analysis
+async function createQuestionWiseMarksEntries(marksEntry, exam) {
+  try {
+    console.log(`📝 Creating QuestionWiseMarks entries for CO analysis...`);
+    
+    // Get all questions for this exam with their CO mappings
+    const examQuestions = await ExamQuestion.find({ exam: exam._id })
+      .populate('chapter', 'title chapterNumber')
+      .sort({ questionNumber: 1 });
+    
+    if (!examQuestions || examQuestions.length === 0) {
+      console.log('⚠️  No exam questions found - cannot create QuestionWiseMarks');
+      return;
+    }
+
+    const questionWiseMarksEntries = [];
+
+    // Create QuestionWiseMarks entry for each question that has marks
+    for (const questionMark of marksEntry.questionMarks) {
+      const examQuestion = examQuestions.find(q => q._id.toString() === questionMark.question.toString());
+      
+      if (!examQuestion) {
+        console.log(`⚠️  Question ${questionMark.question} not found in exam questions`);
+        continue;
+      }
+
+      // Determine CO based on question number and distribution
+      // Using the model exam structure: 10×2mark + 5×16mark = 15 questions across 5 COs
+      const courseOutcome = determineCourseOutcome(examQuestion.questionNumber);
+      
+      const questionWiseMarkData = {
+        student: marksEntry.student,
+        subject: exam.subject,
+        exam: exam._id,
+        examType: exam.examType,
+        questionNumber: examQuestion.questionNumber,
+        questionText: examQuestion.questionText || `Question ${examQuestion.questionNumber}`,
+        marksObtained: questionMark.marksObtained,
+        maxMarks: questionMark.maxMarks,
+        courseOutcome,
+        chapter: questionMark.chapter,
+        difficulty: examQuestion.difficulty || 'medium',
+        bloomsLevel: examQuestion.bloomsLevel || 'understand',
+        academicYear: exam.academicYear || '2024-2025',
+        semester: exam.semester || 'odd'
+      };
+
+      questionWiseMarksEntries.push(questionWiseMarkData);
+    }
+
+    // Bulk create QuestionWiseMarks entries
+    if (questionWiseMarksEntries.length > 0) {
+      await QuestionWiseMarks.insertMany(questionWiseMarksEntries);
+      console.log(`✅ Created ${questionWiseMarksEntries.length} QuestionWiseMarks entries for CO analysis`);
+      
+      // Log CO distribution for verification
+      const coDistribution = {};
+      questionWiseMarksEntries.forEach(entry => {
+        if (!coDistribution[entry.courseOutcome]) {
+          coDistribution[entry.courseOutcome] = { questions: 0, totalMarks: 0, obtainedMarks: 0 };
+        }
+        coDistribution[entry.courseOutcome].questions++;
+        coDistribution[entry.courseOutcome].totalMarks += entry.maxMarks;
+        coDistribution[entry.courseOutcome].obtainedMarks += entry.marksObtained;
+      });
+      
+      console.log('📊 CO Distribution created:', coDistribution);
+    } else {
+      console.log('❌ No QuestionWiseMarks entries created');
+    }
+
+  } catch (error) {
+    console.error('❌ Error creating QuestionWiseMarks entries:', error);
+  }
+}
+
+// Helper function to determine Course Outcome based on question number
+function determineCourseOutcome(questionNumber) {
+  // Model exam structure: 10×2mark + 5×16mark = 15 questions
+  // Distribution: 2×2mark + 1×16mark per CO = 3 questions per CO
+  // CO1: Questions 1-3, CO2: Questions 4-6, CO3: Questions 7-9, CO4: Questions 10-12, CO5: Questions 13-15
+  
+  if (questionNumber >= 1 && questionNumber <= 3) return 'CO1';
+  if (questionNumber >= 4 && questionNumber <= 6) return 'CO2';
+  if (questionNumber >= 7 && questionNumber <= 9) return 'CO3';
+  if (questionNumber >= 10 && questionNumber <= 12) return 'CO4';
+  if (questionNumber >= 13 && questionNumber <= 15) return 'CO5';
+  
+  // For exams with different structures, cycle through COs
+  const coIndex = ((questionNumber - 1) % 5) + 1;
+  return `CO${coIndex}`;
 }
 
 module.exports = exports;

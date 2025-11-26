@@ -204,7 +204,7 @@ const updateDepartment = async (req, res) => {
       });
     }
 
-    const allowedFields = ['name', 'code', 'description', 'hod', 'isActive'];
+    const allowedFields = ['name', 'code', 'description', 'hod', 'isActive', 'sections', 'establishedYear', 'contactInfo'];
     const updates = {};
 
     // Only allow updating specific fields

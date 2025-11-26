@@ -76,7 +76,12 @@ export default function SubjectManagement() {
     academicYear: '2024-2025'
   })
 
-  const sections = ["A", "B", "C"]
+  // Dynamic sections based on selected department
+  const getAvailableSections = () => {
+    if (!newSubject.department) return ['A', 'B', 'C']; // Default fallback
+    const selectedDept = departments.find(d => d.id === newSubject.department);
+    return (selectedDept as any)?.sections || ['A', 'B', 'C'];
+  };
   const years = ["1st Year", "2nd Year", "3rd Year", "4th Year"]
 
   // Auto-login function for admin access
@@ -598,8 +603,8 @@ export default function SubjectManagement() {
                       required
                     >
                       <option value="">Select Section</option>
-                      {sections.map(section => (
-                        <option key={section} value={section}>{section}</option>
+                      {getAvailableSections().map((section: string) => (
+                        <option key={section} value={section}>Section {section}</option>
                       ))}
                     </select>
                   </div>

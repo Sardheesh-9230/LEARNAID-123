@@ -453,17 +453,29 @@ const assignFacultyToSubject = async (req, res) => {
       });
     }
 
-    // Verify faculty exists and is in the same department
-    const facultyUser = await User.findOne({
+    // Verify faculty exists and check department based on assignment type
+    let facultyQuery = {
       _id: facultyId,
-      role: 'Faculty',
-      department: subject.department
-    });
+      role: 'Faculty'
+    };
+
+    // For internal faculty, they must be in the same department
+    // For external faculty, they must be in a different department
+    if (isExternal) {
+      facultyQuery.department = { $ne: subject.department };
+    } else {
+      facultyQuery.department = subject.department;
+    }
+
+    const facultyUser = await User.findOne(facultyQuery);
 
     if (!facultyUser) {
+      const message = isExternal 
+        ? 'External faculty must be from a different department' 
+        : 'Internal faculty must be from the same department';
       return res.status(400).json({
         success: false,
-        message: 'Faculty must be a faculty member in the same department'
+        message: message
       });
     }
 

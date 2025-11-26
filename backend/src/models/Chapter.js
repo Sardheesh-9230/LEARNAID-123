@@ -48,6 +48,31 @@ const chapterSchema = new mongoose.Schema({
     maxlength: [500, 'Learning outcome cannot exceed 500 characters']
   }],
   
+  // Course Outcomes (COs) mapping
+  courseOutcomes: [{
+    coNumber: {
+      type: String,
+      required: true,
+      enum: ['CO1', 'CO2', 'CO3', 'CO4', 'CO5', 'CO6']
+    },
+    coDescription: {
+      type: String,
+      required: true,
+      maxlength: [1000, 'CO description cannot exceed 1000 characters']
+    },
+    weightage: {
+      type: Number,
+      min: [0, 'Weightage cannot be negative'],
+      max: [100, 'Weightage cannot exceed 100'],
+      default: 0
+    },
+    bloomsLevel: {
+      type: String,
+      enum: ['L1', 'L2', 'L3', 'L4', 'L5', 'L6'],
+      default: 'L1'
+    }
+  }],
+  
   // Duration (in hours)
   estimatedDuration: {
     type: Number,

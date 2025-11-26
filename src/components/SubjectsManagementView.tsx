@@ -6,13 +6,15 @@ import ChapterForm from './ChapterForm';
 import MaterialUpload from './MaterialUpload';
 import MaterialsGrid from './MaterialsGrid';
 import MCQDisplay from './MCQDisplay';
+import StudentMarkEntry from './StudentMarkEntry';
+import TotalMarksAnalytics from './TotalMarksAnalytics';
 
 interface Subject {
   _id: string
   name: string
   code: string
   department: string | { _id: string; name: string; code: string }
-  semester: number
+  semester: string
   credits: number
   year: string
   section: string
@@ -27,6 +29,14 @@ interface Subject {
   }[]
   maxStudents: number
   enrolledStudents?: string[]
+  type?: 'Core' | 'Elective' | 'Open Elective' | 'TCPL' | 'TCPR' | 'Problem Elective'
+}
+
+interface Student {
+  _id: string;
+  name: string;
+  email: string;
+  rollNumber: string;
 }
 
 interface User {
@@ -42,6 +52,20 @@ interface User {
   studentId?: string
   status: string
   enrolledSubjects?: string[] | any[]
+}
+
+interface StudentForMarkEntry {
+  _id: string;
+  name: string;
+  rollNumber: string;
+  email: string;
+  department: {
+    _id: string;
+    name: string;
+    code: string;
+  };
+  year: string;
+  section: string;
 }
 
 interface Chapter {
@@ -100,7 +124,7 @@ export default function SubjectsManagementView({
   const [chapters, setChapters] = useState<Chapter[]>([])
   const [materials, setMaterials] = useState<Material[]>([])
   const [loading, setLoading] = useState(false)
-  const [view, setView] = useState<'subjects' | 'chapters' | 'materials'>('subjects')
+  const [view, setView] = useState<'subjects' | 'chapters' | 'materials' | 'marks'>('subjects')
   
   // Modal states
   const [showChapterModal, setShowChapterModal] = useState(false)
@@ -118,6 +142,9 @@ export default function SubjectsManagementView({
   const [suggestedTopics, setSuggestedTopics] = useState<string[]>([])
   const [generatingMCQs, setGeneratingMCQs] = useState(false)
   const [extractingTopics, setExtractingTopics] = useState(false)
+  
+  // Marks tab state
+  const [activeTab, setActiveTab] = useState<'entry' | 'analytics'>('entry')
   
   // Form states
   const [chapterForm, setChapterForm] = useState({
@@ -161,6 +188,29 @@ export default function SubjectsManagementView({
              student.year === subject.year &&
              student.section === subject.section
     })
+  }
+
+  const getStudentsForSubjectAsStudentType = (subject: Subject): StudentForMarkEntry[] => {
+    const users = getStudentsForSubject(subject);
+    return users.map(user => {
+      const department = typeof user.department === 'object' 
+        ? user.department 
+        : { _id: 'unknown', name: 'Unknown', code: 'UNK' };
+
+      return {
+        _id: user._id || user.id,
+        name: user.name,
+        email: user.email,
+        rollNumber: user.studentId || 'N/A',
+        department: {
+          _id: department._id || 'unknown',
+          name: department.name || 'Unknown',
+          code: department.code || 'UNK'
+        },
+        year: user.year || subject.year,
+        section: user.section || subject.section,
+      };
+    });
   }
 
   const loadChapters = async (subjectId: string) => {
@@ -588,9 +638,27 @@ export default function SubjectsManagementView({
                 </div>
 
                 <div className="mt-4 pt-4 border-t border-gray-200">
-                  <button className="w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white py-2 rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all font-medium">
-                    View Details →
-                  </button>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleSubjectClick(subject);
+                      }}
+                      className="bg-gradient-to-r from-purple-500 to-pink-500 text-white py-2 px-3 rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all font-medium text-sm"
+                    >
+                      📚 Chapters
+                    </button>
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedSubject(subject);
+                        setView('marks');
+                      }}
+                      className="bg-gradient-to-r from-indigo-500 to-blue-500 text-white py-2 px-3 rounded-lg hover:from-indigo-600 hover:to-blue-600 transition-all font-medium text-sm"
+                    >
+                      📊 Marks
+                    </button>
+                  </div>
                 </div>
               </div>
             )
@@ -1084,6 +1152,93 @@ export default function SubjectsManagementView({
             }}
           />
         )}
+      </div>
+    )
+  }
+
+  // Marks View
+  if (view === 'marks' && selectedSubject) {
+    return (
+      <div className="space-y-6">
+        {/* Breadcrumb */}
+        <div className="flex items-center space-x-2 text-sm">
+          <button onClick={handleBackToSubjects} className="text-purple-600 hover:text-purple-800 font-medium">
+            ← Back to Subjects
+          </button>
+        </div>
+
+        {/* Subject Header */}
+        <div className="bg-gradient-to-r from-indigo-600 to-blue-600 text-white rounded-xl shadow-lg p-6">
+          <div className="flex justify-between items-start">
+            <div>
+              <h2 className="text-3xl font-bold mb-2">📊 Mark Entry</h2>
+              <p className="text-indigo-100 mb-2">{selectedSubject.name} - {selectedSubject.code}</p>
+              <div className="flex flex-wrap gap-3">
+                <span className="bg-indigo-500/30 text-indigo-100 px-3 py-1 rounded-full text-sm">
+                  {getDepartmentName(selectedSubject.department)}
+                </span>
+                <span className="bg-indigo-500/30 text-indigo-100 px-3 py-1 rounded-full text-sm">
+                  {selectedSubject.year} - Section {selectedSubject.section}
+                </span>
+                <span className="bg-indigo-500/30 text-indigo-100 px-3 py-1 rounded-full text-sm">
+                  Semester {selectedSubject.semester}
+                </span>
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-3xl font-bold mb-1">{getStudentsForSubject(selectedSubject).length}</div>
+              <div className="text-indigo-200 text-sm">Students</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Mark Entry and Analytics Tabs */}
+        <div className="bg-white rounded-xl shadow-lg">
+          <div className="border-b border-gray-200">
+            <nav className="flex space-x-8 px-6">
+              <button
+                onClick={() => setActiveTab('entry')}
+                className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'entry'
+                    ? 'border-indigo-500 text-indigo-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                📝 Mark Entry
+              </button>
+              <button
+                onClick={() => setActiveTab('analytics')}
+                className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'analytics'
+                    ? 'border-indigo-500 text-indigo-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                📊 Performance Analytics
+              </button>
+            </nav>
+          </div>
+          
+          <div className="p-1">
+            {activeTab === 'entry' ? (
+              <StudentMarkEntry 
+                preSelectedSubject={{
+                  ...selectedSubject,
+                  department: typeof selectedSubject.department === 'string' 
+                    ? { _id: selectedSubject.department, name: getDepartmentName(selectedSubject.department), code: '' } 
+                    : selectedSubject.department,
+                  type: selectedSubject.type || 'Core',
+                  semester: String(selectedSubject.semester)
+                }}
+                preSelectedStudents={getStudentsForSubjectAsStudentType(selectedSubject)}
+              />
+            ) : (
+              <TotalMarksAnalytics 
+                subjectId={selectedSubject._id}
+              />
+            )}
+          </div>
+        </div>
       </div>
     )
   }

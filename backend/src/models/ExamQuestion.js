@@ -33,6 +33,21 @@ const examQuestionSchema = new mongoose.Schema({
     required: [true, 'Chapter mapping is required for performance analysis']
   },
   
+  // Course Outcome (CO) mapping for performance analysis
+  courseOutcome: {
+    type: String,
+    required: [true, 'Course Outcome mapping is required for CO analysis'],
+    enum: ['CO1', 'CO2', 'CO3', 'CO4', 'CO5', 'CO6']
+  },
+  
+  // Unit mapping (for CO analysis)
+  unit: {
+    type: Number,
+    required: [true, 'Unit number is required for CO analysis'],
+    min: [1, 'Unit must be at least 1'],
+    max: [5, 'Unit cannot exceed 5']
+  },
+  
   // Topics covered (optional, for more granular tracking)
   topics: [{
     type: String,
