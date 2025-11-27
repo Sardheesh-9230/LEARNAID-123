@@ -126,6 +126,20 @@ router.get('/', protect, subjectController.getSubjects);
 
 /**
  * @swagger
+ * /api/subjects/student/my-subjects:
+ *   get:
+ *     summary: Get student's enrolled subjects
+ *     tags: [Subjects]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Student's enrolled subjects
+ */
+router.get('/student/my-subjects', protect, authorize('Student'), subjectController.getMySubjects);
+
+/**
+ * @swagger
  * /api/subjects:
  *   post:
  *     summary: Create a new subject

@@ -3,8 +3,7 @@ const mongoose = require('mongoose');
 const connectDB = async () => {
   try {
     const conn = await mongoose.connect(process.env.MONGODB_URI, {
-      // useNewUrlParser: true, // These options are no longer needed in mongoose 6+
-      // useUnifiedTopology: true,
+      serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
     });
 
     console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
@@ -31,7 +30,11 @@ const connectDB = async () => {
 
   } catch (error) {
     console.error('❌ Database connection failed:', error.message);
-    process.exit(1);
+    console.log('⚠️  Server will continue without database. Please check:');
+    console.log('   1. MongoDB Atlas IP whitelist settings');
+    console.log('   2. MONGODB_URI environment variable');
+    console.log('   3. Network connectivity');
+    // Don't exit - let server run without database
   }
 };
 

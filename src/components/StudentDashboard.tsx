@@ -1,314 +1,100 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { FiUser, FiBook, FiTrendingUp, FiCalendar, FiTarget, FiAward, FiClock } from 'react-icons/fi'
+import React, { useState, useEffect } from 'react'
 import StudentSidebar from '@/components/StudentSidebar'
-import StudentMarksAnalytics from '@/components/StudentMarksAnalytics'
+import StudentChatbot from '@/components/StudentChatbot'
 import StudentImprovementDashboard from '@/components/StudentImprovementDashboard'
 import StudentStudyMaterials from '@/components/StudentStudyMaterials'
 import apiService from '@/services/api'
 
-interface StudentData {
+interface Discussion {
+  id: number
+  title: string
+  course: string
+  author: string
+  replies: number
+  time: string
+  status: string
+  content: string
+  replyList: Array<{ author: string; text: string; time: string }>
+}
+
+interface Subject {
   _id: string
   name: string
-  email: string
-  rollNumber?: string
-  department?: string
-  year?: number
-  section?: string
-}
-
-interface DashboardStats {
-  currentGPA: number
-  totalCredits: number
-  activeCourses: number
-  completedAssignments: number
-  pendingTasks: number
-  overallPercentage: number
-  totalSubjects: number
-  passedSubjects: number
-}
-
-interface RecentActivity {
-  _id: string
-  type: 'exam' | 'assignment' | 'grade'
-  title: string
-  subject: string
-  date: string
-  score?: number
-  status: 'completed' | 'pending' | 'graded'
+  code: string
+  credits: number
+  semester: number
+  department: {
+    name: string
+    code: string
+  }
+  faculty?: {
+    user: {
+      name: string
+      email: string
+    }
+  }
+  progress?: number
 }
 
 export default function StudentDashboard() {
   const [activeTab, setActiveTab] = useState('dashboard')
   const [sidebarExpanded, setSidebarExpanded] = useState(true)
-  const [studentData, setStudentData] = useState<StudentData | null>(null)
-  const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null)
-  const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [selectedDiscussion, setSelectedDiscussion] = useState<Discussion | null>(null)
+  const [newReply, setNewReply] = useState('')
+  const [discussions, setDiscussions] = useState<Discussion[]>([])
+  const [showNewDiscussionModal, setShowNewDiscussionModal] = useState(false)
+  const [newDiscussionTitle, setNewDiscussionTitle] = useState('')
+  const [newDiscussionCourse, setNewDiscussionCourse] = useState('Mathematics')
+  const [newDiscussionContent, setNewDiscussionContent] = useState('')
+  const [subjects, setSubjects] = useState<Subject[]>([])
+  const [loadingSubjects, setLoadingSubjects] = useState(false)
 
+  // Fetch student's subjects
   useEffect(() => {
-    loadDashboardData()
-  }, [])
-
-  const loadDashboardData = async () => {
-    try {
-      setLoading(true)
-      setError(null)
-
-      // Get current user information
-      const userResponse = await apiService.getCurrentUser()
-      if (!userResponse.success || !userResponse.data) {
-        throw new Error('Failed to get user information')
+    const fetchSubjects = async () => {
+      if (activeTab === 'courses') {
+        setLoadingSubjects(true)
+        try {
+          console.log('Fetching student subjects...')
+          const response = await apiService.makeRequest('/subjects/student/my-subjects')
+          console.log('Subjects response:', response)
+          if (response.success) {
+            setSubjects(response.data || [])
+            console.log(`Loaded ${response.data?.length || 0} subjects`)
+          } else {
+            console.error('Failed to fetch subjects:', response)
+            setSubjects([])
+          }
+        } catch (error) {
+          console.error('Error fetching subjects:', error)
+          setSubjects([])
+        } finally {
+          setLoadingSubjects(false)
+        }
       }
-
-      const student = userResponse.data
-      setStudentData({
-        _id: student._id || student.id,
-        name: student.name,
-        email: student.email,
-        rollNumber: student.rollNumber || student.studentId,
-        department: student.department,
-        year: student.year,
-        section: student.section
-      })
-
-      // Get student analytics for dashboard stats
-      const analyticsResponse = await apiService.makeRequest(
-        `/student-analytics/student/${student._id || student.id}/analytics?semester=current&academicYear=2024-2025`
-      )
-
-      if (analyticsResponse.success && analyticsResponse.data) {
-        const analytics = analyticsResponse.data
-        setDashboardStats({
-          currentGPA: analytics.currentGPA || 0,
-          totalCredits: analytics.totalCredits || 0,
-          activeCourses: analytics.totalSubjects || 0,
-          completedAssignments: analytics.completedSubjects || 0,
-          pendingTasks: (analytics.totalSubjects || 0) - (analytics.completedSubjects || 0),
-          overallPercentage: analytics.averagePercentage || 0,
-          totalSubjects: analytics.totalSubjects || 0,
-          passedSubjects: analytics.passedSubjects || 0
-        })
-      } else {
-        // Set default stats if no analytics data
-        setDashboardStats({
-          currentGPA: 0,
-          totalCredits: 0,
-          activeCourses: 0,
-          completedAssignments: 0,
-          pendingTasks: 0,
-          overallPercentage: 0,
-          totalSubjects: 0,
-          passedSubjects: 0
-        })
-      }
-
-      // Get recent activities (marks/grades)
-      const marksResponse = await apiService.makeRequest(
-        `/student-analytics/student/${student._id || student.id}?semester=current&academicYear=2024-2025`
-      )
-
-      if (marksResponse.success && marksResponse.data) {
-        const marks = marksResponse.data.slice(0, 5) // Get recent 5 activities
-        const activities: RecentActivity[] = marks.map((mark: any) => ({
-          _id: mark._id,
-          type: 'exam',
-          title: `${mark.examType} Examination`,
-          subject: mark.subject?.name || 'Unknown Subject',
-          date: new Date(mark.enteredAt || mark.createdAt).toLocaleDateString(),
-          score: mark.percentage,
-          status: 'graded'
-        }))
-        setRecentActivities(activities)
-      }
-
-    } catch (err: any) {
-      console.error('Error loading dashboard data:', err)
-      setError(err.message || 'Failed to load dashboard data')
-      // Set default student data if error
-      setStudentData({
-        _id: 'unknown',
-        name: 'Student',
-        email: 'student@example.com'
-      })
-      setDashboardStats({
-        currentGPA: 0,
-        totalCredits: 0,
-        activeCourses: 0,
-        completedAssignments: 0,
-        pendingTasks: 0,
-        overallPercentage: 0,
-        totalSubjects: 0,
-        passedSubjects: 0
-      })
-    } finally {
-      setLoading(false)
     }
-  }
+
+    fetchSubjects()
+  }, [activeTab])
 
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard':
-        if (loading) {
-          return (
-            <div className="space-y-6">
-              <div className="bg-white rounded-xl shadow-lg p-8 text-center">
-                <div className="animate-spin w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full mx-auto mb-4"></div>
-                <h3 className="text-xl font-semibold text-gray-900">Loading Your Dashboard...</h3>
-                <p className="text-gray-500 mt-2">Fetching your latest academic data</p>
-              </div>
-            </div>
-          )
-        }
-
-        if (error) {
-          return (
-            <div className="space-y-6">
-              <div className="bg-red-50 border-l-4 border-red-500 p-6 rounded-lg">
-                <div className="flex items-start gap-3">
-                  <div className="text-red-500 flex-shrink-0 mt-0.5">
-                    <FiUser size={20} />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-red-900">Error Loading Dashboard</h3>
-                    <p className="text-red-700">{error}</p>
-                    <button 
-                      onClick={loadDashboardData}
-                      className="mt-3 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
-                    >
-                      Retry
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )
-        }
-
         return (
           <div className="space-y-6">
-            {/* Welcome Header with Student Name */}
-            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl shadow-2xl p-8 text-white">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="bg-white/20 p-4 rounded-xl">
-                    <FiUser size={40} />
-                  </div>
-                  <div>
-                    <h1 className="text-4xl font-bold">Welcome Back, {studentData?.name || 'Student'}!</h1>
-                    <p className="text-blue-100 mt-2">
-                      {studentData?.rollNumber && `Roll No: ${studentData.rollNumber} • `}
-                      {studentData?.department && `${studentData.department} • `}
-                      {studentData?.year && `Year ${studentData.year}`}
-                      {studentData?.section && ` - Section ${studentData.section}`}
-                    </p>
-                    <p className="text-blue-200 text-sm mt-1">
-                      Your learning journey continues here. Check your progress and achievements below.
-                    </p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className="text-3xl font-bold mb-1">{dashboardStats?.currentGPA.toFixed(2) || '0.00'}</div>
-                  <div className="text-blue-200 text-sm">Current GPA</div>
-                </div>
-              </div>
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              <h2 className="text-2xl font-bold text-gray-800 mb-4">🎓 Welcome Back, Student!</h2>
+              <p className="text-gray-600">
+                Your learning journey continues here. Check your courses, assignments, and progress below.
+              </p>
             </div>
             
-            {/* Stats Cards */}
-            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-blue-500">
-                <div className="flex items-center gap-3 mb-3">
-                  <FiTrendingUp className="text-blue-600" size={24} />
-                  <h3 className="text-lg font-semibold text-gray-800">Current GPA</h3>
-                </div>
-                <p className="text-3xl font-bold text-blue-600">{dashboardStats?.currentGPA.toFixed(2) || '0.00'}</p>
-                <p className="text-sm text-gray-500 mt-1">
-                  {dashboardStats?.overallPercentage.toFixed(1) || '0.0'}% Overall Average
-                </p>
-              </div>
-              
-              <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-green-500">
-                <div className="flex items-center gap-3 mb-3">
-                  <FiBook className="text-green-600" size={24} />
-                  <h3 className="text-lg font-semibold text-gray-800">Active Courses</h3>
-                </div>
-                <p className="text-3xl font-bold text-green-600">{dashboardStats?.activeCourses || 0}</p>
-                <p className="text-sm text-gray-500 mt-1">
-                  {dashboardStats?.passedSubjects || 0} passed • {dashboardStats?.totalCredits || 0} credits
-                </p>
-              </div>
-              
-              <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-orange-500">
-                <div className="flex items-center gap-3 mb-3">
-                  <FiTarget className="text-orange-600" size={24} />
-                  <h3 className="text-lg font-semibold text-gray-800">Completed</h3>
-                </div>
-                <p className="text-3xl font-bold text-orange-600">{dashboardStats?.completedAssignments || 0}</p>
-                <p className="text-sm text-gray-500 mt-1">
-                  {dashboardStats?.pendingTasks || 0} pending evaluations
-                </p>
-              </div>
-
-              <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-purple-500">
-                <div className="flex items-center gap-3 mb-3">
-                  <FiAward className="text-purple-600" size={24} />
-                  <h3 className="text-lg font-semibold text-gray-800">Achievement</h3>
-                </div>
-                <p className="text-3xl font-bold text-purple-600">
-                  {(dashboardStats?.overallPercentage || 0) >= 75 ? 'Excellent' :
-                   (dashboardStats?.overallPercentage || 0) >= 60 ? 'Good' :
-                   (dashboardStats?.overallPercentage || 0) >= 40 ? 'Average' : 'Needs Improvement'}
-                </p>
-                <p className="text-sm text-gray-500 mt-1">
-                  Based on current performance
-                </p>
-              </div>
-            </div>
-
-            {/* Recent Activities */}
             <div className="bg-white rounded-xl shadow-lg p-6">
-              <div className="flex items-center gap-3 mb-6">
-                <FiClock className="text-gray-600" size={24} />
-                <h3 className="text-xl font-bold text-gray-800">Recent Activities</h3>
-              </div>
-              
-              {recentActivities.length > 0 ? (
-                <div className="space-y-4">
-                  {recentActivities.map((activity) => (
-                    <div key={activity._id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-                      <div className="flex items-center gap-4">
-                        <div className={`p-2 rounded-lg ${
-                          activity.type === 'exam' ? 'bg-blue-100 text-blue-600' :
-                          activity.type === 'assignment' ? 'bg-green-100 text-green-600' :
-                          'bg-purple-100 text-purple-600'
-                        }`}>
-                          {activity.type === 'exam' ? <FiBook size={20} /> :
-                           activity.type === 'assignment' ? <FiTarget size={20} /> :
-                           <FiAward size={20} />}
-                        </div>
-                        <div>
-                          <h4 className="font-medium text-gray-800">{activity.title}</h4>
-                          <p className="text-sm text-gray-600">{activity.subject}</p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-lg font-bold text-gray-900">
-                          {activity.score ? `${activity.score.toFixed(1)}%` : activity.status}
-                        </div>
-                        <div className="text-xs text-gray-500">{activity.date}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <FiCalendar className="mx-auto text-gray-400 mb-4" size={48} />
-                  <h4 className="text-lg font-medium text-gray-600 mb-2">No Recent Activities</h4>
-                  <p className="text-gray-500">Your recent exam results and activities will appear here.</p>
-                </div>
-              )}
+              <p className="text-gray-600 text-center py-8">
+                Dashboard statistics will be displayed here based on your real data.
+              </p>
             </div>
           </div>
         )
@@ -316,58 +102,68 @@ export default function StudentDashboard() {
       case 'courses':
         return (
           <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-3">
-                <FiBook className="text-blue-600" />
-                📚 My Courses
-              </h2>
-              <button
-                onClick={loadDashboardData}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-              >
-                <FiTarget size={16} />
-                Refresh
-              </button>
-            </div>
+            <h2 className="text-2xl font-bold text-gray-800">📚 My Courses</h2>
             
-            {loading ? (
-              <div className="grid md:grid-cols-2 gap-6">
-                {[1, 2, 3, 4].map((i) => (
-                  <div key={i} className="bg-white rounded-xl shadow-lg p-6 animate-pulse">
-                    <div className="h-6 bg-gray-200 rounded mb-3"></div>
-                    <div className="h-4 bg-gray-200 rounded mb-4"></div>
-                    <div className="h-2 bg-gray-200 rounded mb-2"></div>
-                    <div className="h-4 bg-gray-200 rounded w-24"></div>
-                  </div>
-                ))}
+            {loadingSubjects ? (
+              <div className="bg-white rounded-xl shadow-lg p-6">
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+                  <span className="ml-3 text-gray-600">Loading your courses...</span>
+                </div>
+              </div>
+            ) : subjects.length === 0 ? (
+              <div className="bg-white rounded-xl shadow-lg p-6">
+                <p className="text-gray-600 text-center py-8">
+                  No courses found. Please contact your administrator.
+                </p>
               </div>
             ) : (
               <div className="grid md:grid-cols-2 gap-6">
-                {dashboardStats?.activeCourses ? (
-                  // If we have real course data, we would map through them here
-                  // For now, showing message that courses will be loaded from subjects
-                  <div className="col-span-2 bg-white rounded-xl shadow-lg p-8 text-center">
-                    <FiBook className="mx-auto text-gray-400 mb-4" size={48} />
-                    <h3 className="text-xl font-semibold text-gray-800 mb-2">
-                      {studentData?.name ? `${studentData.name}'s Courses` : 'Your Courses'}
-                    </h3>
-                    <p className="text-gray-600 mb-4">
-                      You have {dashboardStats.activeCourses} active courses this semester.
-                    </p>
-                    <p className="text-sm text-gray-500">
-                      Detailed course information will be loaded from your enrolled subjects.
-                      Your current GPA is {dashboardStats.currentGPA.toFixed(2)} with {dashboardStats.totalCredits} total credits.
-                    </p>
+                {subjects.map((subject) => (
+                  <div key={subject._id} className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-all">
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex-1">
+                        <h3 className="text-xl font-semibold text-gray-800 mb-1">{subject.name}</h3>
+                        <p className="text-sm text-gray-600">{subject.code}</p>
+                      </div>
+                      <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
+                        {subject.credits} Credits
+                      </span>
+                    </div>
+                    
+                    <div className="space-y-2 mb-4">
+                      <div className="flex items-center text-sm text-gray-600">
+                        <span className="font-medium mr-2">🏛️ Department:</span>
+                        <span>{subject.department.name}</span>
+                      </div>
+                      <div className="flex items-center text-sm text-gray-600">
+                        <span className="font-medium mr-2">📅 Semester:</span>
+                        <span>{subject.semester}</span>
+                      </div>
+                      {subject.faculty?.user && (
+                        <div className="flex items-center text-sm text-gray-600">
+                          <span className="font-medium mr-2">👨‍🏫 Faculty:</span>
+                          <span>{subject.faculty.user.name}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {subject.progress !== undefined && (
+                      <div>
+                        <div className="flex justify-between text-sm mb-1">
+                          <span className="text-gray-600">Course Progress</span>
+                          <span className="font-medium text-blue-600">{subject.progress}%</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div 
+                            className="bg-gradient-to-r from-blue-500 to-indigo-600 h-2 rounded-full transition-all duration-500" 
+                            style={{ width: `${subject.progress}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                ) : (
-                  <div className="col-span-2 bg-white rounded-xl shadow-lg p-8 text-center">
-                    <FiBook className="mx-auto text-gray-400 mb-4" size={48} />
-                    <h3 className="text-xl font-semibold text-gray-800 mb-2">No Courses Found</h3>
-                    <p className="text-gray-600">
-                      Your enrolled courses will appear here once you have subjects assigned.
-                    </p>
-                  </div>
-                )}
+                ))}
               </div>
             )}
           </div>
@@ -377,53 +173,135 @@ export default function StudentDashboard() {
         return (
           <div className="space-y-6">
             <h2 className="text-2xl font-bold text-gray-800">📝 Assignments</h2>
-            <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="text-left py-3 px-4 font-medium text-gray-700">Assignment</th>
-                      <th className="text-left py-3 px-4 font-medium text-gray-700">Course</th>
-                      <th className="text-left py-3 px-4 font-medium text-gray-700">Due Date</th>
-                      <th className="text-left py-3 px-4 font-medium text-gray-700">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {[
-                      { title: 'Calculus Problem Set 5', course: 'Mathematics', due: '2024-01-15', status: 'pending' },
-                      { title: 'Physics Lab Report', course: 'Physics', due: '2024-01-18', status: 'in-progress' },
-                      { title: 'Essay on Modern Literature', course: 'English', due: '2024-01-20', status: 'pending' },
-                    ].map((assignment, index) => (
-                      <tr key={index} className="border-b border-gray-100">
-                        <td className="py-3 px-4 font-medium text-gray-800">{assignment.title}</td>
-                        <td className="py-3 px-4 text-gray-600">{assignment.course}</td>
-                        <td className="py-3 px-4 text-gray-600">{assignment.due}</td>
-                        <td className="py-3 px-4">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            assignment.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                            assignment.status === 'in-progress' ? 'bg-blue-100 text-blue-800' :
-                            'bg-green-100 text-green-800'
-                          }`}>
-                            {assignment.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              <p className="text-gray-600 text-center py-8">
+                Your assignments will be listed here.
+              </p>
             </div>
           </div>
         )
       
       case 'grades':
-        return <StudentMarksAnalytics />
+        return (
+          <div className="space-y-6">
+            <h2 className="text-2xl font-bold text-gray-800">📊 Grade Report</h2>
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              <p className="text-gray-600 text-center py-8">
+                Your grades and academic performance will be shown here.
+              </p>
+            </div>
+          </div>
+        )
+      
+      case 'resources':
+        return <StudentStudyMaterials />
+      
+      case 'schedule':
+        return (
+          <div className="space-y-6">
+            <h2 className="text-2xl font-bold text-gray-800">🗓️ Class Schedule</h2>
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              <p className="text-gray-600 text-center py-8">
+                Your class schedule will be displayed here.
+              </p>
+            </div>
+          </div>
+        )
+      
+      case 'progress':
+        return (
+          <div className="space-y-6">
+            <h2 className="text-2xl font-bold text-gray-800">📈 Progress Tracker</h2>
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              <p className="text-gray-600 text-center py-8">
+                Your learning progress and analytics will be shown here.
+              </p>
+            </div>
+          </div>
+        )
+      
+      case 'discussions':
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-bold text-gray-800">💬 Class Discussions</h2>
+              <button 
+                onClick={() => setShowNewDiscussionModal(true)}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                + New Discussion
+              </button>
+            </div>
+            <div className="space-y-4">
+              {discussions.length === 0 ? (
+                <div className="bg-white rounded-xl shadow-lg p-6">
+                  <p className="text-gray-600 text-center py-8">
+                    No discussions yet. Start a new discussion to engage with your classmates!
+                  </p>
+                </div>
+              ) : (
+                discussions.map((discussion) => (
+                  <div 
+                    key={discussion.id} 
+                    onClick={() => setSelectedDiscussion(discussion)}
+                    className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-all cursor-pointer hover:scale-[1.02]"
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex-1">
+                        <h3 className="text-lg font-semibold text-gray-800 mb-2">{discussion.title}</h3>
+                        <p className="text-sm text-gray-600 mb-3">{discussion.content}</p>
+                        <div className="flex items-center space-x-4 text-sm text-gray-600 flex-wrap gap-2">
+                          <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full">{discussion.course}</span>
+                          <span>👤 {discussion.author}</span>
+                          <span className="font-medium text-blue-600">💬 {discussion.replies} replies</span>
+                          <span>⏰ {discussion.time}</span>
+                        </div>
+                      </div>
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap ${
+                        discussion.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
+                      }`}>
+                        {discussion.status}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+            <button 
+              onClick={() => setShowNewDiscussionModal(true)}
+              className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-3 rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all font-semibold"
+            >
+              + Start New Discussion
+            </button>
+          </div>
+        )
       
       case 'improvement-tasks':
         return <StudentImprovementDashboard />
       
-      case 'resources':
+      case 'study-materials':
         return <StudentStudyMaterials />
+      
+      case 'library':
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-bold text-gray-800">🏛️ Digital Library</h2>
+              <div className="flex gap-2">
+                <input 
+                  type="text" 
+                  placeholder="Search books..."
+                  className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              <p className="text-gray-600 text-center py-8">
+                Digital library books and resources will be available here.
+              </p>
+            </div>
+          </div>
+        )
       
       default:
         return (
@@ -449,6 +327,194 @@ export default function StudentDashboard() {
           {renderContent()}
         </div>
       </main>
+
+      {/* AI Chatbot */}
+      <StudentChatbot />
+
+      {/* Discussion Modal */}
+      {selectedDiscussion && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setSelectedDiscussion(null)}>
+          <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[80vh] overflow-hidden shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-6">
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <h2 className="text-2xl font-bold mb-2">{selectedDiscussion.title}</h2>
+                  <div className="flex items-center gap-3 text-sm text-blue-100 flex-wrap">
+                    <span className="px-3 py-1 bg-white/20 rounded-full">{selectedDiscussion.course}</span>
+                    <span>👤 {selectedDiscussion.author}</span>
+                    <span>⏰ {selectedDiscussion.time}</span>
+                    <span className={`px-3 py-1 rounded-full ${
+                      selectedDiscussion.status === 'active' ? 'bg-green-500/30' : 'bg-gray-500/30'
+                    }`}>
+                      {selectedDiscussion.status}
+                    </span>
+                  </div>
+                </div>
+                <button onClick={() => setSelectedDiscussion(null)} className="text-white hover:bg-white/20 p-2 rounded-lg transition-colors">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <div className="p-6 overflow-y-auto max-h-[calc(80vh-200px)]">
+              <div className="bg-blue-50 rounded-lg p-4 mb-6 border-l-4 border-blue-600">
+                <p className="text-gray-800">{selectedDiscussion.content}</p>
+              </div>
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">💬 Replies ({selectedDiscussion.replyList.length})</h3>
+              <div className="space-y-4 mb-6">
+                {selectedDiscussion.replyList.map((reply, idx) => (
+                  <div key={idx} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-semibold text-gray-800">{reply.author}</span>
+                      <span className="text-xs text-gray-500">{reply.time}</span>
+                    </div>
+                    <p className="text-gray-700">{reply.text}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="border-t pt-4">
+                <h4 className="font-semibold text-gray-800 mb-3">Add Your Reply</h4>
+                <textarea
+                  value={newReply}
+                  onChange={(e) => setNewReply(e.target.value)}
+                  placeholder="Type your reply here..."
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                  rows={4}
+                />
+                <div className="flex justify-end gap-2 mt-3">
+                  <button 
+                    onClick={() => setNewReply('')}
+                    className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={() => {
+                      if (newReply.trim() && selectedDiscussion) {
+                        const updatedDiscussions = discussions.map(d => {
+                          if (d.id === selectedDiscussion.id) {
+                            return {
+                              ...d,
+                              replies: d.replies + 1,
+                              replyList: [...d.replyList, {
+                                author: 'You',
+                                text: newReply,
+                                time: 'Just now'
+                              }]
+                            }
+                          }
+                          return d
+                        })
+                        setDiscussions(updatedDiscussions)
+                        const updated = updatedDiscussions.find(d => d.id === selectedDiscussion.id)
+                        if (updated) setSelectedDiscussion(updated)
+                        setNewReply('')
+                      }
+                    }}
+                    className="px-6 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all font-medium"
+                  >
+                    Post Reply
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* New Discussion Modal */}
+      {showNewDiscussionModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowNewDiscussionModal(false)}>
+          <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-6">
+              <div className="flex items-start justify-between">
+                <h2 className="text-2xl font-bold">Start New Discussion</h2>
+                <button onClick={() => setShowNewDiscussionModal(false)} className="text-white hover:bg-white/20 p-2 rounded-lg transition-colors">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <div className="p-6">
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Discussion Title</label>
+                  <input
+                    type="text"
+                    value={newDiscussionTitle}
+                    onChange={(e) => setNewDiscussionTitle(e.target.value)}
+                    placeholder="Enter discussion title..."
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Course</label>
+                  <select
+                    value={newDiscussionCourse}
+                    onChange={(e) => setNewDiscussionCourse(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option>Mathematics</option>
+                    <option>Physics</option>
+                    <option>Computer Science</option>
+                    <option>Chemistry</option>
+                    <option>History</option>
+                    <option>English Literature</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                  <textarea
+                    value={newDiscussionContent}
+                    onChange={(e) => setNewDiscussionContent(e.target.value)}
+                    placeholder="Describe your question or topic..."
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                    rows={6}
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 mt-6">
+                <button 
+                  onClick={() => {
+                    setShowNewDiscussionModal(false)
+                    setNewDiscussionTitle('')
+                    setNewDiscussionContent('')
+                  }}
+                  className="px-6 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={() => {
+                    if (newDiscussionTitle.trim() && newDiscussionContent.trim()) {
+                      const newDiscussion: Discussion = {
+                        id: discussions.length + 1,
+                        title: newDiscussionTitle,
+                        course: newDiscussionCourse,
+                        author: 'You',
+                        replies: 0,
+                        time: 'Just now',
+                        status: 'active',
+                        content: newDiscussionContent,
+                        replyList: []
+                      }
+                      setDiscussions([newDiscussion, ...discussions])
+                      setShowNewDiscussionModal(false)
+                      setNewDiscussionTitle('')
+                      setNewDiscussionContent('')
+                    }
+                  }}
+                  className="px-6 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all font-medium"
+                >
+                  Post Discussion
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

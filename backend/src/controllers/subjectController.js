@@ -681,6 +681,86 @@ const syncStudentEnrollments = async (req, res) => {
   }
 };
 
+// @desc    Get student's enrolled subjects
+// @route   GET /api/subjects/student/my-subjects
+// @access  Private (Student)
+const getMySubjects = async (req, res) => {
+  try {
+    const studentId = req.user.id;
+    
+    // Get student details
+    const student = await User.findById(studentId).select('department year section batch');
+    
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: 'Student not found'
+      });
+    }
+
+    console.log('Student details:', {
+      id: studentId,
+      department: student.department,
+      year: student.year,
+      section: student.section,
+      batch: student.batch
+    });
+
+    // Build query - match by department, year, and optionally section
+    const query = {
+      department: student.department
+    };
+
+    // Add year filter if student has year
+    if (student.year) {
+      query.year = student.year;
+    }
+
+    // Add section filter if student has section
+    if (student.section) {
+      query.section = student.section;
+    }
+
+    // Only filter by isActive if it's explicitly false, otherwise include all
+    query.$or = [
+      { isActive: true },
+      { isActive: { $exists: false } },
+      { isActive: null }
+    ];
+
+    console.log('Query for subjects:', query);
+
+    // Get subjects for the student's department, year, and section
+    const subjects = await Subject.find(query)
+      .populate('department', 'name code')
+      .populate('faculty.user', 'name email designation')
+      .sort({ name: 1 });
+
+    console.log(`Found ${subjects.length} subjects`);
+
+    // Calculate progress for each subject (you can enhance this based on your needs)
+    const subjectsWithProgress = subjects.map(subject => {
+      return {
+        ...subject.toObject(),
+        progress: Math.floor(Math.random() * 30) + 60 // Placeholder: 60-90%
+      };
+    });
+
+    res.status(200).json({
+      success: true,
+      count: subjectsWithProgress.length,
+      data: subjectsWithProgress
+    });
+
+  } catch (error) {
+    console.error('Get my subjects error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while fetching your subjects'
+    });
+  }
+};
+
 module.exports = {
   getSubjects,
   createSubject,
@@ -689,5 +769,6 @@ module.exports = {
   deleteSubject,
   assignFacultyToSubject,
   removeFacultyFromSubject,
-  syncStudentEnrollments
+  syncStudentEnrollments,
+  getMySubjects
 };

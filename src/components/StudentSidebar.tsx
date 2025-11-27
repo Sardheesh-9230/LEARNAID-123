@@ -244,22 +244,6 @@ export default function StudentSidebar({ activeTab, onTabChange, isExpanded = tr
         <div className="absolute top-2/3 left-1/2 w-8 h-8 bg-white rounded-full animate-pulse"></div>
       </div>
 
-      {/* Floating Particles */}
-      <div className="absolute inset-0 pointer-events-none">
-        {[...Array(6)].map((_, i) => (
-          <div
-            key={i}
-            className={`absolute w-2 h-2 bg-white rounded-full opacity-20 animate-float-${i + 1}`}
-            style={{
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`,
-              animationDelay: `${i * 0.5}s`,
-              animationDuration: `${3 + Math.random() * 2}s`
-            }}
-          ></div>
-        ))}
-      </div>
-
       {/* Header */}
       <div className="relative z-10 p-6 border-b border-white/20">
         <div className="flex items-center justify-between">

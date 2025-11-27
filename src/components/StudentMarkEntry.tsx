@@ -317,6 +317,7 @@ export default function StudentMarkEntry({ preSelectedSubject, preSelectedStuden
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [showBulkEntry, setShowBulkEntry] = useState(false) // Available for all exam types
+  const [marksStatus, setMarksStatus] = useState<'Draft' | 'Final' | 'Published'>('Draft')
   
   // Mark Entry States (legacy - now all exams use question-wise)
   const [editingMarks, setEditingMarks] = useState<{ [key: string]: string }>({})
@@ -648,22 +649,38 @@ export default function StudentMarkEntry({ preSelectedSubject, preSelectedStuden
         const questionWiseData: { [key: string]: QuestionWiseEntry } = {}
         
         validMarks.forEach((mark: any) => {
-          markData[mark.student._id] = mark.marksObtained.toString()
-          remarkData[mark.student._id] = mark.remarks || ''
+          const studentId = mark.student._id || mark.student
+          markData[studentId] = mark.marksObtained.toString()
+          remarkData[studentId] = mark.remarks || ''
+          
+          console.log(`📝 Processing mark for student ${studentId}:`, {
+            examType: mark.examType,
+            marks: mark.marksObtained,
+            hasQuestionWiseMarks: !!mark.questionWiseMarks,
+            questionCount: mark.questionWiseMarks?.length || 0
+          })
           
           // If exam uses question-wise entry and has question-wise marks, load them
-          if (isCIAExam && mark.questionWiseMarks && Array.isArray(mark.questionWiseMarks)) {
+          if (isCIAExam && mark.questionWiseMarks && Array.isArray(mark.questionWiseMarks) && mark.questionWiseMarks.length > 0) {
+            console.log(`✅ Loading ${mark.questionWiseMarks.length} questions for student ${studentId}`)
             const { total, percentage, grade } = calculateQuestionWiseTotal(mark.questionWiseMarks)
-            questionWiseData[mark.student._id] = {
-              student: mark.student._id,
+            questionWiseData[studentId] = {
+              student: studentId,
               questions: mark.questionWiseMarks,
               totalMarks: total,
               percentage,
               grade
             }
-          } else if (isCIAExam && !mark.questionWiseMarks) {
-            // Initialize empty question-wise structure if no saved data exists
-            questionWiseData[mark.student._id] = initializeQuestionWiseMarks(mark.student._id)
+          } else if (isCIAExam && mark.marksObtained > 0) {
+            // If marks exist but no question-wise breakdown, keep the total
+            console.log(`⚠️ Mark exists (${mark.marksObtained}) but no question-wise data for student ${studentId}`)
+            questionWiseData[studentId] = {
+              student: studentId,
+              questions: [],
+              totalMarks: mark.marksObtained,
+              percentage: (mark.marksObtained / (currentExamType?.maxMarks || 60)) * 100,
+              grade: mark.grade || 'N/A'
+            }
           }
         })
         
@@ -861,7 +878,7 @@ export default function StudentMarkEntry({ preSelectedSubject, preSelectedStuden
       if (response.success) {
         setSuccess(`Question-wise marks saved successfully for student (${studentMarks.totalMarks}/${currentExamType?.maxMarks} marks)`)
         
-        // Update editing state to reflect saved marks - NO RELOAD NEEDED
+        // Update editing state to reflect saved marks
         setEditingMarks(prev => ({
           ...prev,
           [studentId]: studentMarks.totalMarks.toString()
@@ -870,8 +887,8 @@ export default function StudentMarkEntry({ preSelectedSubject, preSelectedStuden
         console.log(`✅ SAVE SUCCESS: Marks preserved in UI for ${selectedExamType}`)
         console.log(`📊 Current questionWiseMarks after save:`, Object.keys(questionWiseMarks).length, 'students')
         
-        // DON'T reload - this was causing the disappearing issue
-        // The marks are already in questionWiseMarks state and should remain visible
+        // Reload marks from backend to ensure they persist
+        await loadExistingMarks()
       } else {
         throw new Error(response.message || 'Failed to save marks')
       }
@@ -897,7 +914,8 @@ export default function StudentMarkEntry({ preSelectedSubject, preSelectedStuden
         examType: selectedExamType, // Ensure proper exam type categorization
         marksObtained: studentMarks.totalMarks,
         remarks: remarks[studentId] || '',
-        questionWiseMarks: studentMarks.questions
+        questionWiseMarks: studentMarks.questions,
+        status: 'Draft' // Save as Draft by default
       })).filter(entry => entry.marksObtained > 0)
       
       console.log(`💾 Bulk saving ${marksData.length} students for ${selectedExamType}:`, 
@@ -920,13 +938,17 @@ export default function StudentMarkEntry({ preSelectedSubject, preSelectedStuden
       
       if (response.success) {
         const { successful, errors } = response.data
-        setSuccess(`Bulk marks saved: ${successful.length} successful, ${errors.length} errors`)
+        setSuccess(`Draft marks saved: ${successful.length} successful, ${errors.length} errors`)
         
         if (errors.length > 0) {
           console.warn('Some marks failed to save:', errors)
         }
         
         console.log(`✅ BULK SAVE SUCCESS: Preserving ${Object.keys(questionWiseMarks).length} student marks in UI`)
+        setMarksStatus('Draft')
+        
+        // Reload marks from backend to ensure persistence
+        await loadExistingMarks()
         
         // DON'T clear the state - keep marks visible after save
         // The questionWiseMarks should remain in the UI to show what was saved
@@ -937,6 +959,90 @@ export default function StudentMarkEntry({ preSelectedSubject, preSelectedStuden
     } catch (err: any) {
       console.error('❌ Error saving bulk marks:', err)
       setError(err.message || 'Failed to save bulk marks')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const finalizeMarks = async () => {
+    try {
+      setSaving(true)
+      setError(null)
+      
+      // Get all students with entered marks
+      const studentIds = Object.keys(questionWiseMarks).filter(id => questionWiseMarks[id].totalMarks > 0)
+      
+      if (studentIds.length === 0) {
+        setError('No marks to finalize')
+        return
+      }
+      
+      // Update status to Final for all marks
+      const promises = studentIds.map(async (studentId) => {
+        const response = await apiService.getMarksBySubjectAndExam(
+          selectedSubject,
+          selectedExamType,
+          { academicYear: '2024-2025', semester: 'Odd' }
+        )
+        
+        if (response.success && response.data) {
+          const studentMark = response.data.find((m: any) => m.student._id === studentId || m.student === studentId)
+          if (studentMark) {
+            return apiService.updateMarkStatus(studentMark._id, 'Final')
+          }
+        }
+      })
+      
+      await Promise.all(promises)
+      
+      setSuccess(`Marks finalized for ${studentIds.length} students. Ready to publish.`)
+      setMarksStatus('Final')
+      
+    } catch (err: any) {
+      console.error('❌ Error finalizing marks:', err)
+      setError(err.message || 'Failed to finalize marks')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const publishMarks = async () => {
+    try {
+      setSaving(true)
+      setError(null)
+      
+      // Get all students with entered marks
+      const studentIds = Object.keys(questionWiseMarks).filter(id => questionWiseMarks[id].totalMarks > 0)
+      
+      if (studentIds.length === 0) {
+        setError('No marks to publish')
+        return
+      }
+      
+      // Update status to Published for all marks
+      const promises = studentIds.map(async (studentId) => {
+        const response = await apiService.getMarksBySubjectAndExam(
+          selectedSubject,
+          selectedExamType,
+          { academicYear: '2024-2025', semester: 'Odd' }
+        )
+        
+        if (response.success && response.data) {
+          const studentMark = response.data.find((m: any) => m.student._id === studentId || m.student === studentId)
+          if (studentMark) {
+            return apiService.updateMarkStatus(studentMark._id, 'Published')
+          }
+        }
+      })
+      
+      await Promise.all(promises)
+      
+      setSuccess(`Marks published for ${studentIds.length} students. Now visible to students in analytics.`)
+      setMarksStatus('Published')
+      
+    } catch (err: any) {
+      console.error('❌ Error publishing marks:', err)
+      setError(err.message || 'Failed to publish marks')
     } finally {
       setSaving(false)
     }
@@ -1240,6 +1346,20 @@ export default function StudentMarkEntry({ preSelectedSubject, preSelectedStuden
         {/* Action Buttons */}
         {selectedSubject && students.length > 0 && (
           <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
+            {/* Status Badge */}
+            <div className="mb-4 flex items-center gap-3">
+              <span className="text-sm font-medium text-gray-600">Marks Status:</span>
+              <span className={`px-4 py-2 rounded-full text-sm font-semibold ${
+                marksStatus === 'Draft' ? 'bg-blue-100 text-blue-700' :
+                marksStatus === 'Final' ? 'bg-yellow-100 text-yellow-700' :
+                'bg-green-100 text-green-700'
+              }`}>
+                {marksStatus === 'Draft' ? '📝 Draft - Not visible to students' :
+                 marksStatus === 'Final' ? '✅ Finalized - Ready to publish' :
+                 '🎉 Published - Visible to students'}
+              </span>
+            </div>
+            
             <div className="flex flex-wrap gap-4 justify-between items-center">
               <div className="flex gap-4">
                 <button
@@ -1252,11 +1372,29 @@ export default function StudentMarkEntry({ preSelectedSubject, preSelectedStuden
                 
                 <button
                   onClick={saveBulkMarks}
-                  disabled={saving || Object.keys(editingMarks).length === 0}
+                  disabled={saving || Object.keys(questionWiseMarks).length === 0}
                   className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <FiSave size={20} />
-                  {saving ? 'Saving...' : 'Save All Marks'}
+                  {saving ? 'Saving...' : 'Save All (Draft)'}
+                </button>
+
+                <button
+                  onClick={finalizeMarks}
+                  disabled={saving || marksStatus !== 'Draft'}
+                  className="flex items-center gap-2 px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <FiCheckCircle size={20} />
+                  {marksStatus === 'Final' ? 'Finalized' : 'Finalize Marks'}
+                </button>
+
+                <button
+                  onClick={publishMarks}
+                  disabled={saving || marksStatus !== 'Final'}
+                  className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <FiEye size={20} />
+                  {marksStatus === 'Published' ? 'Published' : 'Publish to Students'}
                 </button>
               </div>
 

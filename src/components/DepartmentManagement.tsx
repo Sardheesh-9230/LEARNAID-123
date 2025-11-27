@@ -314,7 +314,7 @@ export default function DepartmentManagement() {
       if (!apiService.token) {
         console.log('No token found, attempting auto-login as admin...')
         try {
-          const loginResponse = await apiService.login('admin@learnaia.edu', 'admin123')
+          const loginResponse = await apiService.login('admin@learnaid.edu', 'admin123')
           if (loginResponse.success) {
             console.log('Auto-login successful')
           } else {

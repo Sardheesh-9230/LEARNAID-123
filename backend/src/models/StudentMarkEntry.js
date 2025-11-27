@@ -65,6 +65,21 @@ const studentMarkEntrySchema = new mongoose.Schema({
     default: false
   },
   
+  // Question-wise and CO-wise marks breakdown
+  questionWiseMarks: [{
+    questionNumber: Number,
+    unit: Number,
+    maxMarks: Number,
+    obtainedMarks: Number,
+    questionType: String,
+    section: String
+  }],
+  coWiseMarks: [{
+    courseOutcome: String,
+    maxMarks: Number,
+    obtainedMarks: Number
+  }],
+  
   // Faculty Information
   enteredBy: {
     type: mongoose.Schema.Types.ObjectId,
@@ -185,14 +200,21 @@ studentMarkEntrySchema.statics.findBySubjectAndExam = function(subjectId, examTy
 };
 
 // Get student's all marks for a subject
-studentMarkEntrySchema.statics.findStudentSubjectMarks = function(studentId, subjectId, academicYear = '2024-2025') {
-  return this.find({
+studentMarkEntrySchema.statics.findStudentSubjectMarks = function(studentId, subjectId, academicYear = '2024-2025', includeUnpublished = false) {
+  const query = {
     student: studentId,
     subject: subjectId,
     academicYear
-  })
-  .populate('subject', 'name code')
-  .sort({ examType: 1 });
+  };
+  
+  // Students can only see Published marks
+  if (!includeUnpublished) {
+    query.status = 'Published';
+  }
+  
+  return this.find(query)
+    .populate('subject', 'name code')
+    .sort({ examType: 1 });
 };
 
 // Get marks statistics for a subject and exam

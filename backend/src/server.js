@@ -39,6 +39,9 @@ const studentMarksRoutes = require('./routes/studentMarks'); // Student Marks An
 const improvementTasksRoutes = require('./routes/improvementTasks'); // Improvement Tasks
 const coPerformanceRoutes = require('./routes/coPerformance'); // CO Performance Analysis
 
+// Student Module Routes
+const chatbotRoutes = require('./routes/chatbot');
+
 // Import middleware
 const errorHandler = require('./middleware/errorHandler');
 const notFound = require('./middleware/notFound');
@@ -93,9 +96,13 @@ app.use(compression());
 app.use(morgan('combined'));
 app.use(limiter);
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  origin: [
+    process.env.FRONTEND_URL || 'http://localhost:3000',
+    'http://localhost:3001',
+    'http://localhost:3000'
+  ],
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 app.use(express.json({ limit: '10mb' }));
@@ -137,6 +144,9 @@ app.use('/api/improvement-tasks', improvementTasksRoutes); // Improvement Tasks 
 app.use('/api/co-performance', coPerformanceRoutes); // CO Performance Analysis & Auto Task Assignment
 app.use('/api/student-marks', studentMarkEntryRoutes); // Student Mark Entry System
 app.use('/api/student-analytics', studentMarksRoutes); // Student Marks Analytics & Retrieval
+
+// Student Module Routes
+app.use('/api/chatbot', chatbotRoutes);
 
 // Error handling middleware
 app.use(notFound);

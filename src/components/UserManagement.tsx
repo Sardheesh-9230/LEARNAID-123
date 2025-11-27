@@ -126,7 +126,7 @@ export default function UserManagement({ preSelectedUserId }: UserManagementProp
       }
 
       // Auto-login as admin
-      const loginResponse = await apiService.login('admin@learnaia.edu', 'admin123')
+      const loginResponse = await apiService.login('admin@learnaid.edu', 'admin123')
       if (loginResponse.success && loginResponse.token) {
         console.log('Auto-login successful')
         return true

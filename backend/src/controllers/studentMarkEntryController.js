@@ -28,7 +28,9 @@ exports.enterStudentMarks = async (req, res, next) => {
       remarks,
       isAbsent = false,
       academicYear = '2024-2025',
-      semester = 'Odd'
+      semester = 'Odd',
+      questionWiseMarks,
+      coWiseMarks
     } = req.body;
 
     // Verify subject exists and faculty has access
@@ -109,6 +111,8 @@ exports.enterStudentMarks = async (req, res, next) => {
       existingMark.remarks = remarks || '';
       existingMark.isAbsent = isAbsent;
       existingMark.lastModifiedBy = req.user._id;
+      existingMark.questionWiseMarks = questionWiseMarks || [];
+      existingMark.coWiseMarks = coWiseMarks || [];
       
       markEntry = await existingMark.save();
     } else {
@@ -123,7 +127,9 @@ exports.enterStudentMarks = async (req, res, next) => {
         isAbsent,
         enteredBy: req.user._id,
         academicYear,
-        semester
+        semester,
+        questionWiseMarks: questionWiseMarks || [],
+        coWiseMarks: coWiseMarks || []
       });
     }
 
@@ -224,7 +230,7 @@ exports.bulkEnterMarks = async (req, res, next) => {
 
     for (const markData of marksData) {
       try {
-        const { student, marksObtained, remarks, isAbsent = false } = markData;
+        const { student, marksObtained, remarks, isAbsent = false, questionWiseMarks, coWiseMarks } = markData;
 
         // Validate individual mark data
         if (!student) {
@@ -258,6 +264,8 @@ exports.bulkEnterMarks = async (req, res, next) => {
           existingMark.remarks = remarks || '';
           existingMark.isAbsent = isAbsent;
           existingMark.lastModifiedBy = req.user._id;
+          existingMark.questionWiseMarks = questionWiseMarks || [];
+          existingMark.coWiseMarks = coWiseMarks || [];
           
           markEntry = await existingMark.save();
         } else {
@@ -272,7 +280,9 @@ exports.bulkEnterMarks = async (req, res, next) => {
             isAbsent,
             enteredBy: req.user._id,
             academicYear,
-            semester
+            semester,
+            questionWiseMarks: questionWiseMarks || [],
+            coWiseMarks: coWiseMarks || []
           });
         }
 
@@ -407,10 +417,14 @@ exports.getStudentSubjectMarks = async (req, res, next) => {
       });
     }
 
+    // Students can only see Published marks, Faculty/Admin can see all
+    const includeUnpublished = req.user.role === 'Faculty' || req.user.role === 'Admin';
+    
     const marks = await StudentMarkEntry.findStudentSubjectMarks(
       studentId,
       subjectId,
-      academicYear
+      academicYear,
+      includeUnpublished
     );
 
     res.status(200).json({
