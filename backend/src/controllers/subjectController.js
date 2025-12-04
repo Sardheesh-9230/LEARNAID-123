@@ -13,7 +13,18 @@ const getSubjects = async (req, res) => {
 
     // Build filter
     const filter = {};
-    if (department) filter.department = department;
+    if (department && department !== '[object Object]' && department.trim() !== '') {
+      // Handle both ObjectId strings and populate objects
+      if (typeof department === 'string' && department.length === 24) {
+        filter.department = department;
+      } else {
+        console.warn('Invalid department parameter:', department);
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid department parameter'
+        });
+      }
+    }
     if (semester) filter.semester = parseInt(semester);
     if (faculty) filter.faculty = faculty;
     if (isActive !== undefined) filter.isActive = isActive === 'true';

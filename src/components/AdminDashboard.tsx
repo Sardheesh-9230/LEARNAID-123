@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import DepartmentManagement from './DepartmentManagement'
 import UserManagement from './UserManagement'
+import AnalyticsDashboard from './AnalyticsDashboard'
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('dashboard')
@@ -41,10 +42,17 @@ export default function AdminDashboard() {
       actions: ["Add User", "Edit Profile", "Assign Roles", "View Activity"]
     },
     {
-      id: 'reports',
-      title: "Analytics & Reports",
+      id: 'pilot-analytics',
+      title: "Pilot Study Analytics",
       icon: "📊",
-      description: "Generate comprehensive reports",
+      description: "Research data and metrics for academic paper",
+      actions: ["Extract Data", "Generate Charts", "Export Research", "Statistical Analysis"]
+    },
+    {
+      id: 'reports',
+      title: "System Reports",
+      icon: "📋",
+      description: "Generate comprehensive system reports",
       actions: ["Department Reports", "Performance Analytics", "Export Data", "Custom Reports"]
     }
   ]
@@ -310,6 +318,7 @@ export default function AdminDashboard() {
         {activeTab === 'dashboard' && renderDashboard()}
         {activeTab === 'departments' && <DepartmentManagement />}
         {activeTab === 'users' && <UserManagement />}
+        {activeTab === 'pilot-analytics' && <AnalyticsDashboard userRole="admin" />}
         {activeTab === 'reports' && renderReports()}
       </div>
     </div>

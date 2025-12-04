@@ -14,7 +14,7 @@ interface Subject {
   name: string
   code: string
   department: string | { _id: string; name: string; code: string }
-  semester: string
+  semester: number
   credits: number
   year: string
   section: string
@@ -1228,7 +1228,7 @@ export default function SubjectsManagementView({
                     ? { _id: selectedSubject.department, name: getDepartmentName(selectedSubject.department), code: '' } 
                     : selectedSubject.department,
                   type: selectedSubject.type || 'Core',
-                  semester: String(selectedSubject.semester)
+                  semester: selectedSubject.semester
                 }}
                 preSelectedStudents={getStudentsForSubjectAsStudentType(selectedSubject)}
               />

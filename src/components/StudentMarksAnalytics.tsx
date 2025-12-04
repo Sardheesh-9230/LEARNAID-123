@@ -112,7 +112,7 @@ interface PerformanceAnalytics {
   failedSubjects: number
   averagePercentage: number
   gradeDistribution: { [grade: string]: number }
-  semesterTrend: { semester: string; gpa: number }[]
+  semesterTrend: { semester: number; gpa: number }[]
 }
 
 interface StudentMarksAnalyticsProps {
@@ -271,9 +271,9 @@ export default function StudentMarksAnalytics({ studentId }: StudentMarksAnalyti
           averagePercentage: Math.round(averagePercentage * 100) / 100,
           gradeDistribution,
           semesterTrend: [
-            { semester: 'Sem 1', gpa: 3.2 },
-            { semester: 'Sem 2', gpa: 3.6 },
-            { semester: 'Current', gpa: currentGPA }
+            { semester: 1, gpa: 3.2 },
+            { semester: 2, gpa: 3.6 },
+            { semester: 3, gpa: currentGPA }
           ]
         })
         

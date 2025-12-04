@@ -87,7 +87,8 @@ export default function StudentStudyMaterials() {
       const student = userResponse.data
       
       // Get all subjects for the student
-      const subjectsResponse = await apiService.makeRequest(`/subjects?department=${student.department}&year=${student.year}&section=${student.section}`)
+      const departmentId = typeof student.department === 'object' ? student.department._id : student.department;
+      const subjectsResponse = await apiService.makeRequest(`/subjects?department=${departmentId}&year=${student.year}&section=${student.section}`)
       
       let studentSubjects: Subject[] = []
       if (subjectsResponse.success && subjectsResponse.data) {

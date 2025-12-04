@@ -50,7 +50,7 @@ interface Assignment {
   teachingDepartment: string
   section: string
   credits: number
-  semester: string
+  semester: number
   academicYear: string
   isExternal: boolean
   isPrimary: boolean
@@ -150,7 +150,7 @@ export default function FacultyAssignmentManagement() {
               teachingDepartment: subject.department,
               section: subject.section,
               credits: subject.credits,
-              semester: subject.semester.toString(),
+              semester: subject.semester,
               academicYear: subject.academicYear,
               isExternal: fac.isExternal,
               isPrimary: fac.isPrimary

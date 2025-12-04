@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import apiService from '../services/api'
 import SubjectsManagementView from './SubjectsManagementView'
 import MCQGeneratorV3 from './MCQGeneratorV3'
+import AnalyticsDashboard from './AnalyticsDashboard'
 
 interface User {
   id: string
@@ -1712,138 +1713,16 @@ export default function TeacherDashboard({ activeTab: propActiveTab, onTabChange
 
         {/* Analytics Tab */}
         {activeTab === 'analytics' && (
-          <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold text-gray-800">📈 Student Analytics</h2>
-              <button 
-                onClick={loadStudentPerformances}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                🔄 Refresh Analytics
-              </button>
-            </div>
-
-            {/* Performance Overview */}
-            <div className="grid md:grid-cols-3 gap-6">
-              <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-green-500">
-                <div className="flex items-center">
-                  <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
-                    <span className="text-green-600 text-lg">🎯</span>
-                  </div>
-                  <div className="ml-4">
-                    <h3 className="text-lg font-semibold text-gray-800">Avg Performance</h3>
-                    <p className="text-3xl font-bold text-green-600">
-                      {studentPerformances.length > 0 
-                        ? Math.round(studentPerformances.reduce((acc, p) => acc + p.averageScore, 0) / studentPerformances.length)
-                        : 0}%
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-blue-500">
-                <div className="flex items-center">
-                  <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                    <span className="text-blue-600 text-lg">📝</span>
-                  </div>
-                  <div className="ml-4">
-                    <h3 className="text-lg font-semibold text-gray-800">Tasks Completed</h3>
-                    <p className="text-3xl font-bold text-blue-600">
-                      {taskAssignments.filter(t => t.status === 'completed').length}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-orange-500">
-                <div className="flex items-center">
-                  <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
-                    <span className="text-orange-600 text-lg">⏳</span>
-                  </div>
-                  <div className="ml-4">
-                    <h3 className="text-lg font-semibold text-gray-800">Pending Tasks</h3>
-                    <p className="text-3xl font-bold text-orange-600">
-                      {taskAssignments.filter(t => t.status !== 'completed').length}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Student Performance Details */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <h3 className="text-lg font-bold mb-4">👥 Individual Student Performance</h3>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="text-left py-3 px-4 font-medium text-gray-700">Student</th>
-                      <th className="text-left py-3 px-4 font-medium text-gray-700">Avg Score</th>
-                      <th className="text-left py-3 px-4 font-medium text-gray-700">Weak Areas</th>
-                      <th className="text-left py-3 px-4 font-medium text-gray-700">Strong Areas</th>
-                      <th className="text-left py-3 px-4 font-medium text-gray-700">Recommendations</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {studentPerformances.map((performance) => {
-                      const student = myStudents.find(s => s.id === performance.studentId)
-                      return (
-                        <tr key={performance._id} className="hover:bg-gray-50">
-                          <td className="py-3 px-4">
-                            <div>
-                              <p className="font-medium text-gray-800">{student?.name || 'Unknown'}</p>
-                              <p className="text-sm text-gray-600">{student?.studentId}</p>
-                            </div>
-                          </td>
-                          <td className="py-3 px-4">
-                            <div className="flex items-center">
-                              <span className={`text-lg font-bold ${
-                                performance.averageScore >= 80 ? 'text-green-600' :
-                                performance.averageScore >= 60 ? 'text-yellow-600' :
-                                'text-red-600'
-                              }`}>
-                                {Math.round(performance.averageScore)}%
-                              </span>
-                            </div>
-                          </td>
-                          <td className="py-3 px-4">
-                            <div className="flex flex-wrap gap-1">
-                              {performance.weakChapters.slice(0, 2).map((chapter, idx) => (
-                                <span key={idx} className="bg-red-100 text-red-800 px-2 py-1 rounded text-xs">
-                                  {chapter}
-                                </span>
-                              ))}
-                            </div>
-                          </td>
-                          <td className="py-3 px-4">
-                            <div className="flex flex-wrap gap-1">
-                              {performance.strongChapters.slice(0, 2).map((chapter, idx) => (
-                                <span key={idx} className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs">
-                                  {chapter}
-                                </span>
-                              ))}
-                            </div>
-                          </td>
-                          <td className="py-3 px-4">
-                            <p className="text-sm text-gray-600 truncate max-w-48">
-                              {performance.recommendations[0] || 'No recommendations yet'}
-                            </p>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-              
-              {studentPerformances.length === 0 && (
-                <div className="text-center py-8 text-gray-500">
-                  <p className="text-lg font-medium">No performance data available</p>
-                  <p className="text-sm">Students need to complete tasks to generate analytics</p>
-                </div>
-              )}
-            </div>
-          </div>
+          <AnalyticsDashboard 
+            userRole="faculty" 
+            currentUser={user ? {
+              id: user._id || user.id,
+              email: user.email,
+              role: user.role,
+              department: typeof user.department === 'string' ? user.department : user.department?.name,
+              subjects: mySubjects.map(s => s._id)
+            } : undefined}
+          />
         )}
 
         {/* Schedule Tab */}

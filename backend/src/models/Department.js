@@ -166,9 +166,7 @@ departmentSchema.virtual('totalSubjects', {
   match: { status: 'Active' }
 });
 
-// Indexes for better performance
-departmentSchema.index({ name: 1 });
-departmentSchema.index({ code: 1 });
+// Indexes for better performance (name and code already have unique indexes)
 departmentSchema.index({ status: 1 });
 departmentSchema.index({ hod: 1 });
 

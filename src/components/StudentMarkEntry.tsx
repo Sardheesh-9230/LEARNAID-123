@@ -30,7 +30,7 @@ interface Subject {
   type: 'Core' | 'Elective' | 'Open Elective' | 'TCPL' | 'TCPR' | 'Problem Elective'
   year: string
   section: string
-  semester: string
+  semester: number
   department: {
     _id: string
     name: string

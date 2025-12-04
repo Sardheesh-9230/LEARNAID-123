@@ -5,6 +5,7 @@ import AdminLayout from '@/components/AdminLayout';
 import AdminDashboardOverview from '@/components/AdminDashboardOverview';
 import HierarchicalDepartmentManagement from '@/components/HierarchicalDepartmentManagement';
 import UserManagement from '@/components/UserManagement';
+import AnalyticsDashboard from '@/components/AnalyticsDashboard';
 
 export default function AdminPage() {
   const [activeSection, setActiveSection] = useState('dashboard');
@@ -17,6 +18,8 @@ export default function AdminPage() {
         return <HierarchicalDepartmentManagement />;
       case 'users':
         return <UserManagement />;
+      case 'analytics':
+        return <AnalyticsDashboard userRole="admin" />;
       case 'subjects':
         return <div className="text-center text-gray-600 py-20">Subject Management - Coming Soon</div>;
       case 'faculty-assignment':
