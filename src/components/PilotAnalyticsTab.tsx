@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import apiService from '../services/api'
+import { exportComplexDataToExcel } from '../utils/excelExport'
 
 interface PilotAnalytics {
   totalUsers: number
@@ -191,14 +192,14 @@ export default function PilotAnalyticsTab() {
       }
     }
 
-    const dataStr = JSON.stringify(researchData, null, 2)
-    const dataBlob = new Blob([dataStr], { type: 'application/json' })
-    const url = URL.createObjectURL(dataBlob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `learnaid_pilot_study_data_${new Date().toISOString().split('T')[0]}.json`
-    link.click()
-    URL.revokeObjectURL(url)
+    const filename = `learnaid_pilot_study_data_${new Date().toISOString().split('T')[0]}`
+    const success = exportComplexDataToExcel(researchData, filename)
+    
+    if (success) {
+      alert('📊 Research data exported successfully to Excel!')
+    } else {
+      alert('❌ Failed to export research data')
+    }
   }
 
   if (loading) {

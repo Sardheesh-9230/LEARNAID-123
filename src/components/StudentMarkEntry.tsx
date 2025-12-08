@@ -7,6 +7,7 @@ import {
   FiAlertTriangle, FiPlus, FiDownload, FiSearch
 } from 'react-icons/fi'
 import apiService from '../services/api'
+import { exportComplexDataToExcel } from '../utils/excelExport'
 
 interface Student {
   _id: string
@@ -1050,9 +1051,28 @@ export default function StudentMarkEntry({ preSelectedSubject, preSelectedStuden
 
   const exportMarks = async () => {
     try {
-      // This would generate and download marks report
-      console.log('Exporting marks for:', { selectedSubject, selectedExamType })
-      setSuccess('Marks exported successfully')
+      // Generate marks report for export
+      const reportData = {
+        subject: selectedSubject,
+        examType: selectedExamType,
+        marks: editingMarks,
+        students: filteredStudents.map(s => ({
+          id: s._id,
+          name: s.name,
+          rollNumber: s.rollNumber,
+          marks: editingMarks[s._id] || 'Not entered'
+        })),
+        timestamp: new Date().toISOString()
+      }
+      
+      const filename = `marks_${selectedExamType}_${new Date().toISOString().split('T')[0]}`
+      const success = exportComplexDataToExcel(reportData, filename)
+      
+      if (success) {
+        setSuccess('Marks exported successfully to Excel!')
+      } else {
+        setError('Failed to export marks')
+      }
     } catch (err: any) {
       setError('Failed to export marks')
     }

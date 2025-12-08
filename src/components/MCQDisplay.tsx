@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { FiCheck, FiX, FiDownload, FiCopy, FiEdit2, FiTrash2 } from 'react-icons/fi';
+import { exportToExcel } from '../utils/excelExport';
 
 interface MCQ {
   question: string;
@@ -57,14 +58,14 @@ export default function MCQDisplay({ mcqs, onClose, metadata }: MCQDisplayProps)
   };
 
   const exportToJSON = () => {
-    const dataStr = JSON.stringify(mcqs, null, 2);
-    const dataBlob = new Blob([dataStr], { type: 'application/json' });
-    const url = URL.createObjectURL(dataBlob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `mcqs-${metadata?.topic || 'questions'}-${Date.now()}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
+    const filename = `mcqs-${metadata?.topic || 'questions'}-${Date.now()}`;
+    const success = exportToExcel(mcqs, filename, 'MCQ Questions');
+    
+    if (success) {
+      alert('📊 MCQs exported successfully to Excel!');
+    } else {
+      alert('❌ Failed to export MCQs');
+    }
   };
 
   const copyToClipboard = () => {

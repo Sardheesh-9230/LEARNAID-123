@@ -16,6 +16,7 @@ import {
 import { Bar, Doughnut, Line } from 'react-chartjs-2'
 import apiService from '../services/api'
 import SystemMetricsTable from './SystemMetricsTable'
+import { exportComplexDataToExcel } from '../utils/excelExport'
 
 ChartJS.register(
   CategoryScale,
@@ -1218,18 +1219,17 @@ export default function AnalyticsDashboard({ userRole, currentUser }: AnalyticsD
         <div className="flex flex-wrap gap-3">
           <button
             onClick={() => {
-              const data = JSON.stringify(analytics, null, 2)
-              const blob = new Blob([data], { type: 'application/json' })
-              const url = URL.createObjectURL(blob)
-              const link = document.createElement('a')
-              link.href = url
-              link.download = `learnaid_${userRole === 'admin' ? 'pilot_study' : 'student_performance'}_${new Date().toISOString().split('T')[0]}.json`
-              link.click()
-              URL.revokeObjectURL(url)
+              const filename = `learnaid_${userRole === 'admin' ? 'pilot_study' : 'student_performance'}_${new Date().toISOString().split('T')[0]}`;
+              const success = exportComplexDataToExcel(analytics, filename);
+              if (success) {
+                alert('Data exported successfully to Excel!');
+              } else {
+                alert('Failed to export data');
+              }
             }}
             className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
           >
-            {userRole === 'admin' ? '📊 Export Research Data' : '📊 Export Performance Data'}
+            {userRole === 'admin' ? '📊 Export Research Data (Excel)' : '📊 Export Performance Data (Excel)'}
           </button>
           <button
             onClick={() => window.print()}

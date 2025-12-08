@@ -7,6 +7,7 @@ import {
   FiDownload, FiFilter, FiRefreshCw
 } from 'react-icons/fi'
 import apiService from '../services/api'
+import { exportComplexDataToExcel } from '../utils/excelExport'
 
 interface StudentPerformance {
   studentId: string
@@ -150,19 +151,14 @@ export default function TotalMarksAnalytics({ examId, subjectId, courseId }: Tot
         timestamp: new Date().toISOString()
       }
       
-      // Convert to CSV or PDF
-      console.log('Exporting analytics report:', reportData)
+      const filename = `performance_analytics_${new Date().toISOString().split('T')[0]}`
+      const success = exportComplexDataToExcel(reportData, filename)
       
-      // For now, we'll create a downloadable JSON
-      const dataStr = JSON.stringify(reportData, null, 2)
-      const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr)
-      const exportFileDefaultName = `performance_analytics_${new Date().toISOString().split('T')[0]}.json`
-      
-      const linkElement = document.createElement('a')
-      linkElement.setAttribute('href', dataUri)
-      linkElement.setAttribute('download', exportFileDefaultName)
-      linkElement.click()
-      
+      if (success) {
+        alert('📊 Analytics exported successfully to Excel!')
+      } else {
+        setError('Failed to export analytics')
+      }
     } catch (err: any) {
       setError('Failed to export analytics')
     }

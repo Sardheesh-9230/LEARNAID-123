@@ -7,6 +7,7 @@ import {
   FiDownload, FiFilter, FiRefreshCw, FiEye, FiCalendar
 } from 'react-icons/fi'
 import apiService from '../services/api'
+import { exportComplexDataToExcel } from '../utils/excelExport'
 import TaskNotificationSystem, { useTaskNotifications } from './TaskNotificationSystem'
 import COAnalysis from './COAnalysis'
 
@@ -420,14 +421,14 @@ export default function StudentMarksAnalytics({ studentId }: StudentMarksAnalyti
       generatedAt: new Date().toISOString()
     }
     
-    const dataStr = JSON.stringify(reportData, null, 2)
-    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr)
-    const exportFileDefaultName = `student_marks_report_${new Date().toISOString().split('T')[0]}.json`
+    const filename = `student_marks_report_${new Date().toISOString().split('T')[0]}`
+    const success = exportComplexDataToExcel(reportData, filename)
     
-    const linkElement = document.createElement('a')
-    linkElement.setAttribute('href', dataUri)
-    linkElement.setAttribute('download', exportFileDefaultName)
-    linkElement.click()
+    if (success) {
+      alert('📊 Student marks report exported successfully to Excel!')
+    } else {
+      alert('❌ Failed to export report')
+    }
   }
 
   const filteredPerformance = subjectPerformance.filter(p => 
