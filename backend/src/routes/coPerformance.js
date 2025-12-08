@@ -1,6 +1,6 @@
 const express = require('express');
 const {
-  analyzeCOPerformanceAndAssignTasks,
+  analyzeLaggingCOsAndAssignTasks,
   getStudentCOPerformance,
   getSubjectCOAnalysis
 } = require('../controllers/coPerformanceController');
@@ -44,7 +44,7 @@ const router = express.Router();
  *       500:
  *         description: Server error
  */
-router.post('/analyze', protect, analyzeCOPerformanceAndAssignTasks);
+router.post('/analyze-lagging-cos', protect, analyzeLaggingCOsAndAssignTasks);
 
 /**
  * @swagger

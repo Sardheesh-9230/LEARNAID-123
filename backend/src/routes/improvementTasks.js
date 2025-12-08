@@ -50,19 +50,39 @@ router.post('/assign-improvement', protect, async (req, res) => {
       })
     }
 
-    // Check if similar task already exists (avoid duplicates)
-    const existingTask = await ImprovementTask.findOne({
+    // Check if similar improvement task already exists (avoid duplicates)
+    const existingImprovementTask = await ImprovementTask.findOne({
       student: studentId,
       subject: subjectId,
       taskType: 'CO_IMPROVEMENT',
       status: { $in: ['Assigned', 'In Progress'] }
     })
 
-    if (existingTask) {
+    if (existingImprovementTask) {
       return res.status(200).json({
         success: true,
         message: 'Similar improvement task already exists',
-        data: existingTask
+        data: existingImprovementTask
+      })
+    }
+
+    // Check if there's already a CO-based learning task assigned for this subject
+    const Task = require('../models/Task')
+    const existingLearningTask = await Task.findOne({
+      subject: subjectId,
+      'assignedStudents.student': studentId,
+      'assignedStudents.status': { $in: ['assigned', 'studying', 'in-progress'] }
+    })
+
+    if (existingLearningTask) {
+      return res.status(200).json({
+        success: true,
+        message: 'Student already has an active learning task for this subject',
+        data: { 
+          taskType: 'learning_task', 
+          taskId: existingLearningTask._id,
+          title: existingLearningTask.title 
+        }
       })
     }
 

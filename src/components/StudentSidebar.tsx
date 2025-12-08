@@ -194,9 +194,17 @@ export default function StudentSidebar({ activeTab, onTabChange, isExpanded = tr
       badge: null
     },
     {
+      id: 'learning-tasks',
+      title: 'Learning Tasks',
+      icon: '🎯',
+      description: 'CO-based MCQ Tasks',
+      color: 'from-teal-500 to-cyan-600',
+      badge: notifications > 0 ? notifications.toString() : null
+    },
+    {
       id: 'improvement-tasks',
       title: 'Improvement Tasks',
-      icon: '🎯',
+      icon: '📋',
       description: 'Auto-assigned tasks',
       color: 'from-red-500 to-pink-600',
       badge: 'NEW'

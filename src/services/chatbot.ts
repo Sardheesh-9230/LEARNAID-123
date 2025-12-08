@@ -13,31 +13,38 @@ export interface ChatBotResponse {
   error?: string;
 }
 
-class ChatBotService {
+export class ChatBotService {
   private apiUrl = '/api/chatbot';
 
   async sendMessage(message: string, context?: string): Promise<ChatBotResponse> {
     try {
-      const response = await fetch(this.apiUrl, {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('Authentication token not found');
+      }
+
+      const response = await fetch(`${this.apiUrl}/query`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({
-          message,
+          question: message,
           context,
           timestamp: new Date().toISOString(),
         }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to send message to chatbot');
+        const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
+        throw new Error(errorData.message || `HTTP ${response.status}: Failed to send message to chatbot`);
       }
 
       const data = await response.json();
       return {
         success: true,
-        message: data.message || 'Response received',
+        message: data.response || data.message || 'Response received',
         data: data,
       };
     } catch (error) {

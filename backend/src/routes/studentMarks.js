@@ -410,4 +410,102 @@ async function processStudentAnalytics(marks, studentId) {
   }
 }
 
+// Auto-assign improvement tasks for poor CO performance
+const autoAssignImprovementTasks = async (studentId, marks) => {
+  try {
+    const ImprovementTask = require('../models/ImprovementTask');
+    
+    // Calculate CO-wise performance
+    const coPerformance = {};
+    
+    marks.forEach(mark => {
+      ['CO1', 'CO2', 'CO3', 'CO4', 'CO5'].forEach(co => {
+        if (mark[`${co.toLowerCase()}Marks`] !== undefined && mark[`${co.toLowerCase()}MaxMarks`] !== undefined) {
+          const percentage = (mark[`${co.toLowerCase()}Marks`] / mark[`${co.toLowerCase()}MaxMarks`]) * 100;
+          
+          if (!coPerformance[co]) {
+            coPerformance[co] = { total: 0, count: 0, subjects: new Set() };
+          }
+          
+          coPerformance[co].total += percentage;
+          coPerformance[co].count += 1;
+          coPerformance[co].subjects.add(mark.subject._id.toString());
+        }
+      });
+    });
+    
+    // Check for COs with poor performance (< 50%)
+    for (const [co, data] of Object.entries(coPerformance)) {
+      const averagePerformance = data.total / data.count;
+      
+      if (averagePerformance < 50 && data.count >= 2) { // Poor performance with at least 2 assessments
+        // Find the subject with lowest CO performance
+        let worstSubject = null;
+        let lowestPerformance = 100;
+        
+        for (const subjectId of data.subjects) {
+          const subjectMarks = marks.filter(m => m.subject._id.toString() === subjectId);
+          const subjectCoPerf = subjectMarks.reduce((sum, mark) => {
+            const coMarks = mark[`${co.toLowerCase()}Marks`];
+            const coMaxMarks = mark[`${co.toLowerCase()}MaxMarks`];
+            return sum + ((coMarks / coMaxMarks) * 100);
+          }, 0) / subjectMarks.length;
+          
+          if (subjectCoPerf < lowestPerformance) {
+            lowestPerformance = subjectCoPerf;
+            worstSubject = subjectId;
+          }
+        }
+        
+        if (worstSubject && lowestPerformance < 50) {
+          // Check if improvement task already exists
+          const existingTask = await ImprovementTask.findOne({
+            student: studentId,
+            subject: worstSubject,
+            status: { $in: ['Assigned', 'In Progress'] }
+          });
+          
+          if (!existingTask) {
+            // Auto-assign improvement task
+            const subject = await Subject.findById(worstSubject);
+            
+            const improvementTask = new ImprovementTask({
+              student: studentId,
+              subject: worstSubject,
+              assignedBy: null, // System assigned
+              taskType: 'CO_IMPROVEMENT',
+              title: `${co} Performance Improvement - ${subject?.name || 'Subject'}`,
+              description: `Your ${co} performance (${lowestPerformance.toFixed(1)}%) needs improvement. Complete this task to strengthen your understanding.`,
+              priority: lowestPerformance < 30 ? 'HIGH' : 'MEDIUM',
+              status: 'Assigned',
+              dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
+              
+              metadata: {
+                currentPerformance: lowestPerformance,
+                targetPerformance: 60,
+                studyTimeMinutes: 90,
+                weakAreas: [co],
+                autoAssigned: true,
+                assignmentReason: `Poor ${co} performance (${lowestPerformance.toFixed(1)}%)`
+              },
+              
+              requirements: [
+                `Complete ${co}-focused practice questions`,
+                'Review course materials related to this outcome',
+                'Achieve at least 60% in the practice assessment'
+              ]
+            });
+            
+            await improvementTask.save();
+            console.log(`Auto-assigned improvement task for student ${studentId}, subject ${worstSubject}, CO: ${co}`);
+          }
+        }
+      }
+    }
+    
+  } catch (error) {
+    console.error('Error in auto-assigning improvement tasks:', error);
+  }
+};
+
 module.exports = router

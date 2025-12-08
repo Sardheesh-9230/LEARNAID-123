@@ -113,14 +113,14 @@ exports.createChapter = async (req, res, next) => {
  */
 exports.getChapters = async (req, res, next) => {
   try {
-    const { course, status } = req.query;
+    const { subject, status } = req.query;
 
     const filter = {};
-    if (course) filter.course = course;
+    if (subject) filter.subject = subject;
     if (status) filter.status = status;
 
     const chapters = await Chapter.find(filter)
-      .populate('course', 'name code')
+      .populate('subject', 'name code')
       .populate('pdfFile', 'filename originalname fileSize filePath')
       .populate('resources.fileId', 'filename originalname fileSize')
       .sort({ displayOrder: 1, chapterNumber: 1 });

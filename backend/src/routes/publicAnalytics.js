@@ -132,8 +132,8 @@ router.get('/faculty-statistics/:facultyId', async (req, res) => {
     
     const facultyId = req.params.facultyId;
     
-    // Get faculty's subjects
-    const facultySubjects = await Subject.find({ faculty: facultyId });
+    // Get faculty's subjects (faculty is an array of objects with user field)
+    const facultySubjects = await Subject.find({ 'faculty.user': facultyId });
     const subjectIds = facultySubjects.map(s => s._id);
     
     console.log('Faculty subjects:', subjectIds);

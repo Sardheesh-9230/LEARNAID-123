@@ -5,6 +5,8 @@ import apiService from '../services/api'
 import SubjectsManagementView from './SubjectsManagementView'
 import MCQGeneratorV3 from './MCQGeneratorV3'
 import AnalyticsDashboard from './AnalyticsDashboard'
+import COPerformanceAnalytics from './COPerformanceAnalytics'
+import FacultyTaskManagement from './FacultyTaskManagement'
 
 interface User {
   id: string
@@ -124,6 +126,8 @@ export default function TeacherDashboard({ activeTab: propActiveTab, onTabChange
   const [activeTab, setActiveTab] = useState(propActiveTab || 'overview')
   const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null)
   const [notification, setNotification] = useState<{message: string, type: 'success' | 'error'} | null>(null)
+  const [analyticsView, setAnalyticsView] = useState('overview')
+  const [selectedExamType, setSelectedExamType] = useState<string>('')
 
   // Sync external activeTab changes
   useEffect(() => {
@@ -1606,123 +1610,63 @@ export default function TeacherDashboard({ activeTab: propActiveTab, onTabChange
           </div>
         )}
 
-        {/* Smart Tasks Tab */}
+        {/* Learning Tasks Tab */}
         {activeTab === 'tasks' && (
-          <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold text-gray-800">🎯 Smart Task Assignment</h2>
-              <button 
-                onClick={() => {
-                  loadTaskAssignments()
-                  loadStudentPerformances()
-                }}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                🔄 Refresh Data
-              </button>
-            </div>
-
-            <div className="grid md:grid-cols-2 gap-6">
-              {/* Quick Task Assignment */}
-              <div className="bg-white rounded-xl shadow-lg p-6">
-                <h3 className="text-lg font-bold mb-4">⚡ Quick Assignment</h3>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Select Student
-                    </label>
-                    <select
-                      value={taskForm.studentId}
-                      onChange={(e) => setTaskForm({...taskForm, studentId: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                    >
-                      <option value="">Choose a student</option>
-                      {myStudents.map(student => (
-                        <option key={student.id} value={student.id}>
-                          {student.name} - {student.studentId}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Select PDF Content
-                    </label>
-                    <select
-                      value={taskForm.pdfId}
-                      onChange={(e) => setTaskForm({...taskForm, pdfId: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                    >
-                      <option value="">Choose PDF content</option>
-                      {uploadedPDFs.map(pdf => (
-                        <option key={pdf._id} value={pdf._id}>
-                          {pdf.originalname}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <button
-                    onClick={() => {
-                      if (taskForm.studentId && taskForm.pdfId) {
-                        handleAssignTask(taskForm.studentId, taskForm.pdfId)
-                        setTaskForm({studentId: '', pdfId: '', instructions: ''})
-                      }
-                    }}
-                    disabled={!taskForm.studentId || !taskForm.pdfId}
-                    className="w-full bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors disabled:bg-gray-400"
-                  >
-                    Assign Task
-                  </button>
-                </div>
-              </div>
-
-              {/* Task Status */}
-              <div className="bg-white rounded-xl shadow-lg p-6">
-                <h3 className="text-lg font-bold mb-4">📊 Task Status</h3>
-                <div className="space-y-3">
-                  {taskAssignments.slice(0, 5).map((task) => {
-                    const student = myStudents.find(s => s.id === task.studentId)
-                    return (
-                      <div key={task._id} className="border border-gray-200 rounded-lg p-3">
-                        <div className="flex justify-between items-center">
-                          <div>
-                            <p className="font-medium text-gray-800">{student?.name || 'Unknown'}</p>
-                            <p className="text-sm text-gray-500">
-                              Assigned: {new Date(task.assignedDate).toLocaleDateString()}
-                            </p>
-                          </div>
-                          <span className={`px-2 py-1 rounded text-xs ${
-                            task.status === 'completed' ? 'bg-green-100 text-green-800' :
-                            task.status === 'in_progress' ? 'bg-yellow-100 text-yellow-800' :
-                            'bg-blue-100 text-blue-800'
-                          }`}>
-                            {task.status.replace('_', ' ')}
-                          </span>
-                        </div>
-                      </div>
-                    )
-                  })}
-                  {taskAssignments.length === 0 && (
-                    <p className="text-gray-500 text-center py-4">No tasks assigned yet</p>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
+          <FacultyTaskManagement />
         )}
 
         {/* Analytics Tab */}
         {activeTab === 'analytics' && (
-          <AnalyticsDashboard 
-            userRole="faculty" 
-            currentUser={user ? {
-              id: user._id || user.id,
-              email: user.email,
-              role: user.role,
-              department: typeof user.department === 'string' ? user.department : user.department?.name,
-              subjects: mySubjects.map(s => s._id)
-            } : undefined}
-          />
+          <div className="space-y-6">
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-gray-800">Performance Analytics</h2>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setAnalyticsView('overview')}
+                    className={`px-4 py-2 rounded ${
+                      analyticsView === 'overview' 
+                        ? 'bg-blue-500 text-white' 
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    Overview
+                  </button>
+                  <button
+                    onClick={() => setAnalyticsView('co-performance')}
+                    className={`px-4 py-2 rounded ${
+                      analyticsView === 'co-performance' 
+                        ? 'bg-blue-500 text-white' 
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    CO Performance
+                  </button>
+                </div>
+              </div>
+
+              {analyticsView === 'overview' && (
+                <AnalyticsDashboard 
+                  userRole="faculty" 
+                  currentUser={user ? {
+                    id: user._id || user.id,
+                    email: user.email,
+                    role: user.role,
+                    department: typeof user.department === 'string' ? user.department : user.department?.name,
+                    subjects: mySubjects.map(s => s._id)
+                  } : undefined}
+                />
+              )}
+
+              {analyticsView === 'co-performance' && user && (
+                <COPerformanceAnalytics 
+                  facultyId={user._id || user.id}
+                  selectedSubject={selectedSubject?._id}
+                  selectedExamType={selectedExamType}
+                />
+              )}
+            </div>
+          </div>
         )}
 
         {/* Schedule Tab */}

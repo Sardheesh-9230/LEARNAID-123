@@ -39,6 +39,7 @@ const studentMarksRoutes = require('./routes/studentMarks'); // Student Marks An
 const improvementTasksRoutes = require('./routes/improvementTasks'); // Improvement Tasks
 const coPerformanceRoutes = require('./routes/coPerformance'); // CO Performance Analysis
 const publicAnalyticsRoutes = require('./routes/publicAnalytics'); // Public Analytics (no auth required)
+const coAnalyticsRoutes = require('./routes/coAnalytics'); // CO-wise Analytics for Faculty
 
 // Student Module Routes
 const chatbotRoutes = require('./routes/chatbot');
@@ -146,6 +147,7 @@ app.use('/api/co-performance', coPerformanceRoutes); // CO Performance Analysis 
 app.use('/api/student-marks', studentMarkEntryRoutes); // Student Mark Entry System
 app.use('/api/student-analytics', studentMarksRoutes); // Student Marks Analytics & Retrieval
 app.use('/api/public-analytics', publicAnalyticsRoutes); // Public Analytics (no authentication required)
+app.use('/api/co-analytics', coAnalyticsRoutes); // CO-wise Performance Analytics for Faculty
 
 // Student Module Routes
 app.use('/api/chatbot', chatbotRoutes);
