@@ -10,7 +10,8 @@ const {
   getChapterWisePerformance,
   getWeakStudentsByChapter,
   getExamPerformance,
-  deleteMarks
+  deleteMarks,
+  getCOAnalysisBySubject
 } = require('../controllers/examMarksController');
 const { protect, authorize } = require('../middleware/auth');
 
@@ -32,6 +33,7 @@ router.get('/exam/:examId', authorize('Faculty', 'Admin'), getMarksByExam);
 router.get('/exam/:examId/chapter-performance', authorize('Faculty', 'Admin'), getChapterWisePerformance);
 router.get('/exam/:examId/weak-students', authorize('Faculty', 'Admin'), getWeakStudentsByChapter);
 router.get('/exam/:examId/performance', authorize('Faculty', 'Admin'), getExamPerformance);
+router.get('/co-analysis/subject/:subjectId', authorize('Faculty', 'Admin'), getCOAnalysisBySubject);
 
 // POST routes
 router.post('/', authorize('Faculty', 'Admin'), marksValidation, enterMarks);

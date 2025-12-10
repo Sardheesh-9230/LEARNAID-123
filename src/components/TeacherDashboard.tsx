@@ -7,6 +7,8 @@ import MCQGeneratorV3 from './MCQGeneratorV3'
 import AnalyticsDashboard from './AnalyticsDashboard'
 import COPerformanceAnalytics from './COPerformanceAnalytics'
 import FacultyTaskManagement from './FacultyTaskManagement'
+import COBasedStudentIdentification from './COBasedStudentIdentification'
+import FacultyMCQTaskIntegration from './FacultyMCQTaskIntegration'
 
 interface User {
   id: string
@@ -44,6 +46,16 @@ interface Subject {
   }[]
   maxStudents: number
   enrolledStudents?: string[]
+  schedule?: {
+    lecturesPerWeek?: number
+    duration?: number
+    timeSlots?: Array<{
+      day: string
+      startTime: string
+      endTime: string
+      room?: string
+    }>
+  }
 }
 
 interface Note {
@@ -168,6 +180,10 @@ export default function TeacherDashboard({ activeTab: propActiveTab, onTabChange
   const [showMCQViewer, setShowMCQViewer] = useState(false)
   const [showTaskManager, setShowTaskManager] = useState(false)
   const [showAnalytics, setShowAnalytics] = useState(false)
+  const [showCOIdentification, setShowCOIdentification] = useState(false)
+  const [coIdentificationSubject, setCOIdentificationSubject] = useState<Subject | null>(null)
+  const [showMCQTaskIntegration, setShowMCQTaskIntegration] = useState(false)
+  const [mcqTaskIntegrationSubject, setMCQTaskIntegrationSubject] = useState<Subject | null>(null)
 
   // Form states
   const [assignmentForm, setAssignmentForm] = useState({
@@ -260,7 +276,7 @@ export default function TeacherDashboard({ activeTab: propActiveTab, onTabChange
   }
 
   const handleTabSwipe = (direction: 'left' | 'right') => {
-    const tabs = ['overview', 'subjects', 'students', 'assignments', 'mcq', 'tasks', 'analytics', 'schedule']
+    const tabs = ['overview', 'subjects', 'students', 'assignments', 'mcq', 'mcq-manager', 'tasks', 'analytics', 'schedule']
     const currentIndex = tabs.indexOf(activeTab)
     
     if (direction === 'right' && currentIndex < tabs.length - 1) {
@@ -1366,7 +1382,7 @@ export default function TeacherDashboard({ activeTab: propActiveTab, onTabChange
                         ? 'bg-gradient-to-r from-gray-700/50 to-gray-800/50 hover:from-gray-600/50 hover:to-gray-700/50 border border-gray-600/30' 
                         : 'bg-gradient-to-r from-white/70 to-gray-50/70 hover:from-white/90 hover:to-gray-50/90 border border-gray-200/50'
                     } backdrop-blur-sm shadow-lg hover:shadow-xl`}
-                    onClick={() => setActiveTab('subjects')}
+                    onClick={() => setSelectedSubject(subject)}
                     style={{ animationDelay: `${index * 100}ms` }}
                   >
                     <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 to-purple-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
@@ -1418,6 +1434,23 @@ export default function TeacherDashboard({ activeTab: propActiveTab, onTabChange
                         ></div>
                       </div>
                     </div>
+
+                    {/* Schedule Preview */}
+                    {subject.schedule && subject.schedule.timeSlots && subject.schedule.timeSlots.length > 0 && (
+                      <div className="mt-3 flex items-center gap-2 text-xs">
+                        <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span className={isDarkMode ? 'text-gray-300' : 'text-gray-600'}>
+                          {subject.schedule.timeSlots.length} class{subject.schedule.timeSlots.length > 1 ? 'es' : ''}/week
+                          {subject.schedule.timeSlots[0] && (
+                            <span className="ml-2 font-medium">
+                              • Next: {subject.schedule.timeSlots[0].day} {subject.schedule.timeSlots[0].startTime}
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -1610,9 +1643,93 @@ export default function TeacherDashboard({ activeTab: propActiveTab, onTabChange
           </div>
         )}
 
+        {/* MCQ Manager Tab - Integration of MCQ Generator & Task Manager */}
+        {activeTab === 'mcq-manager' && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-800">MCQ Generator & Task Manager</h2>
+                <p className="text-gray-600 mt-1">Generate MCQs and manage improvement tasks for students</p>
+              </div>
+            </div>
+
+            {/* Subject Selector */}
+            <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-2xl p-6">
+              <label className="block text-sm font-medium text-gray-700 mb-3">
+                Select Subject to Manage MCQs and Tasks
+              </label>
+              <select
+                onChange={(e) => {
+                  const subject = mySubjects.find(s => s._id === e.target.value)
+                  if (subject) {
+                    setMCQTaskIntegrationSubject(subject)
+                    setShowMCQTaskIntegration(true)
+                  }
+                }}
+                className="w-full px-4 py-3 rounded-lg border border-purple-300 bg-white text-gray-900 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              >
+                <option value="">Choose a subject...</option>
+                {mySubjects.map((subject) => (
+                  <option key={subject._id} value={subject._id}>
+                    {subject.name} ({subject.code}) - Section {subject.section}
+                  </option>
+                ))}
+              </select>
+              <p className="text-sm text-gray-600 mt-3">
+                💡 Select a subject to access MCQ generation, task management, and student improvement tracking
+              </p>
+            </div>
+
+            {/* Quick Info Cards */}
+            <div className="grid md:grid-cols-3 gap-4">
+              <div className="bg-white rounded-xl p-6 shadow-md border border-gray-200">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="p-2 bg-purple-100 rounded-lg">
+                    <span className="text-2xl">🧠</span>
+                  </div>
+                  <h3 className="font-semibold text-gray-800">Generate MCQs</h3>
+                </div>
+                <p className="text-sm text-gray-600">
+                  Create AI-powered multiple choice questions from study materials
+                </p>
+              </div>
+
+              <div className="bg-white rounded-xl p-6 shadow-md border border-gray-200">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="p-2 bg-orange-100 rounded-lg">
+                    <span className="text-2xl">🎯</span>
+                  </div>
+                  <h3 className="font-semibold text-gray-800">Identify Students</h3>
+                </div>
+                <p className="text-sm text-gray-600">
+                  Find lagging students based on Course Outcome performance
+                </p>
+              </div>
+
+              <div className="bg-white rounded-xl p-6 shadow-md border border-gray-200">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="p-2 bg-green-100 rounded-lg">
+                    <span className="text-2xl">📊</span>
+                  </div>
+                  <h3 className="font-semibold text-gray-800">Assign Tasks</h3>
+                </div>
+                <p className="text-sm text-gray-600">
+                  Automatically assign improvement tasks with generated MCQs
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Learning Tasks Tab */}
         {activeTab === 'tasks' && (
-          <FacultyTaskManagement />
+          <FacultyTaskManagement 
+            mySubjects={mySubjects as any}
+            onOpenCOIdentification={(subject: any) => {
+              setCOIdentificationSubject(subject)
+              setShowCOIdentification(true)
+            }}
+          />
         )}
 
         {/* Analytics Tab */}
@@ -2072,7 +2189,84 @@ export default function TeacherDashboard({ activeTab: propActiveTab, onTabChange
                   </div>
                 </div>
 
+                {/* Schedule/Time Allotment Section */}
+                {selectedSubject.schedule && selectedSubject.schedule.timeSlots && selectedSubject.schedule.timeSlots.length > 0 && (
+                  <div>
+                    <p className="text-sm text-gray-600 mb-2 flex items-center gap-2">
+                      <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      Class Schedule & Time Allotment
+                    </p>
+                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-200">
+                      <div className="space-y-3">
+                        {selectedSubject.schedule.timeSlots.map((slot, index) => (
+                          <div key={index} className="flex items-center justify-between p-3 bg-white rounded-lg shadow-sm">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center">
+                                <span className="text-white font-bold text-xs">{slot.day.substring(0, 3)}</span>
+                              </div>
+                              <div>
+                                <p className="font-semibold text-gray-800 text-sm">{slot.day}</p>
+                                <p className="text-xs text-gray-600">
+                                  {slot.startTime} - {slot.endTime}
+                                  {selectedSubject.schedule?.duration && (
+                                    <span className="ml-2 text-blue-600 font-medium">({selectedSubject.schedule.duration} min)</span>
+                                  )}
+                                </p>
+                              </div>
+                            </div>
+                            {slot.room && (
+                              <div className="text-right">
+                                <p className="text-xs text-gray-500">Room</p>
+                                <p className="font-semibold text-gray-800 text-sm">{slot.room}</p>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                        {selectedSubject.schedule.lecturesPerWeek && (
+                          <div className="mt-2 p-2 bg-purple-100 rounded-lg">
+                            <p className="text-sm text-purple-800 font-medium">
+                              📅 {selectedSubject.schedule.lecturesPerWeek} lectures per week
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {(!selectedSubject.schedule || !selectedSubject.schedule.timeSlots || selectedSubject.schedule.timeSlots.length === 0) && (
+                  <div>
+                    <p className="text-sm text-gray-600 mb-2">Class Schedule</p>
+                    <div className="bg-yellow-50 rounded-lg p-4 border border-yellow-200">
+                      <p className="text-sm text-yellow-800">
+                        ⚠️ No schedule set for this subject. Please contact admin to add class timings.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex gap-3 pt-4">
+                  <button 
+                    onClick={() => {
+                      setCOIdentificationSubject(selectedSubject)
+                      setShowCOIdentification(true)
+                      setSelectedSubject(null)
+                    }}
+                    className="bg-gradient-to-r from-orange-500 to-red-500 text-white px-4 py-2 rounded-lg hover:from-orange-600 hover:to-red-600 transition-colors flex items-center gap-2"
+                  >
+                    🎯 Identify Lagging Students (CO-based)
+                  </button>
+                  <button 
+                    onClick={() => {
+                      setMCQTaskIntegrationSubject(selectedSubject)
+                      setShowMCQTaskIntegration(true)
+                      setSelectedSubject(null)
+                    }}
+                    className="bg-gradient-to-r from-purple-500 to-indigo-500 text-white px-4 py-2 rounded-lg hover:from-purple-600 hover:to-indigo-600 transition-colors flex items-center gap-2"
+                  >
+                    🧠 MCQ Generator & Tasks
+                  </button>
                   <button 
                     onClick={() => {
                       setSelectedSubject(null)
@@ -2093,6 +2287,30 @@ export default function TeacherDashboard({ activeTab: propActiveTab, onTabChange
             </div>
           </div>
         </div>
+      )}
+
+      {/* CO-Based Student Identification Modal */}
+      {showCOIdentification && coIdentificationSubject && user && (
+        <COBasedStudentIdentification
+          subjectId={coIdentificationSubject._id}
+          subjectName={coIdentificationSubject.name}
+          facultyId={user.id || user._id || ''}
+          onClose={() => {
+            setShowCOIdentification(false)
+            setCOIdentificationSubject(null)
+          }}
+        />
+      )}
+
+      {/* MCQ-Task Integration Modal */}
+      {showMCQTaskIntegration && mcqTaskIntegrationSubject && (
+        <FacultyMCQTaskIntegration
+          subjectId={mcqTaskIntegrationSubject._id}
+          onClose={() => {
+            setShowMCQTaskIntegration(false)
+            setMCQTaskIntegrationSubject(null)
+          }}
+        />
       )}
 
       {/* Upload PDF Modal */}

@@ -524,3 +524,216 @@ Requirements:
     });
   }
 };
+
+/**
+ * Generate MCQs from material programmatically (for use by other controllers)
+ * @param {Object} params - Generation parameters
+ * @param {String} params.materialId - Material ID
+ * @param {String} params.topics - Topics to focus on
+ * @param {Number} params.numberOfQuestions - Number of questions to generate
+ * @param {String} params.difficulty - Difficulty level (easy/medium/hard)
+ * @param {String} params.userId - User ID for session creation
+ * @returns {Promise<Object>} - Generation result with session data
+ */
+exports.generateMCQsFromMaterial = async ({ materialId, topics, numberOfQuestions, difficulty, userId }) => {
+  try {
+    console.log(`🔄 Generating ${numberOfQuestions} MCQs from material ${materialId}`);
+    
+    // Find the material
+    const material = await Material.findById(materialId);
+    if (!material) {
+      return {
+        success: false,
+        message: 'Material not found',
+        error: 'MATERIAL_NOT_FOUND'
+      };
+    }
+
+    // Verify PDF exists
+    if (!material.pdfPath) {
+      return {
+        success: false,
+        message: 'No PDF file associated with this material',
+        error: 'NO_PDF_FILE'
+      };
+    }
+
+    const pdfPath = path.resolve(material.pdfPath);
+    
+    if (!fsSync.existsSync(pdfPath)) {
+      return {
+        success: false,
+        message: 'PDF file not found on server',
+        error: 'PDF_FILE_NOT_FOUND'
+      };
+    }
+
+    console.log(`📄 Extracting text from PDF: ${pdfPath}`);
+    
+    // Extract text from PDF
+    const textContent = await extractTextFromPDF(pdfPath);
+    
+    if (!textContent || textContent.trim().length < 100) {
+      return {
+        success: false,
+        message: 'Could not extract sufficient text from PDF',
+        error: 'INSUFFICIENT_TEXT'
+      };
+    }
+
+    console.log(`📝 Extracted ${textContent.length} characters from PDF`);
+
+    // Create chunks
+    const chunks = chunkText(textContent);
+    console.log(`📚 Created ${chunks.length} chunks`);
+
+    // Initialize vector store and add documents
+    const vectorStore = new EnhancedVectorStore();
+    vectorStore.addDocuments(chunks);
+
+    // Search for relevant chunks
+    const relevantChunks = vectorStore.search(topics, Math.min(5, chunks.length));
+    console.log(`🔍 Found ${relevantChunks.length} relevant chunks`);
+
+    if (relevantChunks.length === 0) {
+      return {
+        success: false,
+        message: 'Could not find relevant content in the material',
+        error: 'NO_RELEVANT_CONTENT'
+      };
+    }
+
+    // Combine relevant content
+    const relevantContent = relevantChunks.map(chunk => chunk.content).join('\n\n');
+
+    // Prepare Groq prompt
+    const prompt = `You are an expert educator creating multiple-choice questions.
+
+Based on the following educational content, generate ${numberOfQuestions} multiple-choice questions focused on: ${topics}
+
+Content:
+${relevantContent.substring(0, 4000)}
+
+Requirements:
+- Difficulty level: ${difficulty}
+- Each question must have exactly 4 options (A, B, C, D)
+- Provide the correct answer and a brief explanation
+- Questions should test understanding, not just memory
+- Make questions practical and applicable
+- Ensure questions are clearly worded and unambiguous
+
+Return ONLY a valid JSON array with this exact structure:
+[
+  {
+    "question": "Question text here?",
+    "options": ["Option A", "Option B", "Option C", "Option D"],
+    "correctAnswer": "A",
+    "explanation": "Explanation of why this is correct",
+    "difficulty": "${difficulty}",
+    "bloomsLevel": "understand/apply/analyze"
+  }
+]
+
+IMPORTANT: Return only the JSON array, no additional text or markdown formatting.`;
+
+    console.log('🤖 Calling Groq API...');
+
+    // Call Groq API
+    const completion = await groq.chat.completions.create({
+      messages: [{ role: 'user', content: prompt }],
+      model: 'llama-3.3-70b-versatile',
+      temperature: 0.7,
+      max_tokens: 4000,
+    });
+
+    const response = completion.choices[0]?.message?.content || '';
+    console.log('📥 Received response from Groq');
+
+    // Parse response
+    let mcqs = [];
+    try {
+      const jsonMatch = response.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        mcqs = JSON.parse(jsonMatch[0]);
+      } else {
+        mcqs = JSON.parse(response);
+      }
+    } catch (parseError) {
+      console.error('❌ Failed to parse Groq response:', parseError);
+      return {
+        success: false,
+        message: 'Failed to parse MCQ generation response',
+        error: 'PARSE_ERROR'
+      };
+    }
+
+    // Validate and sanitize MCQs
+    const validMCQs = mcqs.filter(mcq => {
+      return mcq.question && 
+             Array.isArray(mcq.options) && 
+             mcq.options.length === 4 &&
+             mcq.correctAnswer &&
+             ['A', 'B', 'C', 'D'].includes(mcq.correctAnswer);
+    }).map(mcq => ({
+      question: mcq.question,
+      options: mcq.options,
+      correctAnswer: mcq.correctAnswer,
+      explanation: mcq.explanation || 'No explanation provided',
+      difficulty: mcq.difficulty || difficulty,
+      bloomsLevel: mcq.bloomsLevel || 'understand'
+    }));
+
+    if (validMCQs.length === 0) {
+      return {
+        success: false,
+        message: 'No valid MCQs generated',
+        error: 'NO_VALID_MCQS'
+      };
+    }
+
+    console.log(`✅ Generated ${validMCQs.length} valid MCQs`);
+
+    // Create MCQ session
+    const MCQSession = require('../models/MCQSession');
+    const session = await MCQSession.create({
+      subject: material.subject,
+      chapter: material.chapter,
+      material: materialId,
+      title: `Auto-generated MCQs - ${topics}`,
+      description: `Automatically generated MCQs from ${material.title}`,
+      questions: validMCQs,
+      difficulty: difficulty,
+      timeLimit: validMCQs.length * 2, // 2 minutes per question
+      passingScore: 60,
+      createdBy: userId,
+      status: 'completed'
+    });
+
+    console.log(`💾 Created MCQ session: ${session._id}`);
+
+    return {
+      success: true,
+      message: `Successfully generated ${validMCQs.length} MCQs`,
+      session: session,
+      metadata: {
+        materialId,
+        materialTitle: material.title,
+        topics,
+        difficulty,
+        numberOfQuestions: validMCQs.length,
+        generatedAt: new Date(),
+        chunksAnalyzed: relevantChunks.length,
+        totalChunks: chunks.length
+      }
+    };
+
+  } catch (error) {
+    console.error('❌ Error generating MCQs:', error);
+    return {
+      success: false,
+      message: 'Failed to generate MCQs',
+      error: error.message
+    };
+  }
+};
+

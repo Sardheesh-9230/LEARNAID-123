@@ -32,7 +32,7 @@ interface Subject {
   year: string
   section: string
   semester: number
-  department: {
+  department: string | {
     _id: string
     name: string
     code: string
@@ -566,7 +566,21 @@ export default function StudentMarkEntry({ preSelectedSubject, preSelectedStuden
     try {
       setLoading(true)
       const subject = subjects.find(s => s._id === selectedSubject)
-      if (!subject) return
+      if (!subject) {
+        console.warn('⚠️ Subject not found')
+        return
+      }
+
+      // Handle department being either object or string ID
+      const departmentId = typeof subject.department === 'object' && subject.department?._id 
+        ? subject.department._id 
+        : subject.department
+
+      if (!departmentId) {
+        console.error('❌ Department ID not found for subject:', subject)
+        setError('Subject department information is missing')
+        return
+      }
 
       // Get students by department, year, and section with higher limit to show all
       const timestamp = Date.now()
@@ -574,7 +588,7 @@ export default function StudentMarkEntry({ preSelectedSubject, preSelectedStuden
       
       const response = await apiService.getUsers({
         role: 'Student',
-        department: subject.department._id,
+        department: departmentId,
         year: subject.year,
         section: subject.section,
         limit: 1000, // Higher limit to get all students
@@ -1867,8 +1881,12 @@ export default function StudentMarkEntry({ preSelectedSubject, preSelectedStuden
                   
                   <div>
                     <label className="text-sm font-semibold text-gray-600">Department</label>
-                    <div className="text-lg font-medium text-gray-900">{subject.department.name}</div>
-                    <div className="text-sm text-gray-500">{subject.department.code}</div>
+                    <div className="text-lg font-medium text-gray-900">
+                      {typeof subject.department === 'object' ? subject.department.name : 'N/A'}
+                    </div>
+                    <div className="text-sm text-gray-500">
+                      {typeof subject.department === 'object' ? subject.department.code : ''}
+                    </div>
                   </div>
                 </div>
               )

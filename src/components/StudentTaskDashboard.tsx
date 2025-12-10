@@ -287,7 +287,10 @@ const StudentTaskDashboard: React.FC = () => {
       
       // Use chatbot service API
       const chatbotService = new ChatBotService();
-      const context = studySession ? `Subject: ${studySession.subject?.name || 'General'}, Task: ${studySession.title}` : undefined;
+      
+      // Get task information from tasks array for context
+      const currentTask = studySession ? tasks.find(t => t._id === studySession.taskId) : null;
+      const context = currentTask ? `Subject: ${currentTask.subject?.name || 'General'}, Task: ${currentTask.title}` : undefined;
       
       const response = await chatbotService.sendMessage(userMessage, context);
       

@@ -61,6 +61,18 @@ const improvementTaskSchema = new mongoose.Schema({
     max: 100
   },
   
+  // CO-specific identification
+  courseOutcome: {
+    type: String,
+    trim: true,
+    maxlength: [50, 'Course outcome cannot exceed 50 characters']
+  },
+  coNumber: {
+    type: Number,
+    min: 1,
+    max: 10
+  },
+  
   // Performance-specific metadata
   metadata: {
     currentPerformance: {
@@ -89,10 +101,20 @@ const improvementTaskSchema = new mongoose.Schema({
       type: String,
       trim: true
     }],
+    // CO-specific weak areas
+    coWeakAreas: [{
+      co: String,
+      topics: [String],
+      performanceGap: Number
+    }],
     generatedMCQs: {
       totalQuestions: {
         type: Number,
         default: 0
+      },
+      sessionId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'MCQSession'
       },
       questions: [{
         id: String,
@@ -101,16 +123,58 @@ const improvementTaskSchema = new mongoose.Schema({
         correctAnswer: Number,
         explanation: String,
         area: String,
+        courseOutcome: String,
         difficulty: {
           type: String,
           enum: ['Easy', 'Medium', 'Hard'],
           default: 'Medium'
         },
+        bloomsLevel: {
+          type: String,
+          enum: ['Remember', 'Understand', 'Apply', 'Analyze', 'Evaluate', 'Create']
+        },
         estimatedTime: Number
       }],
+      difficultyLevel: {
+        type: String,
+        enum: ['Easy', 'Medium', 'Hard', 'Mixed'],
+        default: 'Medium'
+      },
+      focusedCO: String,
       estimatedTime: Number,
       areas: [String],
-      generatedAt: Date
+      generatedAt: Date,
+      generatedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+      }
+    },
+    // Teacher-set parameters
+    teacherSettings: {
+      difficultyLevel: {
+        type: String,
+        enum: ['Easy', 'Medium', 'Hard', 'Mixed'],
+        default: 'Medium'
+      },
+      scheduledStartTime: Date,
+      scheduledEndTime: Date,
+      numberOfQuestions: {
+        type: Number,
+        default: 10,
+        min: 5,
+        max: 50
+      },
+      focusAreas: [String],
+      allowRetake: {
+        type: Boolean,
+        default: true
+      },
+      maxAttempts: {
+        type: Number,
+        default: 3,
+        min: 1,
+        max: 10
+      }
     },
     autoAssigned: {
       type: Boolean,

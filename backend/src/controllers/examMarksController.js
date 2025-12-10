@@ -818,4 +818,222 @@ function determineCourseOutcome(questionNumber) {
   return `CO${coIndex}`;
 }
 
+/**
+ * @desc    Get CO-wise analysis for all students in a subject
+ * @route   GET /api/marks/co-analysis/subject/:subjectId
+ * @access  Private/Faculty/Admin
+ */
+exports.getCOAnalysisBySubject = async (req, res) => {
+  try {
+    const { subjectId } = req.params;
+    const threshold = parseInt(req.query.threshold) || 50;
+
+    console.log(`📊 Fetching CO analysis for subject: ${subjectId}, threshold: ${threshold}%`);
+
+    // Try QuestionWiseMarks first (if available)
+    let studentMarks = await QuestionWiseMarks.find({ subject: subjectId })
+      .populate('student', 'name email studentId')
+      .populate('exam', 'name type')
+      .populate('chapter', 'title')
+      .lean();
+
+    console.log(`📝 Query: QuestionWiseMarks.find({ subject: "${subjectId}" })`);
+    console.log(`✅ Found ${studentMarks.length} QuestionWiseMarks entries`);
+
+    // If no QuestionWiseMarks, fall back to StudentMarkEntry
+    if (!studentMarks || studentMarks.length === 0) {
+      console.log('⚠️ No QuestionWiseMarks found, checking StudentMarkEntry...');
+      
+      const StudentMarkEntry = require('../models/StudentMarkEntry');
+      
+      const markEntries = await StudentMarkEntry.find({ subject: subjectId })
+        .populate('student', 'name email studentId')
+        .lean();
+
+      console.log(`📝 Query: StudentMarkEntry.find({ subject: "${subjectId}" })`);
+      console.log(`✅ Found ${markEntries.length} StudentMarkEntry entries`);
+
+      if (!markEntries || markEntries.length === 0) {
+        console.log('⚠️ No marks data found in either collection');
+        return res.status(404).json({
+          success: false,
+          message: 'No marks data found for this subject. Please ensure marks have been entered.'
+        });
+      }
+
+      // Process StudentMarkEntry data
+      return processStudentMarkEntries(markEntries, threshold, res);
+    }
+
+    // Process QuestionWiseMarks data
+    return processQuestionWiseMarks(studentMarks, threshold, res);
+
+  } catch (error) {
+    console.error('❌ Error in CO analysis:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Server error during CO analysis'
+    });
+  }
+};
+
+// Helper function to process QuestionWiseMarks
+function processQuestionWiseMarks(studentMarks, threshold, res) {
+  console.log(`📊 Processing ${studentMarks.length} QuestionWiseMarks entries`);
+  
+  const studentCOMap = new Map();
+
+  studentMarks.forEach(mark => {
+    if (!mark.student) return;
+
+    const studentId = mark.student._id.toString();
+    const co = mark.courseOutcome;
+
+    if (!studentCOMap.has(studentId)) {
+      studentCOMap.set(studentId, {
+        studentId: studentId,
+        studentName: mark.student.name,
+        rollNumber: mark.student.studentId || 'N/A',
+        threshold: threshold,
+        coPerformance: new Map()
+      });
+    }
+
+    const studentData = studentCOMap.get(studentId);
+    
+    if (!studentData.coPerformance.has(co)) {
+      studentData.coPerformance.set(co, {
+        courseOutcome: co,
+        totalMarks: 0,
+        obtainedMarks: 0,
+        questionCount: 0,
+        topics: new Set(),
+        examTypes: new Set()
+      });
+    }
+
+    const coData = studentData.coPerformance.get(co);
+    coData.totalMarks += mark.maxMarks || 0;
+    coData.obtainedMarks += mark.marksObtained || 0;
+    coData.questionCount += 1;
+    
+    if (mark.examType) {
+      coData.examTypes.add(mark.examType);
+    }
+    
+    if (mark.chapter && mark.chapter.title) {
+      coData.topics.add(mark.chapter.title);
+    }
+  });
+
+  return buildAnalysisResponse(studentCOMap, threshold, res);
+}
+
+// Helper function to process StudentMarkEntry
+function processStudentMarkEntries(markEntries, threshold, res) {
+  console.log(`📊 Processing ${markEntries.length} StudentMarkEntry entries`);
+  
+  const studentCOMap = new Map();
+
+  markEntries.forEach(mark => {
+    if (!mark.student || !mark.coWiseMarks || mark.coWiseMarks.length === 0) return;
+
+    const studentId = mark.student._id.toString();
+
+    if (!studentCOMap.has(studentId)) {
+      studentCOMap.set(studentId, {
+        studentId: studentId,
+        studentName: mark.student.name,
+        rollNumber: mark.student.studentId || 'N/A',
+        threshold: threshold,
+        coPerformance: new Map()
+      });
+    }
+
+    const studentData = studentCOMap.get(studentId);
+    
+    // Process CO-wise marks
+    mark.coWiseMarks.forEach(coMark => {
+      const co = coMark.courseOutcome;
+      
+      if (!studentData.coPerformance.has(co)) {
+        studentData.coPerformance.set(co, {
+          courseOutcome: co,
+          totalMarks: 0,
+          obtainedMarks: 0,
+          examCount: 0,
+          examTypes: new Set(),
+          topics: new Set()
+        });
+      }
+
+      const coData = studentData.coPerformance.get(co);
+      coData.totalMarks += coMark.maxMarks || 0;
+      coData.obtainedMarks += coMark.obtainedMarks || 0;
+      coData.examCount += 1;
+      
+      if (mark.examType) {
+        coData.examTypes.add(mark.examType);
+      }
+    });
+  });
+
+  return buildAnalysisResponse(studentCOMap, threshold, res);
+}
+
+// Helper function to build final response
+function buildAnalysisResponse(studentCOMap, threshold, res) {
+  const analysisResults = [];
+
+  studentCOMap.forEach(studentData => {
+    const poorPerformanceCOs = [];
+
+    studentData.coPerformance.forEach(coData => {
+      const percentage = coData.totalMarks > 0 
+        ? (coData.obtainedMarks / coData.totalMarks) * 100 
+        : 0;
+      
+      coData.percentage = parseFloat(percentage.toFixed(2));
+      coData.gap = parseFloat((threshold - percentage).toFixed(2));
+      coData.topics = coData.topics ? Array.from(coData.topics).filter(t => t) : [];
+      if (coData.topics.length === 0) coData.topics = ['General Topics'];
+      coData.examTypes = coData.examTypes ? Array.from(coData.examTypes) : [];
+
+      // Check if below threshold
+      if (percentage < threshold) {
+        poorPerformanceCOs.push({
+          courseOutcome: coData.courseOutcome,
+          percentage: coData.percentage,
+          gap: coData.gap,
+          totalMarks: coData.totalMarks,
+          obtainedMarks: coData.obtainedMarks,
+          questionCount: coData.questionCount || coData.examCount || 0,
+          topics: coData.topics,
+          examTypes: coData.examTypes
+        });
+      }
+    });
+
+    // Only include students with poor performance in at least one CO
+    if (poorPerformanceCOs.length > 0) {
+      analysisResults.push({
+        studentId: studentData.studentId,
+        studentName: studentData.studentName,
+        rollNumber: studentData.rollNumber,
+        threshold: threshold,
+        poorPerformanceCOs: poorPerformanceCOs
+      });
+    }
+  });
+
+  console.log(`✅ Found ${analysisResults.length} students with performance below ${threshold}%`);
+
+  return res.status(200).json({
+    success: true,
+    count: analysisResults.length,
+    threshold: threshold,
+    data: analysisResults
+  });
+}
+
 module.exports = exports;

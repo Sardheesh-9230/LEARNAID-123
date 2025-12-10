@@ -202,6 +202,40 @@ router.get('/', protect, authorize('Admin', 'Faculty'), userController.getUsers)
 
 /**
  * @swagger
+ * /api/users/students:
+ *   get:
+ *     summary: Get all students
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of students
+ */
+router.get('/students', protect, authorize('Faculty', 'Admin'), async (req, res) => {
+  try {
+    const User = require('../models/User');
+    const students = await User.find({ role: 'Student' })
+      .select('name email studentId department year section')
+      .populate('department', 'name code')
+      .sort({ name: 1 });
+    
+    res.status(200).json({
+      success: true,
+      count: students.length,
+      users: students
+    });
+  } catch (error) {
+    console.error('Error fetching students:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while fetching students'
+    });
+  }
+});
+
+/**
+ * @swagger
  * /api/users:
  *   post:
  *     summary: Create a new user

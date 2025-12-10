@@ -695,6 +695,48 @@ const syncStudentEnrollments = async (req, res) => {
 // @desc    Get student's enrolled subjects
 // @route   GET /api/subjects/student/my-subjects
 // @access  Private (Student)
+// @desc    Get faculty's assigned subjects
+// @route   GET /api/subjects/faculty/my-subjects
+// @access  Private (Faculty/Admin)
+const getFacultySubjects = async (req, res) => {
+  try {
+    const facultyId = req.user.id;
+    
+    console.log('🎓 Fetching subjects for faculty:', facultyId);
+
+    // Find all subjects where this faculty is assigned
+    const subjects = await Subject.find({
+      'faculty.user': facultyId,
+      $or: [
+        { isActive: true },
+        { isActive: { $exists: false } },
+        { isActive: null }
+      ]
+    })
+      .populate('department', 'name code')
+      .populate('faculty.user', 'name email designation')
+      .sort({ semester: 1, name: 1 });
+
+    console.log(`✅ Found ${subjects.length} subjects for faculty`);
+
+    res.status(200).json({
+      success: true,
+      count: subjects.length,
+      data: subjects
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching faculty subjects:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while fetching subjects'
+    });
+  }
+};
+
+// @desc    Get student's enrolled subjects
+// @route   GET /api/subjects/student/my-subjects
+// @access  Private (Student)
 const getMySubjects = async (req, res) => {
   try {
     const studentId = req.user.id;
@@ -781,5 +823,6 @@ module.exports = {
   assignFacultyToSubject,
   removeFacultyFromSubject,
   syncStudentEnrollments,
-  getMySubjects
+  getMySubjects,
+  getFacultySubjects
 };

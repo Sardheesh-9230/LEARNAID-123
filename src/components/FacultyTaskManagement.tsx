@@ -7,6 +7,11 @@ interface Subject {
   _id: string;
   name: string;
   code: string;
+  year?: string;
+  section?: string;
+  semester?: number;
+  department?: any;
+  credits?: number;
 }
 
 interface Student {
@@ -37,8 +42,16 @@ interface Task {
   createdAt: string;
 }
 
-const FacultyTaskManagement: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'create' | 'manage' | 'co-assignment'>('create');
+interface FacultyTaskManagementProps {
+  mySubjects?: Subject[];
+  onOpenCOIdentification?: (subject: Subject) => void;
+}
+
+const FacultyTaskManagement: React.FC<FacultyTaskManagementProps> = ({ 
+  mySubjects: propSubjects = [],
+  onOpenCOIdentification 
+}) => {
+  const [activeTab, setActiveTab] = useState<'automatic' | 'manage'>('automatic');
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -399,29 +412,22 @@ const FacultyTaskManagement: React.FC = () => {
     }
   };
 
-  if (activeTab === 'co-assignment') {
+  if (activeTab === 'automatic') {
     return (
       <div className="min-h-screen bg-gray-50 p-6">
-        <div className="max-w-6xl mx-auto">
+        <div className="max-w-7xl mx-auto">
           <div className="flex items-center justify-between mb-8">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">📚 CO-Based Class Assignment</h1>
-              <p className="text-gray-600">Generate CO-specific MCQs and assign to entire class or selected students</p>
+              <h1 className="text-3xl font-bold text-gray-900">🎯 Automatic CO-Based Task Assignment</h1>
+              <p className="text-gray-600">Identify lagging students by Course Outcomes and automatically assign improvement tasks</p>
             </div>
             <div className="flex space-x-3">
-              <button
-                onClick={() => setActiveTab('create')}
-                className="flex items-center space-x-2 px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Individual Task</span>
-              </button>
               <button
                 onClick={() => setActiveTab('manage')}
                 className="flex items-center space-x-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
               >
                 <Eye className="w-4 h-4" />
-                <span>View Tasks</span>
+                <span>View All Tasks</span>
               </button>
             </div>
           </div>
@@ -432,219 +438,82 @@ const FacultyTaskManagement: React.FC = () => {
             </div>
           )}
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* MCQ Generation Form */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <h2 className="text-xl font-semibold text-gray-800 mb-6">🎯 Generate CO-Based MCQs</h2>
-              
-              {/* Subject Selection */}
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Subject</label>
-                <select
-                  value={coAssignmentForm.subjectId}
-                  onChange={(e) => setCoAssignmentForm(prev => ({ ...prev, subjectId: e.target.value }))}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  required
-                >
-                  <option value="">Select a subject</option>
-                  {subjects.map(subject => (
-                    <option key={subject._id} value={subject._id}>{subject.name} ({subject.code})</option>
-                  ))}
-                </select>
-              </div>
+          {/* Subject Selection Cards */}
+          <div className="bg-white rounded-xl shadow-lg p-8">
+            <div className="mb-6">
+              <h2 className="text-2xl font-bold text-gray-800 mb-2">Select a Subject</h2>
+              <p className="text-gray-600">Click on a subject to identify lagging students and assign CO-specific improvement tasks</p>
+            </div>
 
-              {/* Course Outcomes Selection */}
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Course Outcomes</label>
-                <div className="grid grid-cols-5 gap-2">
-                  {['CO1', 'CO2', 'CO3', 'CO4', 'CO5'].map(co => (
-                    <label key={co} className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        checked={coAssignmentForm.courseOutcomes.includes(co)}
-                        onChange={(e) => {
-                          const newCOs = e.target.checked
-                            ? [...coAssignmentForm.courseOutcomes, co]
-                            : coAssignmentForm.courseOutcomes.filter(c => c !== co);
-                          setCoAssignmentForm(prev => ({ ...prev, courseOutcomes: newCOs }));
-                        }}
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                      />
-                      <span className="text-sm font-medium">{co}</span>
-                    </label>
-                  ))}
+            {propSubjects.length === 0 ? (
+              <div className="text-center py-12">
+                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <BookOpen className="w-8 h-8 text-gray-400" />
                 </div>
+                <p className="text-gray-600 text-lg font-medium">No subjects assigned</p>
+                <p className="text-gray-500 text-sm mt-2">Please contact admin to assign subjects to your account</p>
               </div>
-
-              {/* Difficulty and Question Count */}
-              <div className="grid grid-cols-2 gap-4 mb-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Difficulty</label>
-                  <select
-                    value={coAssignmentForm.difficulty}
-                    onChange={(e) => setCoAssignmentForm(prev => ({ ...prev, difficulty: e.target.value as 'Easy' | 'Medium' | 'Hard' }))}
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {propSubjects.map((subject) => (
+                  <button
+                    key={subject._id}
+                    onClick={() => onOpenCOIdentification?.(subject)}
+                    className="group relative overflow-hidden bg-gradient-to-br from-orange-500 to-red-600 rounded-xl p-6 text-left transition-all duration-300 hover:shadow-2xl hover:scale-105 transform"
                   >
-                    <option value="Easy">Easy</option>
-                    <option value="Medium">Medium</option>
-                    <option value="Hard">Hard</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Total Questions</label>
-                  <input
-                    type="number"
-                    min="5"
-                    max="50"
-                    value={coAssignmentForm.questionCount}
-                    onChange={(e) => setCoAssignmentForm(prev => ({ ...prev, questionCount: parseInt(e.target.value) }))}
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-              </div>
-
-              {/* Generate Button */}
-              <button
-                onClick={generateCOMCQs}
-                disabled={loading || !coAssignmentForm.subjectId || coAssignmentForm.courseOutcomes.length === 0}
-                className="w-full py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
-              >
-                {loading ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    <span>Generating...</span>
-                  </>
-                ) : (
-                  <>
-                    <Target className="w-4 h-4" />
-                    <span>Generate MCQs</span>
-                  </>
-                )}
-              </button>
-            </div>
-
-            {/* Student Selection and Assignment */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <h2 className="text-xl font-semibold text-gray-800 mb-6">👥 Assign to Students</h2>
-              
-              {/* Task Details */}
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Task Title</label>
-                <input
-                  type="text"
-                  value={coAssignmentForm.taskTitle}
-                  onChange={(e) => setCoAssignmentForm(prev => ({ ...prev, taskTitle: e.target.value }))}
-                  placeholder="Auto-generated based on COs"
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
-                <textarea
-                  value={coAssignmentForm.taskDescription}
-                  onChange={(e) => setCoAssignmentForm(prev => ({ ...prev, taskDescription: e.target.value }))}
-                  placeholder="Auto-generated based on COs and subject"
-                  rows={3}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              {/* Time Settings */}
-              <div className="grid grid-cols-3 gap-3 mb-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Study Time</label>
-                  <input
-                    type="number"
-                    min="15"
-                    value={coAssignmentForm.studyDuration}
-                    onChange={(e) => setCoAssignmentForm(prev => ({ ...prev, studyDuration: parseInt(e.target.value) }))}
-                    className="w-full p-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                  <span className="text-xs text-gray-500">minutes</span>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Task Time</label>
-                  <input
-                    type="number"
-                    min="10"
-                    value={coAssignmentForm.taskDuration}
-                    onChange={(e) => setCoAssignmentForm(prev => ({ ...prev, taskDuration: parseInt(e.target.value) }))}
-                    className="w-full p-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                  <span className="text-xs text-gray-500">minutes</span>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Pass Score</label>
-                  <input
-                    type="number"
-                    min="40"
-                    max="100"
-                    value={coAssignmentForm.passingScore}
-                    onChange={(e) => setCoAssignmentForm(prev => ({ ...prev, passingScore: parseInt(e.target.value) }))}
-                    className="w-full p-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                  <span className="text-xs text-gray-500">%</span>
-                </div>
-              </div>
-
-              {/* Student Selection */}
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Select Students</label>
-                <div className="max-h-40 overflow-y-auto border border-gray-300 rounded-lg p-3">
-                  <div className="flex items-center mb-2">
-                    <input
-                      type="checkbox"
-                      checked={coAssignmentForm.selectedStudents.length === students.length}
-                      onChange={(e) => {
-                        const allStudentIds = students.map(s => s._id);
-                        setCoAssignmentForm(prev => ({
-                          ...prev,
-                          selectedStudents: e.target.checked ? allStudentIds : []
-                        }));
-                      }}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    <span className="ml-2 text-sm font-medium text-blue-600">Select All ({students.length})</span>
-                  </div>
-                  {students.map(student => (
-                    <div key={student._id} className="flex items-center mb-1">
-                      <input
-                        type="checkbox"
-                        checked={coAssignmentForm.selectedStudents.includes(student._id)}
-                        onChange={(e) => {
-                          const newSelected = e.target.checked
-                            ? [...coAssignmentForm.selectedStudents, student._id]
-                            : coAssignmentForm.selectedStudents.filter(id => id !== student._id);
-                          setCoAssignmentForm(prev => ({ ...prev, selectedStudents: newSelected }));
-                        }}
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                      />
-                      <span className="ml-2 text-sm">{student.name} ({student.rollNumber})</span>
+                    {/* Background Pattern */}
+                    <div className="absolute inset-0 opacity-10">
+                      <div className="absolute inset-0" style={{
+                        backgroundImage: 'radial-gradient(circle, white 1px, transparent 1px)',
+                        backgroundSize: '20px 20px'
+                      }}></div>
                     </div>
-                  ))}
-                </div>
-              </div>
 
-              {/* Assign Button */}
-              <button
-                onClick={assignCOTasksToStudents}
-                disabled={loading || Object.keys(generatedMCQs).length === 0 || coAssignmentForm.selectedStudents.length === 0}
-                className="w-full py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
-              >
-                {loading ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    <span>Assigning...</span>
-                  </>
-                ) : (
-                  <>
-                    <Users className="w-4 h-4" />
-                    <span>Assign to {coAssignmentForm.selectedStudents.length} Students</span>
-                  </>
-                )}
-              </button>
-            </div>
+                    {/* Content */}
+                    <div className="relative z-10">
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="w-12 h-12 bg-white bg-opacity-20 rounded-lg flex items-center justify-center backdrop-blur-sm">
+                          <Target className="w-6 h-6 text-white" />
+                        </div>
+                        <div className="flex items-center space-x-1">
+                          <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+                          <div className="w-2 h-2 bg-white rounded-full animate-pulse delay-75"></div>
+                          <div className="w-2 h-2 bg-white rounded-full animate-pulse delay-150"></div>
+                        </div>
+                      </div>
+
+                      <h3 className="text-xl font-bold text-white mb-2 group-hover:translate-x-1 transition-transform">
+                        {subject.name}
+                      </h3>
+                      
+                      <div className="flex items-center text-white text-opacity-90 text-sm mb-3">
+                        <span className="font-mono bg-white bg-opacity-20 px-2 py-1 rounded">
+                          {subject.code}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between text-white text-opacity-90 text-sm">
+                        <span>Year {subject.year}</span>
+                        <span>•</span>
+                        <span>Section {subject.section}</span>
+                        <span>•</span>
+                        <span>Sem {subject.semester}</span>
+                      </div>
+
+                      <div className="mt-4 pt-4 border-t border-white border-opacity-20">
+                        <div className="flex items-center text-white text-sm font-medium">
+                          <AlertCircle className="w-4 h-4 mr-2" />
+                          <span>Click to identify lagging students</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Hover Effect */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black to-transparent opacity-0 group-hover:opacity-20 transition-opacity duration-300"></div>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* MCQ Preview */}
@@ -685,430 +554,7 @@ const FacultyTaskManagement: React.FC = () => {
     );
   }
 
-  if (activeTab === 'create') {
-    return (
-      <div className="min-h-screen bg-gray-50 p-6">
-        <div className="max-w-4xl mx-auto">
-          <div className="flex items-center justify-between mb-8">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">🎯 Create CO-Based Task</h1>
-              <p className="text-gray-600">Create CO-focused tasks for students with lagging performance</p>
-            </div>
-            <div className="flex space-x-3">
-              <button
-                onClick={() => setActiveTab('co-assignment')}
-                className="flex items-center space-x-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600"
-              >
-                <Users className="w-4 h-4" />
-                <span>CO Class Assignment</span>
-              </button>
-              <button
-                onClick={() => setActiveTab('manage')}
-                className="flex items-center space-x-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
-              >
-                <Eye className="w-4 h-4" />
-                <span>View Tasks</span>
-              </button>
-            </div>
-          </div>
 
-          {error && (
-            <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-              {error}
-            </div>
-          )}
-
-          <form onSubmit={handleCreateTask} className="space-y-6">
-            {/* Basic Information */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <h2 className="text-xl font-semibold mb-4 flex items-center">
-                <BookOpen className="w-5 h-5 mr-2 text-blue-600" />
-                Basic Information
-              </h2>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Task Title</label>
-                  <input
-                    type="text"
-                    required
-                    value={taskForm.title}
-                    onChange={(e) => setTaskForm(prev => ({ ...prev, title: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="e.g., Data Structures Assessment"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Subject</label>
-                  <select
-                    required
-                    value={taskForm.subjectId}
-                    onChange={(e) => {
-                      const subjectId = e.target.value;
-                      setTaskForm(prev => ({ ...prev, subjectId }));
-                      checkExistingTasks(subjectId);
-                    }}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">Select Subject</option>
-                    {subjects.map(subject => (
-                      <option key={subject._id} value={subject._id}>
-                        {subject.name} ({subject.code})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              
-              <div className="mt-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
-                <textarea
-                  required
-                  value={taskForm.description}
-                  onChange={(e) => setTaskForm(prev => ({ ...prev, description: e.target.value }))}
-                  rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Describe the learning objectives and task requirements..."
-                />
-              </div>
-            </div>
-
-            {/* Course Outcomes */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <h2 className="text-xl font-semibold mb-4 flex items-center">
-                <Target className="w-5 h-5 mr-2 text-green-600" />
-                Course Outcomes (Select COs to generate questions)
-              </h2>
-              
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                {['CO1', 'CO2', 'CO3', 'CO4', 'CO5'].map(co => (
-                  <label key={co} className="flex items-center space-x-2 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={taskForm.courseOutcomes.includes(co)}
-                      onChange={() => handleCourseOutcomeToggle(co)}
-                      className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                    />
-                    <span className="font-medium text-gray-700">{co}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            {/* MCQ Configuration */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <h2 className="text-xl font-semibold mb-4 flex items-center">
-                <Settings className="w-5 h-5 mr-2 text-purple-600" />
-                MCQ Configuration
-              </h2>
-              
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Question Count</label>
-                  <input
-                    type="number"
-                    min="5"
-                    max="50"
-                    value={taskForm.questionCount}
-                    onChange={(e) => setTaskForm(prev => ({ ...prev, questionCount: parseInt(e.target.value) }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Difficulty Level</label>
-                  <select
-                    value={taskForm.difficulty}
-                    onChange={(e) => setTaskForm(prev => ({ ...prev, difficulty: e.target.value as 'Easy' | 'Medium' | 'Hard' }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="Easy">Easy</option>
-                    <option value="Medium">Medium</option>
-                    <option value="Hard">Hard</option>
-                  </select>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Passing Score (%)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={taskForm.settings.passingScore}
-                    onChange={(e) => setTaskForm(prev => ({
-                      ...prev,
-                      settings: { ...prev.settings, passingScore: parseInt(e.target.value) }
-                    }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Schedule Configuration */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <h2 className="text-xl font-semibold mb-4 flex items-center">
-                <Calendar className="w-5 h-5 mr-2 text-orange-600" />
-                Schedule Configuration
-              </h2>
-              
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Study Duration (minutes)</label>
-                  <input
-                    type="number"
-                    min="15"
-                    max="180"
-                    value={taskForm.taskSchedule.studyDuration}
-                    onChange={(e) => setTaskForm(prev => ({
-                      ...prev,
-                      taskSchedule: { ...prev.taskSchedule, studyDuration: parseInt(e.target.value) }
-                    }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Time for focused study before assessment</p>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Assessment Duration (minutes)</label>
-                  <input
-                    type="number"
-                    min="10"
-                    max="120"
-                    value={taskForm.taskSchedule.taskDuration}
-                    onChange={(e) => setTaskForm(prev => ({
-                      ...prev,
-                      taskSchedule: { ...prev.taskSchedule, taskDuration: parseInt(e.target.value) }
-                    }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Time to complete the MCQ assessment</p>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Assessment Start Time</label>
-                  <input
-                    type="datetime-local"
-                    required
-                    value={taskForm.taskSchedule.startTime}
-                    onChange={(e) => setTaskForm(prev => ({
-                      ...prev,
-                      taskSchedule: { ...prev.taskSchedule, startTime: e.target.value }
-                    }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Study time starts {taskForm.taskSchedule.studyDuration} min earlier</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Study Materials */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold flex items-center">
-                  <BookOpen className="w-5 h-5 mr-2 text-blue-600" />
-                  Study Materials
-                </h2>
-                <button
-                  type="button"
-                  onClick={addStudyMaterial}
-                  className="flex items-center space-x-2 px-3 py-1 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Add Material</span>
-                </button>
-              </div>
-              
-              <div className="space-y-3">
-                {taskForm.studyMaterials.map((material, index) => (
-                  <div key={index} className="grid grid-cols-1 md:grid-cols-4 gap-3 p-3 border border-gray-200 rounded-lg">
-                    <input
-                      type="text"
-                      placeholder="Material title"
-                      value={material.title}
-                      onChange={(e) => updateStudyMaterial(index, 'title', e.target.value)}
-                      className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                    
-                    <select
-                      value={material.type}
-                      onChange={(e) => updateStudyMaterial(index, 'type', e.target.value)}
-                      className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="text">Text</option>
-                      <option value="pdf">PDF</option>
-                      <option value="video">Video</option>
-                      <option value="link">Link</option>
-                    </select>
-                    
-                    <input
-                      type="text"
-                      placeholder="Content or URL"
-                      value={material.content}
-                      onChange={(e) => updateStudyMaterial(index, 'content', e.target.value)}
-                      className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                    
-                    <button
-                      type="button"
-                      onClick={() => removeStudyMaterial(index)}
-                      className="px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Student Assignment */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <h2 className="text-xl font-semibold mb-4 flex items-center">
-                <Users className="w-5 h-5 mr-2 text-indigo-600" />
-                Assign to Students
-              </h2>
-              
-              {/* CO Tasks Warning */}
-              {showCOTaskWarning && studentsWithCOTasks.length > 0 && (
-                <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                  <div className="flex items-start space-x-2">
-                    <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5" />
-                    <div>
-                      <h3 className="text-sm font-semibold text-yellow-800">
-                        ⚠️ Students with Active Learning Tasks
-                      </h3>
-                      <p className="text-sm text-yellow-700 mt-1">
-                        The following students already have active learning tasks for this subject:
-                      </p>
-                      <div className="mt-2 space-y-1">
-                        {studentsWithCOTasks.map((task, index) => (
-                          <div key={index} className="text-xs bg-yellow-100 p-2 rounded border-l-2 border-yellow-400">
-                            <span className="font-medium">{task.studentName} ({task.rollNumber})</span>
-                            <span className="text-yellow-600 ml-2">
-                              - {task.reason} 
-                              {task.targetCO && ` (${task.targetCO}: ${task.currentPerformance?.toFixed(1)}%)`}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                      <p className="text-xs text-yellow-600 mt-2">
-                        💡 <strong>Recommendation:</strong> Let students complete their current learning tasks first, 
-                        or create new tasks for other students without active assignments.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-60 overflow-y-auto">
-                {students.map(student => {
-                  const hasCOTask = studentsWithCOTasks.some(task => task.studentId === student._id);
-                  return (
-                    <label 
-                      key={student._id} 
-                      className={`flex items-center space-x-3 p-3 border rounded-lg cursor-pointer ${
-                        hasCOTask 
-                          ? 'border-yellow-300 bg-yellow-50 hover:bg-yellow-100' 
-                          : 'border-gray-200 hover:bg-gray-50'
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={taskForm.assignedStudentIds.includes(student._id)}
-                        onChange={() => handleStudentToggle(student._id)}
-                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                      />
-                      <div className="flex-1">
-                        <div className="flex items-center space-x-2">
-                          <span className="font-medium text-gray-800">{student.name}</span>
-                          {hasCOTask && (
-                            <span className="text-xs bg-yellow-200 text-yellow-800 px-2 py-0.5 rounded-full">
-                              CO Task Active
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-sm text-gray-600">{student.rollNumber}</div>
-                      </div>
-                    </label>
-                  );
-                })}
-              </div>
-              
-              <div className="mt-3 text-sm text-gray-600">
-                Selected: {taskForm.assignedStudentIds.length} students
-              </div>
-            </div>
-
-            {/* Task Settings */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <h2 className="text-xl font-semibold mb-4 flex items-center">
-                <Settings className="w-5 h-5 mr-2 text-gray-600" />
-                Task Settings
-              </h2>
-              
-              <div className="space-y-3">
-                <label className="flex items-center space-x-3">
-                  <input
-                    type="checkbox"
-                    checked={taskForm.settings.allowChatbot}
-                    onChange={(e) => setTaskForm(prev => ({
-                      ...prev,
-                      settings: { ...prev.settings, allowChatbot: e.target.checked }
-                    }))}
-                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                  />
-                  <span className="text-gray-700">Allow AI chatbot during study time</span>
-                </label>
-                
-                <label className="flex items-center space-x-3">
-                  <input
-                    type="checkbox"
-                    checked={taskForm.settings.randomizeQuestions}
-                    onChange={(e) => setTaskForm(prev => ({
-                      ...prev,
-                      settings: { ...prev.settings, randomizeQuestions: e.target.checked }
-                    }))}
-                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                  />
-                  <span className="text-gray-700">Randomize question order</span>
-                </label>
-                
-                <label className="flex items-center space-x-3">
-                  <input
-                    type="checkbox"
-                    checked={taskForm.settings.showResourcesDuringTask}
-                    onChange={(e) => setTaskForm(prev => ({
-                      ...prev,
-                      settings: { ...prev.settings, showResourcesDuringTask: e.target.checked }
-                    }))}
-                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                  />
-                  <span className="text-gray-700">Show study materials during assessment</span>
-                </label>
-              </div>
-            </div>
-
-            {/* Submit Button */}
-            <div className="flex justify-end">
-              <button
-                type="submit"
-                disabled={loading || taskForm.courseOutcomes.length === 0 || taskForm.assignedStudentIds.length === 0}
-                className="flex items-center space-x-2 px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {loading ? (
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                ) : (
-                  <Plus className="w-5 h-5" />
-                )}
-                <span>{loading ? 'Creating Task...' : 'Create Learning Task'}</span>
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    );
-  }
 
   // Task Management View
   return (
@@ -1116,23 +562,16 @@ const FacultyTaskManagement: React.FC = () => {
       <div className="max-w-7xl mx-auto">
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">📋 CO-Based Task Management</h1>
-            <p className="text-gray-600">Monitor and manage CO-focused tasks for lagging students</p>
+            <h1 className="text-3xl font-bold text-gray-900">📚 Task Management</h1>
+            <p className="text-gray-600">View and manage all assigned student tasks</p>
           </div>
           <div className="flex space-x-3">
             <button
-              onClick={() => setActiveTab('co-assignment')}
-              className="flex items-center space-x-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+              onClick={() => setActiveTab('automatic')}
+              className="flex items-center space-x-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
             >
               <Users className="w-4 h-4" />
-              <span>CO Class Assignment</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('create')}
-              className="flex items-center space-x-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Individual Task</span>
+              <span>Automatic CO Assignment</span>
             </button>
           </div>
         </div>
@@ -1141,13 +580,13 @@ const FacultyTaskManagement: React.FC = () => {
           <div className="bg-white rounded-xl shadow-lg p-12 text-center">
             <BookOpen className="w-16 h-16 text-gray-400 mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-gray-600 mb-2">No Tasks Created</h3>
-            <p className="text-gray-500 mb-6">Create your first learning task to get started.</p>
+            <p className="text-gray-500 mb-6">Use the Automatic CO Assignment feature to create tasks for lagging students.</p>
             <button
-              onClick={() => setActiveTab('create')}
-              className="flex items-center space-x-2 px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 mx-auto"
+              onClick={() => setActiveTab('automatic')}
+              className="flex items-center space-x-2 px-6 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 mx-auto"
             >
-              <Plus className="w-4 h-4" />
-              <span>Create Task</span>
+              <Target className="w-4 h-4" />
+              <span>Automatic Assignment</span>
             </button>
           </div>
         ) : (

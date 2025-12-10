@@ -93,7 +93,18 @@ export default function StudentImprovementDashboard({ studentId }: StudentImprov
       const response = await apiService.makeRequest(`/improvement-tasks/student/${actualStudentId}/improvement`)
 
       if (response.success) {
-        setTasks(response.data || [])
+        const tasksData = response.data || []
+        console.log('📊 Loaded improvement tasks:', tasksData.length)
+        tasksData.forEach((task: ImprovementTask, index: number) => {
+          console.log(`Task ${index + 1}: ${task.title}`)
+          console.log('  - MCQ Data:', task.metadata?.generatedMCQs)
+          if (task.metadata?.generatedMCQs) {
+            console.log('    • Total Questions:', task.metadata.generatedMCQs.totalQuestions)
+            console.log('    • Needs Generation:', task.metadata.generatedMCQs.needsGeneration)
+            console.log('    • Material Used:', task.metadata.generatedMCQs.materialUsed)
+          }
+        })
+        setTasks(tasksData)
       } else {
         throw new Error(response.message || 'Failed to load improvement tasks')
       }
@@ -334,6 +345,20 @@ export default function StudentImprovementDashboard({ studentId }: StudentImprov
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(task.status)}`}>
                         {task.status}
                       </span>
+                      {/* MCQ Availability Badge */}
+                      {task.metadata?.generatedMCQs && (
+                        task.metadata.generatedMCQs.needsGeneration ? (
+                          <span className="px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 flex items-center gap-1">
+                            <FiRefreshCw size={12} />
+                            MCQs Generating
+                          </span>
+                        ) : task.metadata.generatedMCQs.totalQuestions > 0 ? (
+                          <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 flex items-center gap-1">
+                            <FiCheckCircle size={12} />
+                            {task.metadata.generatedMCQs.totalQuestions} MCQs Ready
+                          </span>
+                        ) : null
+                      )}
                     </div>
                     <p className="text-gray-600 mb-3">{task.description}</p>
                     
@@ -492,25 +517,65 @@ export default function StudentImprovementDashboard({ studentId }: StudentImprov
               </div>
 
               {/* MCQ Section */}
-              {selectedTask.metadata.generatedMCQs && (
+              {selectedTask.metadata?.generatedMCQs && (
                 <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-                  <h3 className="text-lg font-semibold mb-3">Practice Questions Available</h3>
+                  <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                    <FiTarget className="text-blue-600" />
+                    Practice Questions Available
+                  </h3>
                   <p className="text-gray-700 mb-4">
-                    {selectedTask.metadata.generatedMCQs.totalQuestions} questions generated for your weak areas.
-                    Target score: 70% or higher.
+                    {selectedTask.metadata.generatedMCQs.totalQuestions || 0} questions generated for your weak areas
+                    {selectedTask.metadata.generatedMCQs.difficultyLevel && (
+                      <span className="ml-2 px-2 py-1 text-sm bg-blue-200 text-blue-800 rounded font-medium">
+                        {selectedTask.metadata.generatedMCQs.difficultyLevel}
+                      </span>
+                    )}
+                    {selectedTask.metadata.generatedMCQs.materialUsed && (
+                      <span className="ml-2 px-2 py-1 text-sm bg-purple-100 text-purple-800 rounded">
+                        📚 {selectedTask.metadata.generatedMCQs.materialUsed}
+                      </span>
+                    )}
                   </p>
-                  <button
-                    onClick={() => {
-                      // Simulate MCQ completion
-                      const randomScore = Math.floor(Math.random() * 30) + 70 // 70-100%
-                      submitMCQScore(selectedTask, randomScore, selectedTask.metadata.generatedMCQs.totalQuestions)
-                      setSelectedTask(null)
-                    }}
-                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                  >
-                    <FiPlay size={16} />
-                    Start Practice Quiz
-                  </button>
+                  {selectedTask.metadata.generatedMCQs.needsGeneration ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 p-3 bg-yellow-100 rounded-lg text-yellow-800">
+                        <FiRefreshCw size={20} className="animate-spin" />
+                        <div>
+                          <div className="font-medium">Questions are being generated</div>
+                          <div className="text-sm">{selectedTask.metadata.generatedMCQs.message || 'Please check back later.'}</div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : selectedTask.metadata.generatedMCQs.questions && selectedTask.metadata.generatedMCQs.questions.length > 0 ? (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-600">
+                          Focus Areas: {selectedTask.metadata.generatedMCQs.areas?.join(', ') || selectedTask.metadata.weakAreas.join(', ')}
+                        </span>
+                        <span className="text-sm font-medium text-blue-600">
+                          Target Score: 70% or higher
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => {
+                          // TODO: Navigate to MCQ test interface
+                          // For now, simulate completion
+                          const randomScore = Math.floor(Math.random() * 30) + 70 // 70-100%
+                          submitMCQScore(selectedTask, randomScore, selectedTask.metadata.generatedMCQs.totalQuestions)
+                          setSelectedTask(null)
+                        }}
+                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                      >
+                        <FiPlay size={16} />
+                        Start Practice Quiz ({selectedTask.metadata.generatedMCQs.questions.length} Questions)
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 p-3 bg-gray-100 rounded-lg text-gray-600">
+                      <FiAlertTriangle size={20} />
+                      <span>No questions available yet. Please contact your instructor.</span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

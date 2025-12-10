@@ -540,18 +540,35 @@ router.post('/task/submit/:taskId', auth, async (req, res) => {
 // Get task details for faculty
 router.get('/faculty/tasks', auth, async (req, res) => {
   try {
-    if (req.user.role !== 'faculty') {
-      return res.status(403).json({ message: 'Access denied' });
+    // Check if user is Faculty or Admin
+    if (!['Faculty', 'Admin'].includes(req.user.role)) {
+      return res.status(403).json({ 
+        success: false,
+        message: 'Access denied. Faculty or Admin role required.' 
+      });
     }
     
-    const tasks = await Task.find({ createdBy: req.user.userId })
-      .populate('subject assignedStudents.student')
+    console.log(`📋 Fetching tasks for faculty: ${req.user.id}`);
+    
+    const tasks = await Task.find({ createdBy: req.user.id })
+      .populate('subject', 'name code')
+      .populate('assignedTo', 'name email studentId')
       .sort({ createdAt: -1 });
     
-    res.json({ tasks });
+    console.log(`✅ Found ${tasks.length} tasks`);
+    
+    res.json({ 
+      success: true,
+      count: tasks.length,
+      tasks 
+    });
   } catch (error) {
-    console.error('Error fetching faculty tasks:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    console.error('❌ Error fetching faculty tasks:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Server error', 
+      error: error.message 
+    });
   }
 });
 

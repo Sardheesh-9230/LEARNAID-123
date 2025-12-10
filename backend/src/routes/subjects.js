@@ -140,6 +140,20 @@ router.get('/student/my-subjects', protect, authorize('Student'), subjectControl
 
 /**
  * @swagger
+ * /api/subjects/faculty/my-subjects:
+ *   get:
+ *     summary: Get faculty's assigned subjects
+ *     tags: [Subjects]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Faculty's assigned subjects
+ */
+router.get('/faculty/my-subjects', protect, authorize('Faculty', 'Admin'), subjectController.getFacultySubjects);
+
+/**
+ * @swagger
  * /api/subjects:
  *   post:
  *     summary: Create a new subject

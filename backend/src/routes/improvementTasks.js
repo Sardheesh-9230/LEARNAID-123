@@ -34,7 +34,7 @@ router.post('/assign-improvement', protect, async (req, res) => {
 
     // Check if student exists
     const student = await User.findById(studentId)
-    if (!student || student.role !== 'student') {
+    if (!student || student.role !== 'Student') {
       return res.status(404).json({
         success: false,
         message: 'Student not found'
@@ -158,6 +158,34 @@ router.post('/assign-improvement', protect, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to assign improvement task',
+      error: error.message
+    })
+  }
+})
+
+// Get improvement tasks for a subject
+router.get('/subject/:subjectId', protect, async (req, res) => {
+  try {
+    const { subjectId } = req.params
+    
+    const tasks = await ImprovementTask.find({ 
+      subject: subjectId 
+    })
+    .populate('student', 'name registrationNumber email')
+    .populate('subject', 'name code')
+    .populate('assignedBy', 'name')
+    .sort({ createdAt: -1 })
+
+    res.json({
+      success: true,
+      count: tasks.length,
+      tasks
+    })
+  } catch (error) {
+    console.error('Error fetching improvement tasks by subject:', error)
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch improvement tasks',
       error: error.message
     })
   }
@@ -374,5 +402,379 @@ async function generateMCQsForSubject(subjectId, weakAreas = []) {
     }
   }
 }
+
+// Assign CO-specific improvement task with MCQ generator integration
+router.post('/assign-co-specific', protect, async (req, res) => {
+  try {
+    console.log('📝 ============= TASK ASSIGNMENT REQUEST =============')
+    console.log('📝 Full request body:', JSON.stringify(req.body, null, 2))
+    console.log('📝 Student ID:', req.body.studentId)
+    console.log('📝 Subject ID:', req.body.subjectId)
+    console.log('📝 Course Outcome:', req.body.courseOutcome)
+    console.log('📝 ==================================================')
+    
+    const {
+      studentId,
+      subjectId,
+      subjectName,
+      courseOutcome,
+      coNumber,
+      currentPerformance,
+      taskType = 'CO_IMPROVEMENT',
+      priority = 'MEDIUM',
+      studyTimeMinutes = 90,
+      weakAreas = [],
+      coWeakAreas = [],
+      dueDate,
+      description,
+      teacherSettings = {}
+    } = req.body
+
+    // Validate required fields
+    if (!studentId || !subjectId || !courseOutcome) {
+      console.log('❌ Missing required fields')
+      return res.status(400).json({
+        success: false,
+        message: 'Student ID, Subject ID, and Course Outcome are required'
+      })
+    }
+
+    // Check if student exists
+    console.log('🔍 Looking for student with ID:', studentId, 'Type:', typeof studentId)
+    const student = await User.findById(studentId)
+    console.log('👤 Student check:', student ? `Found: ${student.name} (Role: ${student.role})` : 'Not found')
+    
+    if (!student) {
+      console.log('❌ Student not found in database')
+      return res.status(404).json({
+        success: false,
+        message: 'Student not found'
+      })
+    }
+    
+    if (student.role !== 'Student') {
+      console.log('❌ Invalid student role:', student.role)
+      return res.status(400).json({
+        success: false,
+        message: `Invalid user role: ${student.role}. Expected: Student`
+      })
+    }
+
+    // Check if subject exists
+    console.log('🔍 Looking for subject with ID:', subjectId, 'Type:', typeof subjectId)
+    const subject = await Subject.findById(subjectId)
+    console.log('📚 Subject check:', subject ? `Found: ${subject.name}` : 'Not found')
+    
+    if (!subject) {
+      console.log('❌ Subject not found in database')
+      return res.status(404).json({
+        success: false,
+        message: 'Subject not found'
+      })
+    }
+
+    // Check for existing active CO-specific task
+    const existingTask = await ImprovementTask.findOne({
+      student: studentId,
+      subject: subjectId,
+      courseOutcome: courseOutcome,
+      status: { $in: ['Assigned', 'In Progress'] }
+    })
+
+    if (existingTask) {
+      return res.status(200).json({
+        success: true,
+        message: `Active task already exists for ${courseOutcome}`,
+        data: existingTask
+      })
+    }
+
+    // Try to find existing MCQ session for this CO
+    const MCQSession = require('../models/MCQSession')
+    let mcqSession = await MCQSession.findOne({
+      subject: subjectId,
+      status: 'completed',
+      'questions.0': { $exists: true } // Has at least one question
+    }).sort({ createdAt: -1 }).limit(1)
+
+    // Generate or use existing MCQs based on teacher settings
+    let generatedMCQData = null
+    const difficultyLevel = teacherSettings.difficultyLevel || 'Medium'
+    const numberOfQuestions = teacherSettings.numberOfQuestions || 10
+
+    if (mcqSession && mcqSession.questions.length >= numberOfQuestions) {
+      // Use existing MCQ questions, filter by difficulty if needed
+      let filteredQuestions = mcqSession.questions
+
+      if (difficultyLevel !== 'Mixed') {
+        filteredQuestions = filteredQuestions.filter(q => 
+          q.difficulty?.toLowerCase() === difficultyLevel.toLowerCase()
+        )
+      }
+
+      // If not enough filtered questions, fall back to all questions
+      if (filteredQuestions.length < numberOfQuestions) {
+        filteredQuestions = mcqSession.questions
+      }
+
+      // Select random questions
+      const selectedQuestions = filteredQuestions
+        .sort(() => 0.5 - Math.random())
+        .slice(0, numberOfQuestions)
+
+      generatedMCQData = {
+        totalQuestions: selectedQuestions.length,
+        sessionId: mcqSession._id,
+        questions: selectedQuestions.map(q => ({
+          id: q._id?.toString() || `mcq_${Date.now()}`,
+          question: q.question,
+          options: q.options,
+          correctAnswer: q.correctAnswer,
+          explanation: q.explanation,
+          area: courseOutcome,
+          courseOutcome: courseOutcome,
+          difficulty: q.difficulty || difficultyLevel,
+          bloomsLevel: q.bloomsLevel,
+          estimatedTime: 2
+        })),
+        difficultyLevel: difficultyLevel,
+        focusedCO: courseOutcome,
+        estimatedTime: selectedQuestions.length * 2,
+        areas: weakAreas,
+        generatedAt: new Date(),
+        generatedBy: req.user.id
+      }
+    } else {
+      // No existing MCQs found - generate new ones from chapter materials
+      console.log('🔄 No existing MCQs found, generating from chapter materials...')
+      
+      try {
+        const Material = require('../models/Material')
+        const Chapter = require('../models/Chapter')
+        
+        // Find chapters for this subject
+        const chapters = await Chapter.find({ subject: subjectId })
+        
+        if (chapters.length > 0) {
+          // Find materials from chapters, prioritizing those related to weak areas
+          let materials = []
+          
+          if (weakAreas.length > 0) {
+            // Try to find materials matching weak areas
+            const weakAreaPattern = weakAreas.join('|')
+            materials = await Material.find({
+              subject: subjectId,
+              $or: [
+                { title: { $regex: weakAreaPattern, $options: 'i' } },
+                { description: { $regex: weakAreaPattern, $options: 'i' } }
+              ],
+              pdfPath: { $exists: true, $ne: null }
+            }).limit(3)
+          }
+          
+          // If no materials found matching weak areas, get any materials from the subject
+          if (materials.length === 0) {
+            materials = await Material.find({
+              subject: subjectId,
+              pdfPath: { $exists: true, $ne: null }
+            }).limit(3)
+          }
+          
+          if (materials.length > 0) {
+            // Use the first available material for MCQ generation
+            const material = materials[0]
+            
+            console.log(`📚 Generating MCQs from material: ${material.title}`)
+            
+            // Generate MCQs using the MCQ generator controller logic
+            const { generateMCQsFromMaterial } = require('../controllers/mcqGeneratorV3')
+            
+            const mcqResult = await generateMCQsFromMaterial({
+              materialId: material._id,
+              topics: weakAreas.join(', ') || courseOutcome,
+              numberOfQuestions: numberOfQuestions,
+              difficulty: difficultyLevel.toLowerCase(),
+              userId: req.user.id
+            })
+            
+            if (mcqResult.success && mcqResult.session) {
+              // Successfully generated MCQs
+              generatedMCQData = {
+                totalQuestions: mcqResult.session.questions.length,
+                sessionId: mcqResult.session._id,
+                questions: mcqResult.session.questions.map(q => ({
+                  id: q._id?.toString() || `mcq_${Date.now()}`,
+                  question: q.question,
+                  options: q.options,
+                  correctAnswer: q.correctAnswer,
+                  explanation: q.explanation,
+                  area: courseOutcome,
+                  courseOutcome: courseOutcome,
+                  difficulty: q.difficulty || difficultyLevel,
+                  bloomsLevel: q.bloomsLevel,
+                  estimatedTime: 2
+                })),
+                difficultyLevel: difficultyLevel,
+                focusedCO: courseOutcome,
+                estimatedTime: mcqResult.session.questions.length * 2,
+                areas: weakAreas,
+                generatedAt: new Date(),
+                generatedBy: req.user.id,
+                materialUsed: material.title
+              }
+              
+              console.log(`✅ Successfully generated ${mcqResult.session.questions.length} MCQs`)
+            } else {
+              // MCQ generation failed, mark as needs generation
+              generatedMCQData = {
+                totalQuestions: 0,
+                needsGeneration: true,
+                difficultyLevel: difficultyLevel,
+                focusedCO: courseOutcome,
+                numberOfQuestions: numberOfQuestions,
+                areas: weakAreas,
+                message: mcqResult.message || 'MCQ generation failed, please try again',
+                error: mcqResult.error
+              }
+              
+              console.log('⚠️ MCQ generation failed:', mcqResult.message)
+            }
+          } else {
+            // No materials found with PDFs
+            generatedMCQData = {
+              totalQuestions: 0,
+              needsGeneration: true,
+              difficultyLevel: difficultyLevel,
+              focusedCO: courseOutcome,
+              numberOfQuestions: numberOfQuestions,
+              areas: weakAreas,
+              message: 'No PDF materials available for MCQ generation. Please upload study materials first.'
+            }
+            
+            console.log('⚠️ No PDF materials found for subject')
+          }
+        } else {
+          // No chapters found
+          generatedMCQData = {
+            totalQuestions: 0,
+            needsGeneration: true,
+            difficultyLevel: difficultyLevel,
+            focusedCO: courseOutcome,
+            numberOfQuestions: numberOfQuestions,
+            areas: weakAreas,
+            message: 'No chapters found for this subject. Please set up chapters and materials first.'
+          }
+          
+          console.log('⚠️ No chapters found for subject')
+        }
+      } catch (generationError) {
+        console.error('❌ Error during MCQ generation:', generationError)
+        
+        generatedMCQData = {
+          totalQuestions: 0,
+          needsGeneration: true,
+          difficultyLevel: difficultyLevel,
+          focusedCO: courseOutcome,
+          numberOfQuestions: numberOfQuestions,
+          areas: weakAreas,
+          message: 'MCQ generation encountered an error. Please try again later.',
+          error: generationError.message
+        }
+      }
+    }
+
+    // Create CO-specific improvement task
+    const improvementTask = new ImprovementTask({
+      student: studentId,
+      subject: subjectId,
+      assignedBy: req.user.id,
+      taskType: 'CO_IMPROVEMENT',
+      courseOutcome: courseOutcome,
+      coNumber: coNumber,
+      title: `${courseOutcome} Performance Improvement - ${subjectName}`,
+      description: description || `Improve your performance in ${courseOutcome}. Current: ${currentPerformance.toFixed(1)}%, Target: 70%`,
+      priority: priority,
+      status: 'Assigned',
+      dueDate: dueDate ? new Date(dueDate) : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      
+      metadata: {
+        currentPerformance,
+        targetPerformance: Math.min(currentPerformance + 20, 85),
+        studyTimeMinutes,
+        weakAreas,
+        coWeakAreas,
+        generatedMCQs: generatedMCQData,
+        teacherSettings: {
+          difficultyLevel: teacherSettings.difficultyLevel || 'Medium',
+          scheduledStartTime: teacherSettings.scheduledStartTime ? new Date(teacherSettings.scheduledStartTime) : undefined,
+          scheduledEndTime: teacherSettings.scheduledEndTime ? new Date(teacherSettings.scheduledEndTime) : undefined,
+          numberOfQuestions: numberOfQuestions,
+          focusAreas: teacherSettings.focusAreas || weakAreas,
+          allowRetake: teacherSettings.allowRetake !== undefined ? teacherSettings.allowRetake : true,
+          maxAttempts: teacherSettings.maxAttempts || 3
+        },
+        autoAssigned: true,
+        assignmentReason: `Poor ${courseOutcome} performance (<50%)`
+      },
+      
+      requirements: [
+        `Complete ${numberOfQuestions} ${difficultyLevel.toLowerCase()} MCQ questions for ${courseOutcome}`,
+        `Study for minimum ${studyTimeMinutes} minutes`,
+        `Focus on weak areas: ${weakAreas.join(', ') || 'General topics'}`,
+        `Achieve minimum 70% score in practice quiz`,
+        teacherSettings.allowRetake ? `Maximum ${teacherSettings.maxAttempts || 3} attempts allowed` : 'Single attempt only'
+      ],
+      
+      studyMaterials: [
+        {
+          type: 'MCQ_SET',
+          title: `${courseOutcome} Practice Questions - ${difficultyLevel} Level`,
+          content: generatedMCQData,
+          estimatedTime: generatedMCQData.estimatedTime
+        },
+        {
+          type: 'STUDY_GUIDE',
+          title: `${courseOutcome} Study Guide`,
+          content: {
+            courseOutcome: courseOutcome,
+            weakAreas: weakAreas,
+            targetImprovement: Math.min(currentPerformance + 20, 85) - currentPerformance,
+            recommendations: [
+              `Focus on ${courseOutcome} concepts`,
+              `Review lecture notes for ${weakAreas.join(', ')}`,
+              `Practice ${numberOfQuestions} questions`,
+              `Analyze explanations for incorrect answers`
+            ]
+          },
+          estimatedTime: Math.floor(studyTimeMinutes * 0.6)
+        }
+      ]
+    })
+
+    await improvementTask.save()
+
+    // Populate the response
+    const populatedTask = await ImprovementTask.findById(improvementTask._id)
+      .populate('student', 'name email rollNumber')
+      .populate('subject', 'name code credits')
+      .populate('assignedBy', 'name email')
+
+    res.status(201).json({
+      success: true,
+      message: `CO-specific improvement task assigned successfully for ${courseOutcome}`,
+      data: populatedTask
+    })
+
+  } catch (error) {
+    console.error('❌ Error assigning CO-specific task:', error)
+    console.error('Stack trace:', error.stack)
+    res.status(500).json({
+      success: false,
+      message: 'Failed to assign CO-specific improvement task',
+      error: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    })
+  }
+})
 
 module.exports = router

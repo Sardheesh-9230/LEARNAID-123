@@ -35,6 +35,15 @@ LearnAID is a comprehensive educational management platform designed specificall
 - **Material Upload**: Centralized content management system
 - **Curriculum Planning**: Strategic course planning and organization
 
+### 🤖 Automatic MCQ Generation (NEW)
+- **Intelligent Question Generation**: Automatically generates MCQs from study materials when assigning improvement tasks
+- **RAG-Based Content Retrieval**: Uses Retrieval-Augmented Generation to find relevant content from PDFs
+- **Weak Area Targeting**: Generates questions focused on student's specific weak areas
+- **Instant Availability**: MCQs ready immediately when task is assigned (no manual creation needed)
+- **Quality Assurance**: All questions validated for format, correctness, and relevance
+- **Multi-Difficulty Support**: Easy, medium, and hard questions based on Bloom's taxonomy
+- **Seamless Integration**: Works transparently with existing task assignment workflow
+
 ### 🎯 Advanced Assignment Features
 - **Multi-Department Faculty**: Faculty can teach classes across different departments
 - **Student Transfers**: Move students between departments and classes
@@ -142,6 +151,20 @@ npm run dev
 - [ ] Automated course allocation
 - [ ] Performance tracking
 - [ ] Report generation system
+
+## 📖 Documentation
+
+### Feature Guides
+- **[Automatic MCQ Generation Guide](AUTO_MCQ_GENERATION_GUIDE.md)** - Comprehensive guide on MCQ generation from materials
+- **[MCQ Generation Flow Diagrams](AUTO_MCQ_GENERATION_FLOW.md)** - Visual flowcharts and architecture
+- **[MCQ Testing Guide](AUTO_MCQ_GENERATION_TESTING.md)** - Complete testing procedures and scenarios
+- **[MCQ Implementation Summary](AUTO_MCQ_GENERATION_SUMMARY.md)** - Implementation details and specifications
+- **[MCQ Deployment Checklist](AUTO_MCQ_DEPLOYMENT_CHECKLIST.md)** - Pre-deployment and deployment steps
+
+### Project Documentation
+- **[Faculty Module Development](FACULTY_MODULE_PHASE1_SUMMARY.md)** - Faculty dashboard and MCQ task integration
+- **[Marks Entry Integration](MARKS_ENTRY_INTEGRATION_SUMMARY.md)** - CO-based student identification system
+- **[Excel Export Features](project-plans/SPRINT_5_SUMMARY.md)** - JSON to Excel conversion implementation
 
 ## Contributing
 
