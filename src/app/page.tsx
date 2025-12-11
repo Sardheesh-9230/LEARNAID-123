@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import ParticleText from '@/components/ParticleText'
 
 export default function Home() {
   const [scrollY, setScrollY] = useState(0)
@@ -76,10 +77,10 @@ export default function Home() {
   ]
 
   return (
-    <main className="min-h-screen bg-white">
+    <main className="min-h-screen bg-gradient-to-br from-black via-slate-950 to-blue-950 bg-fixed">
       {/* Navigation */}
       <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-        scrollY > 50 ? 'bg-white/95 backdrop-blur-md shadow-lg' : 'bg-white/80 backdrop-blur-sm'
+        scrollY > 50 ? 'bg-slate-950/95 backdrop-blur-md shadow-lg shadow-blue-900/20' : 'bg-slate-950/80 backdrop-blur-sm'
       }`}>
         <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
@@ -87,20 +88,20 @@ export default function Home() {
               <div className="w-11 h-11 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-all">
                 <span className="text-white font-bold text-xl">L</span>
               </div>
-              <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+              <span className="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
                 LearnAID
               </span>
             </Link>
             
             <div className="hidden md:flex items-center space-x-8">
-              <a href="#features" className="text-gray-700 hover:text-blue-600 transition-colors font-medium">Features</a>
-              <a href="#departments" className="text-gray-700 hover:text-blue-600 transition-colors font-medium">Departments</a>
-              <a href="#about" className="text-gray-700 hover:text-blue-600 transition-colors font-medium">About</a>
-              <a href="#contact" className="text-gray-700 hover:text-blue-600 transition-colors font-medium">Contact</a>
+              <a href="#features" className="text-blue-100 hover:text-cyan-400 transition-colors font-medium">Features</a>
+              <a href="#departments" className="text-blue-100 hover:text-cyan-400 transition-colors font-medium">Departments</a>
+              <a href="#about" className="text-blue-100 hover:text-cyan-400 transition-colors font-medium">About</a>
+              <a href="#contact" className="text-blue-100 hover:text-cyan-400 transition-colors font-medium">Contact</a>
             </div>
 
             <Link href="/login">
-              <button className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-6 py-2.5 rounded-lg font-semibold shadow-md hover:shadow-lg transition-all transform hover:-translate-y-0.5">
+              <button className="bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white px-6 py-2.5 rounded-lg font-semibold shadow-md hover:shadow-lg hover:shadow-cyan-500/50 transition-all transform hover:-translate-y-0.5">
                 Get Started
               </button>
             </Link>
@@ -109,49 +110,61 @@ export default function Home() {
       </nav>
 
       {/* Hero Section */}
-      <section className="pt-32 pb-20 px-6 bg-gradient-to-br from-blue-50 via-white to-indigo-50 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-blue-100 rounded-full blur-3xl opacity-30"></div>
-        <div className="absolute bottom-0 left-0 w-96 h-96 bg-indigo-100 rounded-full blur-3xl opacity-30"></div>
+      <section className="pt-32 pb-20 px-6 relative overflow-hidden min-h-screen flex items-center justify-center">
+        {/* Particle Text Background */}
+        <ParticleText 
+          text="LEARNAID\nINTELLIGENT LEARNING"
+          particleCount={1500}
+          particleSize={1.2}
+          textSize={12}
+          interactionArea={180}
+        />
         
+        <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500 rounded-full blur-3xl opacity-20"></div>
+        <div className="absolute bottom-0 left-0 w-96 h-96 bg-indigo-500 rounded-full blur-3xl opacity-20"></div>
+      </section>
+
+      {/* Content Section */}
+      <section className="py-20 px-6">
         <div className="max-w-7xl mx-auto relative z-10">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
-            <div className="space-y-8">
-              <div className="inline-block px-4 py-2 bg-blue-100 text-blue-700 rounded-full text-sm font-semibold">
+            <div className="space-y-8 backdrop-blur-md bg-white/10 p-8 rounded-3xl border border-white/20 shadow-2xl">
+              <div className="inline-block px-4 py-2 bg-blue-500/30 backdrop-blur-sm text-blue-100 rounded-full text-sm font-semibold border border-blue-300/30">
                 🎓 Admin-Centric Educational Platform
               </div>
               
-              <h1 className="text-5xl lg:text-6xl font-bold leading-tight text-gray-900">
+              <h1 className="text-5xl lg:text-6xl font-bold leading-tight text-white drop-shadow-lg">
                 Intelligent Learning &
-                <span className="block bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent mt-2">
+                <span className="block bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent mt-2">
                   Performance Support
                 </span>
               </h1>
               
-              <p className="text-xl text-gray-600 leading-relaxed">
+              <p className="text-xl text-blue-100 leading-relaxed">
                 Complete admin-centric platform for department management, CIA exam tracking, 
                 AI-powered task generation, and personalized student learning support.
               </p>
 
               <div className="flex flex-wrap gap-4">
                 <Link href="/login">
-                  <button className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-8 py-4 rounded-xl font-semibold text-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1">
+                  <button className="bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white px-8 py-4 rounded-xl font-semibold text-lg shadow-lg hover:shadow-2xl transition-all transform hover:-translate-y-1 backdrop-blur-sm border border-white/20">
                     Access Dashboard →
                   </button>
                 </Link>
               </div>
 
               <div className="grid grid-cols-3 gap-6 pt-6">
-                <div className="text-center">
-                  <div className="text-3xl font-bold text-blue-600">CIA</div>
-                  <div className="text-sm text-gray-600 mt-1">Exam System</div>
+                <div className="text-center backdrop-blur-sm bg-white/5 p-4 rounded-xl border border-white/10">
+                  <div className="text-3xl font-bold text-cyan-400">CIA</div>
+                  <div className="text-sm text-blue-200 mt-1">Exam System</div>
                 </div>
-                <div className="text-center">
-                  <div className="text-3xl font-bold text-indigo-600">AI</div>
-                  <div className="text-sm text-gray-600 mt-1">Task Generator</div>
+                <div className="text-center backdrop-blur-sm bg-white/5 p-4 rounded-xl border border-white/10">
+                  <div className="text-3xl font-bold text-blue-400">AI</div>
+                  <div className="text-sm text-blue-200 mt-1">Task Generator</div>
                 </div>
-                <div className="text-center">
-                  <div className="text-3xl font-bold text-purple-600">RAG</div>
-                  <div className="text-sm text-gray-600 mt-1">Chatbot</div>
+                <div className="text-center backdrop-blur-sm bg-white/5 p-4 rounded-xl border border-white/10">
+                  <div className="text-3xl font-bold text-indigo-400">RAG</div>
+                  <div className="text-sm text-blue-200 mt-1">Chatbot</div>
                 </div>
               </div>
             </div>
@@ -204,16 +217,16 @@ export default function Home() {
       </section>
 
       {/* Stats Section */}
-      <section className="py-16 px-6 bg-white border-y border-gray-100">
+      <section className="py-16 px-6">
         <div className="max-w-7xl mx-auto">
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
             {stats.map((stat, index) => (
               <div key={index} className="text-center group cursor-pointer">
-                <div className="bg-gradient-to-br from-gray-50 to-white rounded-2xl p-6 border border-gray-100 hover:shadow-xl transition-all transform hover:-translate-y-1">
+                <div className="backdrop-blur-md bg-white/5 border border-white/10 rounded-2xl p-6 hover:bg-white/10 hover:border-cyan-500/50 hover:shadow-xl hover:shadow-cyan-500/20 transition-all transform hover:-translate-y-1">
                   <div className="text-4xl mb-3">{stat.icon}</div>
-                  <div className="text-3xl font-bold text-gray-900 mb-1">{stat.value}</div>
-                  <div className="text-sm text-gray-600 mb-2">{stat.label}</div>
-                  <div className={`inline-block px-3 py-1 rounded-full bg-gradient-to-r ${stat.gradient} text-white text-xs font-semibold mt-2`}>
+                  <div className="text-3xl font-bold text-white mb-1">{stat.value}</div>
+                  <div className="text-sm text-blue-200 mb-2">{stat.label}</div>
+                  <div className={`inline-block px-3 py-1 rounded-full bg-gradient-to-r ${stat.gradient} text-white text-xs font-semibold mt-2 shadow-lg`}>
                     Active
                   </div>
                 </div>
@@ -224,16 +237,16 @@ export default function Home() {
       </section>
 
       {/* Features Section */}
-      <section id="features" className="py-20 px-6 bg-gray-50">
+      <section id="features" className="py-20 px-6">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
-            <div className="inline-block px-4 py-2 bg-blue-100 text-blue-700 rounded-full text-sm font-semibold mb-4">
+            <div className="inline-block px-4 py-2 bg-blue-500/20 backdrop-blur-sm text-cyan-400 rounded-full text-sm font-semibold mb-4 border border-cyan-500/30">
               ✨ Core Features
             </div>
-            <h2 className="text-4xl lg:text-5xl font-bold mb-4 text-gray-900">
-              <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">Platform Features</span>
+            <h2 className="text-4xl lg:text-5xl font-bold mb-4 text-white">
+              <span className="bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">Platform Features</span>
             </h2>
-            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+            <p className="text-xl text-blue-200 max-w-2xl mx-auto">
               Admin-centric platform with AI-powered performance tracking and personalized learning
             </p>
           </div>
@@ -242,18 +255,18 @@ export default function Home() {
             {features.map((feature, index) => (
               <div 
                 key={index}
-                className={`bg-white rounded-2xl p-8 border-2 transition-all cursor-pointer group ${
+                className={`backdrop-blur-md bg-white/5 border-2 rounded-2xl p-8 transition-all cursor-pointer group ${
                   activeFeature === index 
-                    ? 'border-blue-500 shadow-2xl scale-105' 
-                    : 'border-gray-100 hover:shadow-xl hover:-translate-y-1'
+                    ? 'border-cyan-500 shadow-2xl shadow-cyan-500/20 scale-105 bg-white/10' 
+                    : 'border-white/10 hover:border-cyan-500/50 hover:shadow-xl hover:shadow-cyan-500/10 hover:-translate-y-1 hover:bg-white/10'
                 }`}
                 onMouseEnter={() => setActiveFeature(index)}
               >
                 <div className={`w-16 h-16 rounded-xl bg-gradient-to-r ${feature.color} flex items-center justify-center text-3xl mb-6 shadow-lg group-hover:scale-110 transition-transform`}>
                   {feature.icon}
                 </div>
-                <h3 className="text-2xl font-bold mb-3 text-gray-900">{feature.title}</h3>
-                <p className="text-gray-600 leading-relaxed">{feature.description}</p>
+                <h3 className="text-2xl font-bold mb-3 text-white">{feature.title}</h3>
+                <p className="text-blue-200 leading-relaxed">{feature.description}</p>
               </div>
             ))}
           </div>
@@ -261,16 +274,16 @@ export default function Home() {
       </section>
 
       {/* Departments Section */}
-      <section id="departments" className="py-20 px-6 bg-white">
+      <section id="departments" className="py-20 px-6">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
-            <div className="inline-block px-4 py-2 bg-indigo-100 text-indigo-700 rounded-full text-sm font-semibold mb-4">
+            <div className="inline-block px-4 py-2 bg-indigo-500/20 backdrop-blur-sm text-indigo-300 rounded-full text-sm font-semibold mb-4 border border-indigo-400/30">
               🏛️ Engineering Departments
             </div>
-            <h2 className="text-4xl lg:text-5xl font-bold mb-4 text-gray-900">
-              Multi-Department <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">Architecture</span>
+            <h2 className="text-4xl lg:text-5xl font-bold mb-4 text-white">
+              Multi-Department <span className="bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">Architecture</span>
             </h2>
-            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+            <p className="text-xl text-blue-200 max-w-2xl mx-auto">
               Hierarchical department management with cross-department faculty assignments
             </p>
           </div>
@@ -279,18 +292,18 @@ export default function Home() {
             {departments.map((dept, index) => (
               <div 
                 key={index}
-                className="group relative overflow-hidden rounded-2xl border border-gray-200 hover:border-transparent hover:shadow-2xl transition-all cursor-pointer"
+                className="group relative overflow-hidden rounded-2xl backdrop-blur-md bg-white/5 border border-white/10 hover:border-cyan-500/50 hover:shadow-2xl hover:shadow-cyan-500/20 hover:bg-white/10 transition-all cursor-pointer"
               >
-                <div className={`absolute inset-0 bg-gradient-to-br ${dept.color} opacity-0 group-hover:opacity-10 transition-opacity`}></div>
+                <div className={`absolute inset-0 bg-gradient-to-br ${dept.color} opacity-0 group-hover:opacity-20 transition-opacity`}></div>
                 <div className="relative p-6">
                   <div className="flex items-center justify-between mb-4">
                     <div className="text-4xl group-hover:scale-110 transition-transform">{dept.icon}</div>
-                    <div className={`px-3 py-1 rounded-full bg-gradient-to-r ${dept.color} text-white text-xs font-bold`}>
+                    <div className={`px-3 py-1 rounded-full bg-gradient-to-r ${dept.color} text-white text-xs font-bold shadow-lg`}>
                       {dept.code}
                     </div>
                   </div>
-                  <h3 className="text-xl font-bold mb-2 text-gray-900">{dept.name}</h3>
-                  <p className="text-sm text-gray-500">Department Code: {dept.code}</p>
+                  <h3 className="text-xl font-bold mb-2 text-white">{dept.name}</h3>
+                  <p className="text-sm text-blue-300">Department Code: {dept.code}</p>
                 </div>
               </div>
             ))}
@@ -299,11 +312,11 @@ export default function Home() {
       </section>
 
       {/* About Section */}
-      <section id="about" className="py-20 px-6 bg-gradient-to-br from-blue-600 to-indigo-600">
+      <section id="about" className="py-20 px-6">
         <div className="max-w-7xl mx-auto">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
-            <div className="text-white space-y-6">
-              <h2 className="text-4xl lg:text-5xl font-bold">
+            <div className="text-white space-y-6 backdrop-blur-md bg-white/5 p-8 rounded-3xl border border-white/10">
+              <h2 className="text-4xl lg:text-5xl font-bold bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
                 Why Choose LearnAID?
               </h2>
               <p className="text-xl text-blue-100 leading-relaxed">
@@ -332,17 +345,17 @@ export default function Home() {
       </section>
 
       {/* CTA Section */}
-      <section className="py-20 px-6 bg-white">
-        <div className="max-w-4xl mx-auto text-center">
-          <h2 className="text-4xl lg:text-5xl font-bold mb-6 text-gray-900">
+      <section className="py-20 px-6">
+        <div className="max-w-4xl mx-auto text-center backdrop-blur-md bg-white/5 p-12 rounded-3xl border border-white/10">
+          <h2 className="text-4xl lg:text-5xl font-bold mb-6 text-white">
             Ready to Enhance Learning Performance?
           </h2>
-          <p className="text-xl text-gray-600 mb-8">
+          <p className="text-xl text-blue-200 mb-8">
             Empower your institution with AI-driven performance tracking and personalized learning
           </p>
           <div className="flex flex-wrap gap-4 justify-center">
             <Link href="/login">
-              <button className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-10 py-4 rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1">
+              <button className="bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white px-10 py-4 rounded-xl font-bold text-lg shadow-lg hover:shadow-2xl hover:shadow-cyan-500/50 transition-all transform hover:-translate-y-1">
                 Access Admin Dashboard
               </button>
             </Link>
@@ -351,7 +364,7 @@ export default function Home() {
       </section>
 
       {/* Footer */}
-      <footer id="contact" className="bg-gray-900 text-white py-12 px-6">
+      <footer id="contact" className="bg-black/50 backdrop-blur-md border-t border-white/10 text-white py-12 px-6">
         <div className="max-w-7xl mx-auto">
           <div className="grid md:grid-cols-4 gap-8 mb-8">
             <div>
