@@ -1,0 +1,163 @@
+[
+  {
+    "relatedTo": {
+      "type": "Subject",
+      "id": "690432037e705b968cf954d5"
+    },
+    "_id": "6914b81642e86d9eb9a02620",
+    "originalName": "LEARNAID-updated paper.pdf",
+    "filename": "file-1762965525681-491629485.pdf",
+    "path": "uploads/materials/file-1762965525681-491629485.pdf",
+    "mimetype": "application/pdf",
+    "size": 169077,
+    "category": "document",
+    "uploadedBy": "68fc9ecea541164381d623ae",
+    "isPublic": false,
+    "allowedRoles": [],
+    "allowedUsers": [],
+    "tags": [],
+    "downloadCount": 0,
+    "status": "active",
+    "createdAt": "2025-11-12T16:38:46.091Z",
+    "updatedAt": "2025-11-12T16:38:46.091Z",
+    "__v": 0
+  },
+  {
+    "relatedTo": {
+      "type": "Subject",
+      "id": "690432037e705b968cf954d5"
+    },
+    "_id": "6914b81e42e86d9eb9a02625",
+    "originalName": "LEARNAID-updated paper.pdf",
+    "filename": "file-1762965534690-564060357.pdf",
+    "path": "uploads/materials/file-1762965534690-564060357.pdf",
+    "mimetype": "application/pdf",
+    "size": 169077,
+    "category": "document",
+    "uploadedBy": "68fc9ecea541164381d623ae",
+    "isPublic": false,
+    "allowedRoles": [],
+    "allowedUsers": [],
+    "tags": [],
+    "downloadCount": 0,
+    "status": "active",
+    "createdAt": "2025-11-12T16:38:54.998Z",
+    "updatedAt": "2025-11-12T16:38:54.998Z",
+    "__v": 0
+  },
+  {
+    "relatedTo": {
+      "type": "Subject",
+      "id": "690432037e705b968cf954d5"
+    },
+    "_id": "6914b82a42e86d9eb9a0262a",
+    "originalName": "LEARNAID-updated paper.pdf",
+    "filename": "file-1762965546260-423469485.pdf",
+    "path": "uploads/materials/file-1762965546260-423469485.pdf",
+    "mimetype": "application/pdf",
+    "size": 169077,
+    "category": "document",
+    "uploadedBy": "68fc9ecea541164381d623ae",
+    "isPublic": false,
+    "allowedRoles": [],
+    "allowedUsers": [],
+    "tags": [],
+    "downloadCount": 0,
+    "status": "active",
+    "createdAt": "2025-11-12T16:39:06.570Z",
+    "updatedAt": "2025-11-12T16:39:06.570Z",
+    "__v": 0
+  },
+  {
+    "relatedTo": {
+      "type": "Subject",
+      "id": "6915401624ebffd55c4b7abc"
+    },
+    "_id": "69154f82ca3c371fd9690ac1",
+    "originalName": "LEARNAID-updated paper.pdf",
+    "filename": "file-1763004289509-294634016.pdf",
+    "path": "uploads/materials/file-1763004289509-294634016.pdf",
+    "mimetype": "application/pdf",
+    "size": 169077,
+    "category": "document",
+    "uploadedBy": "68fc9ecea541164381d623ae",
+    "isPublic": false,
+    "allowedRoles": [],
+    "allowedUsers": [],
+    "tags": [],
+    "downloadCount": 0,
+    "status": "active",
+    "createdAt": "2025-11-13T03:24:50.800Z",
+    "updatedAt": "2025-11-13T03:24:50.800Z",
+    "__v": 0
+  },
+  {
+    "relatedTo": {
+      "type": "Subject",
+      "id": "690432037e705b968cf954d5"
+    },
+    "_id": "6915697bf59614e8cda7e9f6",
+    "originalName": "agile_methodology_notes.pdf",
+    "filename": "file-1763010939137-79899871.pdf",
+    "path": "uploads/materials/file-1763010939137-79899871.pdf",
+    "mimetype": "application/pdf",
+    "size": 3937,
+    "category": "document",
+    "uploadedBy": "68fc9ecea541164381d623ae",
+    "isPublic": false,
+    "allowedRoles": [],
+    "allowedUsers": [],
+    "tags": [],
+    "downloadCount": 0,
+    "status": "active",
+    "createdAt": "2025-11-13T05:15:39.556Z",
+    "updatedAt": "2025-11-13T05:15:39.556Z",
+    "__v": 0
+  },
+  {
+    "relatedTo": {
+      "type": "Subject",
+      "id": "6916d58def078aabe8f968bf"
+    },
+    "_id": "6916d72def078aabe8f96929",
+    "originalName": "RPOS.pdf",
+    "filename": "file-1763104557248-476345473.pdf",
+    "path": "uploads\\materials\\file-1763104557248-476345473.pdf",
+    "mimetype": "application/pdf",
+    "size": 348872,
+    "category": "document",
+    "uploadedBy": "68fc9ecea541164381d623ae",
+    "isPublic": false,
+    "allowedRoles": [],
+    "allowedUsers": [],
+    "tags": [],
+    "downloadCount": 0,
+    "status": "active",
+    "createdAt": "2025-11-14T07:15:57.618Z",
+    "updatedAt": "2025-11-14T07:15:57.618Z",
+    "__v": 0
+  },
+  {
+    "relatedTo": {
+      "type": "Subject",
+      "id": "691ebcd80f8e5b823f4a42ce"
+    },
+    "_id": "691ebf620f8e5b823f4a4331",
+    "originalName": "UNIT-III CN -PPT.pdf",
+    "filename": "file-1763622751805-653942085.pdf",
+    "path": "uploads\\materials\\file-1763622751805-653942085.pdf",
+    "mimetype": "application/pdf",
+    "size": 1555289,
+    "category": "document",
+    "uploadedBy": "691d9e19e905bbe84e7e1e84",
+    "isPublic": false,
+    "allowedRoles": [],
+    "allowedUsers": [],
+    "tags": [],
+    "downloadCount": 0,
+    "status": "active",
+    "createdAt": "2025-11-20T07:12:34.763Z",
+    "updatedAt": "2025-11-20T07:12:34.763Z",
+    "__v": 0
+  }
+]

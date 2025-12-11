@@ -6,6 +6,237 @@ const Subject = require('../models/Subject');
 const mongoose = require('mongoose');
 
 /**
+ * Analyze CO performance by specific exam type for all students
+ */
+const analyzeCOPerformanceByExam = async (req, res) => {
+  try {
+    const { subjectId, examType, threshold = 50, academicYear = '2024-2025', semester = 'Odd' } = req.body;
+
+    console.log(`📊 Analyzing ${examType} CO performance for subject: ${subjectId}`);
+
+    // Validate subject
+    const subject = await Subject.findById(subjectId);
+    if (!subject) {
+      return res.status(404).json({
+        success: false,
+        message: 'Subject not found'
+      });
+    }
+
+    // Get all QuestionWiseMarks for this subject, exam type, and academic period
+    const questionMarks = await QuestionWiseMarks.find({
+      subject: subjectId,
+      examType: examType,
+      academicYear,
+      semester
+    }).populate('student', 'name rollNumber email');
+
+    if (questionMarks.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: `No marks data found for ${examType}. Please enter marks first.`
+      });
+    }
+
+    console.log(`✅ Found ${questionMarks.length} question marks for ${examType}`);
+
+    // Group by student and calculate CO performance
+    const studentCOMap = {};
+
+    questionMarks.forEach(qm => {
+      const studentId = qm.student._id.toString();
+      
+      if (!studentCOMap[studentId]) {
+        studentCOMap[studentId] = {
+          student: qm.student,
+          cos: {}
+        };
+      }
+
+      const co = qm.courseOutcome;
+      if (!studentCOMap[studentId].cos[co]) {
+        studentCOMap[studentId].cos[co] = {
+          totalMarks: 0,
+          obtainedMarks: 0,
+          questionCount: 0
+        };
+      }
+
+      studentCOMap[studentId].cos[co].totalMarks += qm.maxMarks;
+      studentCOMap[studentId].cos[co].obtainedMarks += qm.marksObtained;
+      studentCOMap[studentId].cos[co].questionCount += 1;
+    });
+
+    // Calculate analysis for each student
+    const studentsAnalysis = Object.values(studentCOMap).map((studentData) => {
+      const coPerformance = Object.entries(studentData.cos).map(([co, data]) => ({
+        courseOutcome: co,
+        percentage: (data.obtainedMarks / data.totalMarks) * 100,
+        totalMarks: data.totalMarks,
+        obtainedMarks: data.obtainedMarks,
+        questionCount: data.questionCount,
+        isWeak: ((data.obtainedMarks / data.totalMarks) * 100) < threshold
+      }));
+
+      const totalObtained = Object.values(studentData.cos).reduce((sum, data) => sum + data.obtainedMarks, 0);
+      const totalMax = Object.values(studentData.cos).reduce((sum, data) => sum + data.totalMarks, 0);
+      const overallPercentage = (totalObtained / totalMax) * 100;
+
+      const weakCOs = coPerformance
+        .filter(co => co.isWeak)
+        .map(co => co.courseOutcome);
+
+      return {
+        student: studentData.student,
+        coPerformance,
+        overallPercentage,
+        weakCOs
+      };
+    });
+
+    // Sort by overall percentage (weakest first)
+    studentsAnalysis.sort((a, b) => a.overallPercentage - b.overallPercentage);
+
+    const totalStudentsWithWeakCOs = studentsAnalysis.filter(s => s.weakCOs.length > 0).length;
+
+    res.status(200).json({
+      success: true,
+      message: `Analysis complete for ${examType}`,
+      data: {
+        subjectId,
+        subjectName: subject.name,
+        examType,
+        threshold,
+        academicYear,
+        semester,
+        totalStudents: studentsAnalysis.length,
+        totalStudentsWithWeakCOs,
+        studentsAnalysis
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error analyzing CO performance by exam:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error analyzing CO performance',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Bulk assign tasks to multiple students based on their weak COs
+ */
+const bulkAssignCOTasks = async (req, res) => {
+  try {
+    const { subjectId, examType, studentsData, threshold, academicYear = '2024-2025', semester = 'Odd' } = req.body;
+
+    console.log(`📝 Bulk assigning tasks for ${studentsData.length} students`);
+
+    const subject = await Subject.findById(subjectId);
+    if (!subject) {
+      return res.status(404).json({
+        success: false,
+        message: 'Subject not found'
+      });
+    }
+
+    const tasksCreated = [];
+    const errors = [];
+
+    for (const studentData of studentsData) {
+      try {
+        const { studentId, weakCOs, coPerformance } = studentData;
+
+        const student = await User.findById(studentId);
+        if (!student) {
+          errors.push({ studentId, error: 'Student not found' });
+          continue;
+        }
+
+        // Create task for each weak CO
+        for (const weakCO of weakCOs) {
+          // Check if task already exists
+          const existingTask = await Task.findOne({
+            subject: subjectId,
+            courseOutcomes: weakCO,
+            'assignedStudents.student': studentId,
+            'assignedStudents.status': { $in: ['assigned', 'studying', 'in-progress'] }
+          });
+
+          if (existingTask) {
+            console.log(`⚠️  Task already exists for ${student.name} - ${weakCO}`);
+            continue;
+          }
+
+          // Get CO performance details
+          const coDetail = coPerformance.find((co) => co.courseOutcome === weakCO);
+
+          // Create improvement task
+          const task = await Task.create({
+            subject: subjectId,
+            title: `${weakCO} Improvement - ${subject.name}`,
+            description: `Based on ${examType} performance (${coDetail?.percentage.toFixed(1)}%), you need to improve your understanding of ${weakCO}. Complete this assessment to strengthen your knowledge.`,
+            type: 'improvement',
+            difficulty: coDetail?.percentage < 30 ? 'hard' : coDetail?.percentage < 40 ? 'medium' : 'easy',
+            courseOutcomes: [weakCO],
+            basedOnExam: examType,
+            threshold,
+            assignedStudents: [{
+              student: studentId,
+              assignedAt: new Date(),
+              status: 'assigned'
+            }],
+            dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
+            createdBy: req.user._id,
+            academicYear,
+            semester,
+            metadata: {
+              examType,
+              coPerformance: coDetail,
+              autoGenerated: true,
+              generatedAt: new Date()
+            }
+          });
+
+          tasksCreated.push({
+            studentId,
+            studentName: student.name,
+            courseOutcome: weakCO,
+            taskId: task._id
+          });
+
+          console.log(`✅ Created task for ${student.name} - ${weakCO}`);
+        }
+
+      } catch (error) {
+        console.error(`❌ Error creating task for student ${studentData.studentId}:`, error);
+        errors.push({ studentId: studentData.studentId, error: error.message });
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Tasks assigned successfully`,
+      data: {
+        tasksCreated: tasksCreated.length,
+        tasks: tasksCreated,
+        errors: errors.length > 0 ? errors : undefined
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error in bulk task assignment:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error assigning tasks',
+      error: error.message
+    });
+  }
+};
+
+/**
  * Analyze CO-wise performance and auto-assign tasks for lagging COs only
  */
 const analyzeLaggingCOsAndAssignTasks = async (req, res) => {
@@ -484,5 +715,7 @@ function calculateStudyTimeForCO(currentPerformance, targetPerformance) {
 module.exports = {
   analyzeLaggingCOsAndAssignTasks,
   getStudentCOPerformance,
-  getSubjectCOAnalysis
+  getSubjectCOAnalysis,
+  analyzeCOPerformanceByExam,
+  bulkAssignCOTasks
 };

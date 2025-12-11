@@ -823,6 +823,67 @@ function determineCourseOutcome(questionNumber) {
  * @route   GET /api/marks/co-analysis/subject/:subjectId
  * @access  Private/Faculty/Admin
  */
+// Get CO analysis by subject and exam type
+exports.getCOAnalysisBySubjectAndExam = async (req, res) => {
+  try {
+    const { subjectId, examType } = req.params;
+    const threshold = parseInt(req.query.threshold) || 50;
+
+    console.log(`📊 Fetching CO analysis for subject: ${subjectId}, exam: ${examType}, threshold: ${threshold}%`);
+
+    // Build query filter
+    const queryFilter = { subject: subjectId };
+    if (examType !== 'ALL') {
+      queryFilter.examType = examType;
+    }
+
+    // Try QuestionWiseMarks first (if available)
+    let studentMarks = await QuestionWiseMarks.find(queryFilter)
+      .populate('student', 'name email studentId')
+      .populate('exam', 'name type')
+      .populate('chapter', 'title')
+      .lean();
+
+    console.log(`📝 Query: QuestionWiseMarks.find(${JSON.stringify(queryFilter)})`);
+    console.log(`✅ Found ${studentMarks.length} QuestionWiseMarks entries`);
+
+    // If no QuestionWiseMarks, fall back to StudentMarkEntry
+    if (!studentMarks || studentMarks.length === 0) {
+      console.log('⚠️ No QuestionWiseMarks found, checking StudentMarkEntry...');
+      
+      const StudentMarkEntry = require('../models/StudentMarkEntry');
+      
+      const markEntries = await StudentMarkEntry.find(queryFilter)
+        .populate('student', 'name email studentId')
+        .lean();
+
+      console.log(`📝 Query: StudentMarkEntry.find(${JSON.stringify(queryFilter)})`);
+      console.log(`✅ Found ${markEntries.length} StudentMarkEntry entries`);
+
+      if (!markEntries || markEntries.length === 0) {
+        console.log('⚠️ No marks data found in either collection');
+        return res.status(404).json({
+          success: false,
+          message: `No marks data found for this subject${examType !== 'ALL' ? ' and exam type' : ''}. Please ensure marks have been entered.`
+        });
+      }
+
+      // Process StudentMarkEntry data
+      return processStudentMarkEntries(markEntries, threshold, res);
+    }
+
+    // Process QuestionWiseMarks data
+    return processQuestionWiseMarks(studentMarks, threshold, res);
+
+  } catch (error) {
+    console.error('❌ Error in CO analysis by exam:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Server error during CO analysis'
+    });
+  }
+};
+
 exports.getCOAnalysisBySubject = async (req, res) => {
   try {
     const { subjectId } = req.params;

@@ -2,7 +2,9 @@ const express = require('express');
 const {
   analyzeLaggingCOsAndAssignTasks,
   getStudentCOPerformance,
-  getSubjectCOAnalysis
+  getSubjectCOAnalysis,
+  analyzeCOPerformanceByExam,
+  bulkAssignCOTasks
 } = require('../controllers/coPerformanceController');
 const { protect } = require('../middleware/auth');
 
@@ -106,5 +108,89 @@ router.get('/student/:studentId/subject/:subjectId', protect, getStudentCOPerfor
  *         description: Server error
  */
 router.get('/subject/:subjectId/analysis', protect, getSubjectCOAnalysis);
+
+/**
+ * @swagger
+ * /api/co-performance/analyze-by-exam:
+ *   post:
+ *     summary: Analyze CO performance for all students by specific exam type
+ *     tags: [CO Performance]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - subjectId
+ *               - examType
+ *             properties:
+ *               subjectId:
+ *                 type: string
+ *               examType:
+ *                 type: string
+ *                 enum: [CIA1, CIA2, MODEL]
+ *               threshold:
+ *                 type: number
+ *                 default: 50
+ *               academicYear:
+ *                 type: string
+ *                 default: "2024-2025"
+ *               semester:
+ *                 type: string
+ *                 enum: [Odd, Even]
+ *     responses:
+ *       200:
+ *         description: CO performance analysis by exam completed
+ *       404:
+ *         description: Subject not found or no marks data
+ *       500:
+ *         description: Server error
+ */
+router.post('/analyze-by-exam', protect, analyzeCOPerformanceByExam);
+
+/**
+ * @swagger
+ * /api/co-performance/bulk-assign-tasks:
+ *   post:
+ *     summary: Bulk assign improvement tasks to students based on weak COs
+ *     tags: [CO Performance]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - subjectId
+ *               - examType
+ *               - studentsData
+ *             properties:
+ *               subjectId:
+ *                 type: string
+ *               examType:
+ *                 type: string
+ *                 enum: [CIA1, CIA2, MODEL]
+ *               studentsData:
+ *                 type: array
+ *               threshold:
+ *                 type: number
+ *               academicYear:
+ *                 type: string
+ *               semester:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Tasks assigned successfully
+ *       404:
+ *         description: Subject not found
+ *       500:
+ *         description: Server error
+ */
+router.post('/bulk-assign-tasks', protect, bulkAssignCOTasks);
 
 module.exports = router;

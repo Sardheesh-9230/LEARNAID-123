@@ -8,20 +8,27 @@ import {
 import apiService from '../services/api'
 import MCQPreviewModal from './MCQPreviewModal'
 
-interface LaggingStudent {
-  studentId: string
-  studentName: string
-  rollNumber: string
+interface COPerformance {
   courseOutcome: string
   coNumber: number
   currentPerformance: number
-  threshold: number
   performanceGap: number
   weakTopics: string[]
   totalMarks: number
   obtainedMarks: number
   questionCount: number
   examTypes: string[]
+}
+
+interface LaggingStudent {
+  studentId: string
+  studentName: string
+  rollNumber: string
+  threshold: number
+  weakCOs: COPerformance[]
+  overallPerformance: number
+  totalGap: number
+  priority: 'HIGH' | 'MEDIUM' | 'LOW'
 }
 
 interface COBasedStudentIdentificationProps {
@@ -38,7 +45,7 @@ export default function COBasedStudentIdentification({
   onClose 
 }: COBasedStudentIdentificationProps) {
   const [laggingStudents, setLaggingStudents] = useState<LaggingStudent[]>([])
-  const [selectedCO, setSelectedCO] = useState<string>('all')
+  const [examType, setExamType] = useState<string>('ALL')
   const [threshold, setThreshold] = useState<number>(50)
   const [loading, setLoading] = useState(false)
   const [assigning, setAssigning] = useState(false)
@@ -77,23 +84,21 @@ export default function COBasedStudentIdentification({
     maxAttempts: 3
   })
 
-  const availableCOs = ['all', 'CO1', 'CO2', 'CO3', 'CO4', 'CO5']
-
   useEffect(() => {
     if (subjectId) {
       identifyLaggingStudents()
     }
-  }, [subjectId, selectedCO, threshold])
+  }, [subjectId, examType, threshold])
 
   const identifyLaggingStudents = async () => {
     try {
       setLoading(true)
 
-      console.log(`🔍 Fetching CO analysis for subject: ${subjectId}, threshold: ${threshold}`)
+      console.log(`🔍 Fetching CO analysis for subject: ${subjectId}, exam: ${examType}, threshold: ${threshold}`)
 
-      // Fetch CO analysis for all students in the subject
+      // Fetch CO analysis for all students in the subject by exam type
       const response = await apiService.makeRequest(
-        `/marks/co-analysis/subject/${subjectId}?threshold=${threshold}`
+        `/marks/co-analysis/subject/${subjectId}/exam/${examType}?threshold=${threshold}`
       )
 
       console.log('📊 API Response:', response)
@@ -101,39 +106,60 @@ export default function COBasedStudentIdentification({
 
       if (response.success && response.data) {
         console.log(`✅ Received ${response.data.length} students`)
-        const allStudents: LaggingStudent[] = []
+        
+        // Group students by ID and aggregate their weak COs
+        const studentMap = new Map<string, LaggingStudent>()
 
-        // Process each student's CO analysis
         response.data.forEach((analysis: any) => {
-          // Find poor performing COs
           const poorCOs = analysis.poorPerformanceCOs || []
           
+          if (poorCOs.length === 0) return
+
+          if (!studentMap.has(analysis.studentId)) {
+            studentMap.set(analysis.studentId, {
+              studentId: analysis.studentId,
+              studentName: analysis.studentName,
+              rollNumber: analysis.rollNumber || 'N/A',
+              threshold: analysis.threshold,
+              weakCOs: [],
+              overallPerformance: 0,
+              totalGap: 0,
+              priority: 'MEDIUM'
+            })
+          }
+
+          const student = studentMap.get(analysis.studentId)!
+          
           poorCOs.forEach((co: any) => {
-            // Filter by selected CO if not 'all'
-            if (selectedCO === 'all' || co.courseOutcome === selectedCO) {
-              allStudents.push({
-                studentId: analysis.studentId,
-                studentName: analysis.studentName,
-                rollNumber: analysis.rollNumber || 'N/A',
-                courseOutcome: co.courseOutcome,
-                coNumber: parseInt(co.courseOutcome.replace('CO', '')),
-                currentPerformance: co.percentage,
-                threshold: analysis.threshold,
-                performanceGap: co.gap,
-                weakTopics: co.topics || [],
-                totalMarks: co.totalMarks,
-                obtainedMarks: co.obtainedMarks,
-                questionCount: co.questionCount,
-                examTypes: co.examTypes || []
-              })
-            }
+            student.weakCOs.push({
+              courseOutcome: co.courseOutcome,
+              coNumber: parseInt(co.courseOutcome.replace('CO', '')),
+              currentPerformance: co.percentage,
+              performanceGap: co.gap,
+              weakTopics: co.topics || ['General Topics'],
+              totalMarks: co.totalMarks,
+              obtainedMarks: co.obtainedMarks,
+              questionCount: co.questionCount,
+              examTypes: co.examTypes || []
+            })
           })
+
+          // Calculate overall metrics
+          const totalMarks = student.weakCOs.reduce((sum, co) => sum + co.totalMarks, 0)
+          const obtainedMarks = student.weakCOs.reduce((sum, co) => sum + co.obtainedMarks, 0)
+          student.overallPerformance = totalMarks > 0 ? (obtainedMarks / totalMarks) * 100 : 0
+          student.totalGap = student.weakCOs.reduce((sum, co) => sum + co.performanceGap, 0)
+          
+          // Determine priority
+          const avgGap = student.totalGap / student.weakCOs.length
+          student.priority = avgGap > 30 ? 'HIGH' : avgGap > 20 ? 'MEDIUM' : 'LOW'
         })
 
-        console.log(`📋 Processed ${allStudents.length} lagging student entries`)
+        const allStudents = Array.from(studentMap.values())
+        console.log(`📋 Processed ${allStudents.length} unique students with weak COs`)
 
-        // Sort by performance gap (worst first)
-        allStudents.sort((a, b) => b.performanceGap - a.performanceGap)
+        // Sort by total gap (worst first)
+        allStudents.sort((a, b) => b.totalGap - a.totalGap)
         setLaggingStudents(allStudents)
 
         if (allStudents.length === 0) {
@@ -186,35 +212,52 @@ export default function COBasedStudentIdentification({
       const firstStudent = laggingStudents.find(s => selectedStudents.includes(s.studentId))
       if (!firstStudent) return
 
-      setPreviewStudentInfo({
-        name: firstStudent.studentName,
-        courseOutcome: firstStudent.courseOutcome,
-        weakAreas: firstStudent.weakTopics,
-        currentPerformance: firstStudent.currentPerformance,
-        threshold: threshold,
-        performanceGap: firstStudent.performanceGap
-      })
+      // Generate MCQs for ALL weak COs
+      const allMCQs: any[] = []
+      
+      for (const co of firstStudent.weakCOs) {
+        setPreviewStudentInfo({
+          name: firstStudent.studentName,
+          courseOutcome: co.courseOutcome,
+          weakAreas: co.weakTopics,
+          currentPerformance: co.currentPerformance,
+          threshold: threshold,
+          performanceGap: co.performanceGap
+        })
 
-      // Generate MCQs from materials
-      const response = await apiService.makeRequest(
-        '/mcq-generator/generate-from-materials',
-        {
-          method: 'POST',
-          body: JSON.stringify({
-            subjectId: subjectId,
-            courseOutcome: firstStudent.courseOutcome,
-            topics: firstStudent.weakTopics,
-            difficulty: taskConfig.difficultyLevel,
-            numberOfQuestions: taskConfig.numberOfQuestions,
-            threshold: threshold,
-            currentPerformance: firstStudent.currentPerformance,
-            performanceGap: firstStudent.performanceGap
-          })
+        // Generate MCQs from materials for this CO
+        const response = await apiService.makeRequest(
+          '/mcq-generator/generate-from-materials',
+          {
+            method: 'POST',
+            body: JSON.stringify({
+              subjectId: subjectId,
+              courseOutcome: co.courseOutcome,
+              topics: co.weakTopics,
+              difficulty: taskConfig.difficultyLevel,
+              numberOfQuestions: Math.ceil(taskConfig.numberOfQuestions / firstStudent.weakCOs.length),
+              threshold: threshold,
+              currentPerformance: co.currentPerformance,
+              performanceGap: co.performanceGap
+            })
+          }
+        )
+
+        if (response.success && response.questions) {
+          allMCQs.push(...response.questions)
         }
-      )
+      }
 
-      if (response.success && response.questions) {
-        setGeneratedMCQs(response.questions)
+      if (allMCQs.length > 0) {
+        setGeneratedMCQs(allMCQs)
+        setPreviewStudentInfo({
+          name: firstStudent.studentName,
+          courseOutcome: firstStudent.weakCOs.map(co => co.courseOutcome).join(', '),
+          weakAreas: Array.from(new Set(firstStudent.weakCOs.flatMap(co => co.weakTopics))),
+          currentPerformance: firstStudent.overallPerformance,
+          threshold: threshold,
+          performanceGap: firstStudent.totalGap
+        })
         setShowMCQPreview(true)
       } else {
         showNotification('Failed to generate MCQs. Please check if materials are uploaded for this subject.', 'error')
@@ -246,64 +289,52 @@ export default function COBasedStudentIdentification({
     try {
       setAssigning(true)
 
-      // Group students by CO to batch assign tasks
-      const studentsByCO: { [co: string]: LaggingStudent[] } = {}
-      
-      laggingStudents.forEach(student => {
-        if (selectedStudents.includes(student.studentId)) {
-          if (!studentsByCO[student.courseOutcome]) {
-            studentsByCO[student.courseOutcome] = []
-          }
-          studentsByCO[student.courseOutcome].push(student)
-        }
-      })
-
       const assignmentPromises = []
 
-      // Assign tasks for each CO group with approved MCQs
-      for (const [co, students] of Object.entries(studentsByCO)) {
-        for (const student of students) {
-          const taskData = {
-            studentId: student.studentId,
-            subjectId: subjectId,
-            subjectName: subjectName,
-            courseOutcome: co,
-            coNumber: student.coNumber,
-            currentPerformance: student.currentPerformance,
-            taskType: 'CO_IMPROVEMENT',
-            priority: student.performanceGap > 30 ? 'HIGH' : 
-                     student.performanceGap > 20 ? 'MEDIUM' : 'LOW',
-            description: `Improve performance in ${co} - Current: ${student.currentPerformance.toFixed(1)}%, Target: ${threshold}%`,
-            dueDate: taskConfig.dueDate,
-            generatedMCQs: true,
-            approvedMCQs: generatedMCQs, // Include faculty-approved MCQs
-            weakAreas: student.weakTopics,
-            studyTimeMinutes: taskConfig.studyTimeMinutes,
-            teacherSettings: {
-              difficultyLevel: taskConfig.difficultyLevel,
-              numberOfQuestions: taskConfig.numberOfQuestions,
-              scheduledStartTime: taskConfig.scheduledStartTime,
-              scheduledEndTime: taskConfig.scheduledEndTime,
-              allowRetake: taskConfig.allowRetake,
-              maxAttempts: taskConfig.maxAttempts,
-              focusAreas: student.weakTopics,
-              threshold: threshold,
-              targetPerformance: threshold
-            },
-            coWeakAreas: [{
-              co: co,
-              topics: student.weakTopics,
-              performanceGap: student.performanceGap
-            }]
-          }
+      // Assign tasks for each selected student with ALL their weak COs
+      for (const student of laggingStudents) {
+        if (!selectedStudents.includes(student.studentId)) continue
 
-          assignmentPromises.push(
-            apiService.makeRequest('/improvement-tasks/assign-co-specific', {
-              method: 'POST',
-              body: JSON.stringify(taskData)
-            })
-          )
+        const taskData = {
+          studentId: student.studentId,
+          subjectId: subjectId,
+          subjectName: subjectName,
+          courseOutcomes: student.weakCOs.map(co => co.courseOutcome), // Multiple COs
+          coNumbers: student.weakCOs.map(co => co.coNumber),
+          currentPerformance: student.overallPerformance,
+          taskType: 'CO_IMPROVEMENT',
+          priority: student.priority,
+          description: `Improve performance in ${student.weakCOs.map(co => co.courseOutcome).join(', ')} - Current: ${student.overallPerformance.toFixed(1)}%, Target: ${threshold}%`,
+          dueDate: taskConfig.dueDate,
+          generatedMCQs: true,
+          approvedMCQs: generatedMCQs, // Include faculty-approved MCQs for ALL COs
+          weakAreas: Array.from(new Set(student.weakCOs.flatMap(co => co.weakTopics))),
+          studyTimeMinutes: taskConfig.studyTimeMinutes,
+          teacherSettings: {
+            difficultyLevel: taskConfig.difficultyLevel,
+            numberOfQuestions: taskConfig.numberOfQuestions,
+            scheduledStartTime: taskConfig.scheduledStartTime,
+            scheduledEndTime: taskConfig.scheduledEndTime,
+            allowRetake: taskConfig.allowRetake,
+            maxAttempts: taskConfig.maxAttempts,
+            focusAreas: Array.from(new Set(student.weakCOs.flatMap(co => co.weakTopics))),
+            threshold: threshold,
+            targetPerformance: threshold
+          },
+          coWeakAreas: student.weakCOs.map(co => ({
+            co: co.courseOutcome,
+            topics: co.weakTopics,
+            performanceGap: co.performanceGap,
+            currentPerformance: co.currentPerformance
+          }))
         }
+
+        assignmentPromises.push(
+          apiService.makeRequest('/improvement-tasks/assign-co-specific', {
+            method: 'POST',
+            body: JSON.stringify(taskData)
+          })
+        )
       }
 
       const results = await Promise.allSettled(assignmentPromises)
@@ -398,18 +429,18 @@ export default function COBasedStudentIdentification({
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Filter by Course Outcome
+                  Exam Type
                 </label>
                 <select
-                  value={selectedCO}
-                  onChange={(e) => setSelectedCO(e.target.value)}
+                  value={examType}
+                  onChange={(e) => setExamType(e.target.value)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
-                  {availableCOs.map(co => (
-                    <option key={co} value={co}>
-                      {co === 'all' ? 'All COs' : co}
-                    </option>
-                  ))}
+                  <option value="ALL">All Exams</option>
+                  <option value="CIA1">CIA 1 (CO1-CO2)</option>
+                  <option value="CIA2">CIA 2 (CO3-CO4)</option>
+                  <option value="MODEL">Model Exam (CO1-CO5)</option>
+                  <option value="SEMESTER">Semester Exam</option>
                 </select>
               </div>
 
@@ -598,7 +629,7 @@ export default function COBasedStudentIdentification({
                   No lagging students found below {threshold}% threshold!
                 </p>
                 <p className="text-sm text-gray-500 mt-2">
-                  All students are performing well in {selectedCO === 'all' ? 'all COs' : selectedCO}
+                  All students are performing well in the selected exam
                 </p>
               </div>
             ) : (

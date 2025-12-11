@@ -1065,30 +1065,113 @@ export default function StudentMarkEntry({ preSelectedSubject, preSelectedStuden
 
   const exportMarks = async () => {
     try {
-      // Generate marks report for export
-      const reportData = {
-        subject: selectedSubject,
-        examType: selectedExamType,
-        marks: editingMarks,
-        students: filteredStudents.map(s => ({
-          id: s._id,
-          name: s.name,
-          rollNumber: s.rollNumber,
-          marks: editingMarks[s._id] || 'Not entered'
-        })),
-        timestamp: new Date().toISOString()
+      if (!selectedSubject || !selectedExamType) {
+        setError('Please select subject and exam type first')
+        return
       }
+
+      console.log('📊 Fetching marks for export...')
       
-      const filename = `marks_${selectedExamType}_${new Date().toISOString().split('T')[0]}`
-      const success = exportComplexDataToExcel(reportData, filename)
+      // Fetch actual saved marks from database with full details
+      const response = await apiService.getMarksBySubjectAndExam(
+        selectedSubject,
+        selectedExamType,
+        '2024-2025',
+        'Odd'
+      )
+      
+      const savedMarks = response.data || []
+      console.log(`✅ Fetched ${savedMarks.length} marks from database`)
+      
+      // Get subject details
+      const subjectDetails = subjects.find(s => s._id === selectedSubject)
+      const subjectName = subjectDetails?.name || 'Subject'
+      const subjectCode = subjectDetails?.code || ''
+      
+      // Generate vertical format with CO-wise breakdown
+      const exportData = filteredStudents.map(student => {
+        const studentId = student._id
+        
+        // Find saved marks for this student
+        const savedMark = savedMarks.find((m: any) => 
+          (m.student?._id || m.student) === studentId
+        )
+        
+        const row: any = {
+          'Roll Number': student.rollNumber,
+          'Student Name': student.name,
+          'Email': student.email,
+          'Subject Code': subjectCode,
+          'Subject Name': subjectName,
+          'Exam Type': selectedExamType,
+          'Total Marks': savedMark?.marksObtained || 'Not Entered',
+          'Max Marks': savedMark?.totalMarks || currentExamType?.maxMarks || 60,
+          'Percentage': savedMark ? ((savedMark.marksObtained / savedMark.totalMarks) * 100).toFixed(1) + '%' : '-',
+          'Grade': savedMark?.grade || '-',
+          'Status': savedMark ? 'Entered' : 'Pending'
+        }
+        
+        // Add CO-wise breakdown from saved data
+        if (savedMark) {
+          // Check if coWiseMarks exists
+          if (savedMark.coWiseMarks && Array.isArray(savedMark.coWiseMarks) && savedMark.coWiseMarks.length > 0) {
+            console.log(`📊 CO data for ${student.name}:`, savedMark.coWiseMarks)
+            savedMark.coWiseMarks.forEach((co: any) => {
+              row[`${co.courseOutcome} Marks`] = co.obtainedMarks
+              row[`${co.courseOutcome} Max`] = co.maxMarks
+              row[`${co.courseOutcome} %`] = co.maxMarks > 0 
+                ? Math.round((co.obtainedMarks / co.maxMarks) * 100) + '%'
+                : '0%'
+            })
+          }
+          // Check if questionWiseMarks exists
+          else if (savedMark.questionWiseMarks && Array.isArray(savedMark.questionWiseMarks) && savedMark.questionWiseMarks.length > 0) {
+            console.log(`📊 Question data for ${student.name}:`, savedMark.questionWiseMarks.length, 'questions')
+            
+            // Group questions by CO
+            const coSummary: { [key: string]: { obtained: number, max: number, questions: number } } = {}
+            
+            savedMark.questionWiseMarks.forEach((q: any) => {
+              const co = q.courseOutcome || `CO${q.unit || 1}`
+              if (!coSummary[co]) {
+                coSummary[co] = { obtained: 0, max: 0, questions: 0 }
+              }
+              coSummary[co].obtained += q.obtainedMarks || 0
+              coSummary[co].max += q.maxMarks || 0
+              coSummary[co].questions += 1
+            })
+            
+            // Add CO summaries to row
+            Object.keys(coSummary).sort().forEach(co => {
+              const { obtained, max, questions } = coSummary[co]
+              row[`${co} Marks`] = obtained
+              row[`${co} Max`] = max
+              row[`${co} %`] = max > 0 ? Math.round((obtained / max) * 100) + '%' : '0%'
+              row[`${co} Questions`] = questions
+            })
+          } else {
+            console.log(`⚠️ No CO/Question breakdown for ${student.name}`)
+          }
+          
+          row['Remarks'] = savedMark.remarks || '-'
+          row['Entered By'] = savedMark.enteredBy?.name || 'System'
+          row['Entry Date'] = savedMark.enteredAt ? new Date(savedMark.enteredAt).toLocaleDateString() : '-'
+        }
+        
+        return row
+      })
+      
+      const filename = `${subjectCode}_${subjectName}_${selectedExamType}_${new Date().toISOString().split('T')[0]}`
+      const success = exportComplexDataToExcel(exportData, filename)
       
       if (success) {
-        setSuccess('Marks exported successfully to Excel!')
+        setSuccess(`Marks exported successfully! File: ${filename}.xlsx`)
       } else {
         setError('Failed to export marks')
       }
     } catch (err: any) {
-      setError('Failed to export marks')
+      console.error('Export error:', err)
+      setError('Failed to export marks: ' + err.message)
     }
   }
 

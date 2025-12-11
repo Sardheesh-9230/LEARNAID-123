@@ -1,6 +1,8 @@
 const StudentMarkEntry = require('../models/StudentMarkEntry');
+const QuestionWiseMarks = require('../models/QuestionWiseMarks');
 const Subject = require('../models/Subject');
 const User = require('../models/User');
+const mongoose = require('mongoose');
 const { validationResult } = require('express-validator');
 
 /**
@@ -133,6 +135,9 @@ exports.enterStudentMarks = async (req, res, next) => {
       });
     }
 
+    // ✨ CREATE QUESTIONWISEMARK ENTRIES FOR CO ANALYSIS
+    await createQuestionWiseMarksForCOAnalysis(markEntry, academicYear, semester);
+
     // Populate the response
     await markEntry.populate([
       { path: 'student', select: 'name rollNumber email' },
@@ -142,7 +147,7 @@ exports.enterStudentMarks = async (req, res, next) => {
 
     res.status(existingMark ? 200 : 201).json({
       success: true,
-      message: existingMark ? 'Marks updated successfully' : 'Marks entered successfully',
+      message: existingMark ? 'Marks updated successfully (CO analysis data generated)' : 'Marks entered successfully (CO analysis data generated)',
       data: markEntry
     });
 
@@ -285,6 +290,9 @@ exports.bulkEnterMarks = async (req, res, next) => {
             coWiseMarks: coWiseMarks || []
           });
         }
+
+        // ✨ CREATE QUESTIONWISEMARK ENTRIES FOR CO ANALYSIS
+        await createQuestionWiseMarksForCOAnalysis(markEntry, academicYear, semester);
 
         results.push({
           student,
@@ -669,3 +677,130 @@ exports.getMarkEntryStatistics = async (req, res, next) => {
     });
   }
 };
+
+/**
+ * Helper function to create QuestionWiseMarks entries for CO analysis
+ * This converts embedded questionWiseMarks or coWiseMarks into separate QuestionWiseMarks documents
+ */
+async function createQuestionWiseMarksForCOAnalysis(markEntry, academicYear, semester) {
+  try {
+    const { student, subject, examType, _id: markEntryId } = markEntry;
+    
+    // Delete existing QuestionWiseMarks for this entry to avoid duplicates
+    await QuestionWiseMarks.deleteMany({
+      studentMarkEntry: markEntryId,
+      student,
+      subject,
+      examType,
+      academicYear,
+      semester
+    });
+
+    const questionWiseEntries = [];
+    
+    // Create a dummy exam ID (required by schema but not always available)
+    const dummyExamId = new mongoose.Types.ObjectId();
+
+    // Process CO-wise marks if available (preferred for CIA exams)
+    if (markEntry.coWiseMarks && markEntry.coWiseMarks.length > 0) {
+      console.log(`📊 Processing ${markEntry.coWiseMarks.length} CO-wise marks for CO analysis`);
+      
+      markEntry.coWiseMarks.forEach((coMark, index) => {
+        const { courseOutcome, maxMarks, obtainedMarks } = coMark;
+        
+        // Map CO to unit (CO1→Unit1, CO2→Unit2, etc.)
+        const unit = parseInt(courseOutcome.replace('CO', ''));
+        
+        questionWiseEntries.push({
+          studentMarkEntry: markEntryId,
+          student,
+          subject,
+          exam: dummyExamId,
+          examType,
+          questionNumber: index + 1, // Use index as question number
+          questionText: `${courseOutcome} Assessment`,
+          marksObtained: obtainedMarks || 0,
+          maxMarks: maxMarks || 20,
+          courseOutcome,
+          unit,
+          questionType: examType === 'MODEL' ? '16mark' : '2mark',
+          section: 'A',
+          bloomsLevel: 'L3',
+          academicYear,
+          semester
+        });
+      });
+    }
+    
+    // Process question-wise marks if available (fallback or additional detail)
+    else if (markEntry.questionWiseMarks && markEntry.questionWiseMarks.length > 0) {
+      console.log(`📊 Processing ${markEntry.questionWiseMarks.length} question-wise marks for CO analysis`);
+      
+      markEntry.questionWiseMarks.forEach((questionMark) => {
+        const { 
+          questionNumber, 
+          unit, 
+          maxMarks, 
+          obtainedMarks, 
+          questionType, 
+          section,
+          courseOutcome 
+        } = questionMark;
+        
+        // Determine CO from unit if not explicitly provided
+        const determinedCO = courseOutcome || `CO${unit || 1}`;
+        
+        questionWiseEntries.push({
+          studentMarkEntry: markEntryId,
+          student,
+          subject,
+          exam: dummyExamId,
+          examType,
+          questionNumber,
+          questionText: `Question ${questionNumber} (${determinedCO})`,
+          marksObtained: obtainedMarks || 0,
+          maxMarks: maxMarks || 2,
+          courseOutcome: determinedCO,
+          unit: unit || 1,
+          questionType: questionType || '2mark',
+          section: section || 'A',
+          bloomsLevel: questionType === '16mark' ? 'L4' : 'L2',
+          academicYear,
+          semester
+        });
+      });
+    }
+
+    // Bulk insert QuestionWiseMarks entries
+    if (questionWiseEntries.length > 0) {
+      await QuestionWiseMarks.insertMany(questionWiseEntries);
+      console.log(`✅ Created ${questionWiseEntries.length} QuestionWiseMarks entries for CO analysis`);
+      
+      // Log CO distribution for verification
+      const coDistribution = {};
+      questionWiseEntries.forEach(entry => {
+        if (!coDistribution[entry.courseOutcome]) {
+          coDistribution[entry.courseOutcome] = { 
+            questions: 0, 
+            totalMarks: 0, 
+            obtainedMarks: 0 
+          };
+        }
+        coDistribution[entry.courseOutcome].questions++;
+        coDistribution[entry.courseOutcome].totalMarks += entry.maxMarks;
+        coDistribution[entry.courseOutcome].obtainedMarks += entry.marksObtained;
+      });
+      
+      console.log('📊 CO Distribution:', JSON.stringify(coDistribution, null, 2));
+      
+      return questionWiseEntries;
+    } else {
+      console.log('⚠️ No question-wise or CO-wise marks found to create CO analysis entries');
+      return [];
+    }
+
+  } catch (error) {
+    console.error('❌ Error creating QuestionWiseMarks entries:', error);
+    throw error;
+  }
+}

@@ -1,0 +1,292 @@
+[
+  {
+    "contactInfo": {
+      "email": "admin@learnaid.edu",
+      "phone": "+919876543200",
+      "location": "Admin Block, Ground Floor"
+    },
+    "_id": "691adebbaffd04191f5119eb",
+    "name": "Artificial Intelligence and Data Science",
+    "code": "ADI",
+    "description": "Artificial Intelligence and Data Science Department for system management and operations",
+    "hod": "691d9e19e905bbe84e7e1e84",
+    "establishedYear": 2000,
+    "sections": [
+      "A"
+    ],
+    "maxStudentsPerSection": 65,
+    "status": "Active",
+    "facilities": [
+      {
+        "name": "Administrative Office",
+        "description": "Main admin office",
+        "capacity": 10,
+        "_id": "691adebbaffd04191f5119ec",
+        "id": "691adebbaffd04191f5119ec"
+      },
+      {
+        "name": "Conference Room",
+        "description": "Meeting room for administration",
+        "capacity": 20,
+        "_id": "691adebbaffd04191f5119ed",
+        "id": "691adebbaffd04191f5119ed"
+      }
+    ],
+    "programs": [
+      {
+        "name": "Administrative Services",
+        "duration": 1,
+        "type": "Certificate",
+        "_id": "691adebbaffd04191f5119ee",
+        "id": "691adebbaffd04191f5119ee"
+      }
+    ],
+    "createdBy": "691adeb9affd04191f5119dd",
+    "createdAt": "2025-11-17T08:37:15.689Z",
+    "updatedAt": "2025-11-20T10:42:34.557Z",
+    "__v": 0,
+    "id": "691adebbaffd04191f5119eb"
+  },
+  {
+    "contactInfo": {
+      "email": "cse@learnaid.edu",
+      "phone": "+919876543210",
+      "location": "Academic Block A, Floor 3"
+    },
+    "_id": "691adebbaffd04191f5119f4",
+    "name": "Computer Science and Engineering",
+    "code": "CSE",
+    "description": "Department of Computer Science and Engineering offering undergraduate and postgraduate programs in computing technologies.",
+    "hod": "691af7994848606dd3d840a2",
+    "establishedYear": 2005,
+    "sections": [
+      "A",
+      "B",
+      "C"
+    ],
+    "maxStudentsPerSection": 65,
+    "status": "Active",
+    "facilities": [
+      {
+        "name": "Computer Lab 1",
+        "description": "Programming laboratory",
+        "capacity": 40,
+        "_id": "691adebbaffd04191f5119f5",
+        "id": "691adebbaffd04191f5119f5"
+      },
+      {
+        "name": "Computer Lab 2",
+        "description": "Software development lab",
+        "capacity": 40,
+        "_id": "691adebbaffd04191f5119f6",
+        "id": "691adebbaffd04191f5119f6"
+      },
+      {
+        "name": "Research Lab",
+        "description": "Advanced research facility",
+        "capacity": 20,
+        "_id": "691adebbaffd04191f5119f7",
+        "id": "691adebbaffd04191f5119f7"
+      },
+      {
+        "name": "Conference Room",
+        "description": "Department meeting room",
+        "capacity": 25,
+        "_id": "691adebbaffd04191f5119f8",
+        "id": "691adebbaffd04191f5119f8"
+      }
+    ],
+    "programs": [
+      {
+        "name": "B.Tech Computer Science",
+        "duration": 4,
+        "type": "Undergraduate",
+        "_id": "691adebbaffd04191f5119f9",
+        "id": "691adebbaffd04191f5119f9"
+      },
+      {
+        "name": "M.Tech Computer Science",
+        "duration": 2,
+        "type": "Postgraduate",
+        "_id": "691adebbaffd04191f5119fa",
+        "id": "691adebbaffd04191f5119fa"
+      }
+    ],
+    "createdBy": "691adeb9affd04191f5119dd",
+    "createdAt": "2025-11-17T08:37:16.235Z",
+    "updatedAt": "2025-11-19T10:27:48.565Z",
+    "__v": 0,
+    "id": "691adebbaffd04191f5119f4"
+  },
+  {
+    "contactInfo": {
+      "email": "ece@learnaid.edu",
+      "phone": "+919876543211",
+      "location": "Academic Block B, Floor 2"
+    },
+    "_id": "691adebdaffd04191f511a00",
+    "name": "Electronics and Communication Engineering",
+    "code": "ECE",
+    "description": "Department of Electronics and Communication Engineering specializing in electronics and communication systems.",
+    "hod": "691adebcaffd04191f5119fe",
+    "establishedYear": 2008,
+    "sections": [
+      "A",
+      "B"
+    ],
+    "maxStudentsPerSection": 65,
+    "status": "Active",
+    "facilities": [
+      {
+        "name": "Electronics Lab",
+        "description": "Basic electronics laboratory",
+        "capacity": 30,
+        "_id": "691adebdaffd04191f511a01",
+        "id": "691adebdaffd04191f511a01"
+      },
+      {
+        "name": "Communication Lab",
+        "description": "Communication systems lab",
+        "capacity": 30,
+        "_id": "691adebdaffd04191f511a02",
+        "id": "691adebdaffd04191f511a02"
+      },
+      {
+        "name": "Digital Lab",
+        "description": "Digital electronics laboratory",
+        "capacity": 25,
+        "_id": "691adebdaffd04191f511a03",
+        "id": "691adebdaffd04191f511a03"
+      }
+    ],
+    "programs": [
+      {
+        "name": "B.Tech Electronics & Communication",
+        "duration": 4,
+        "type": "Undergraduate",
+        "_id": "691adebdaffd04191f511a04",
+        "id": "691adebdaffd04191f511a04"
+      }
+    ],
+    "createdBy": "691adeb9affd04191f5119dd",
+    "createdAt": "2025-11-17T08:37:18.078Z",
+    "updatedAt": "2025-11-17T08:37:18.078Z",
+    "__v": 0,
+    "id": "691adebdaffd04191f511a00"
+  },
+  {
+    "contactInfo": {
+      "email": "mech@learnaid.edu",
+      "phone": "+919876543212",
+      "location": "Academic Block C, Floor 1"
+    },
+    "_id": "691adebfaffd04191f511a0a",
+    "name": "Mechanical Engineering",
+    "code": "MECH",
+    "description": "Department of Mechanical Engineering focusing on design, manufacturing, and thermal systems.",
+    "hod": "691adebeaffd04191f511a08",
+    "establishedYear": 2010,
+    "sections": [
+      "A",
+      "B"
+    ],
+    "maxStudentsPerSection": 65,
+    "status": "Active",
+    "facilities": [
+      {
+        "name": "Manufacturing Lab",
+        "description": "Manufacturing processes laboratory",
+        "capacity": 25,
+        "_id": "691adebfaffd04191f511a0b",
+        "id": "691adebfaffd04191f511a0b"
+      },
+      {
+        "name": "CAD Lab",
+        "description": "Computer-aided design laboratory",
+        "capacity": 30,
+        "_id": "691adebfaffd04191f511a0c",
+        "id": "691adebfaffd04191f511a0c"
+      },
+      {
+        "name": "Workshop",
+        "description": "Mechanical workshop",
+        "capacity": 20,
+        "_id": "691adebfaffd04191f511a0d",
+        "id": "691adebfaffd04191f511a0d"
+      }
+    ],
+    "programs": [
+      {
+        "name": "B.Tech Mechanical Engineering",
+        "duration": 4,
+        "type": "Undergraduate",
+        "_id": "691adebfaffd04191f511a0e",
+        "id": "691adebfaffd04191f511a0e"
+      }
+    ],
+    "createdBy": "691adeb9affd04191f5119dd",
+    "createdAt": "2025-11-17T08:37:19.761Z",
+    "updatedAt": "2025-11-17T08:37:19.761Z",
+    "__v": 0,
+    "id": "691adebfaffd04191f511a0a"
+  },
+  {
+    "contactInfo": {
+      "email": "departmentit@learnaid.edu",
+      "phone": "+918976543212",
+      "location": "RK,Second floor"
+    },
+    "_id": "691d9e93e905bbe84e7e1ef5",
+    "name": "Information technology",
+    "code": "IT",
+    "description": "Department of Information Technology",
+    "establishedYear": 2025,
+    "sections": [
+      "A",
+      "B",
+      "C"
+    ],
+    "maxStudentsPerSection": 65,
+    "status": "Active",
+    "programs": [
+      {
+        "name": "B.Tech Information technology",
+        "duration": 4,
+        "type": "Undergraduate",
+        "_id": "691d9e93e905bbe84e7e1ef6",
+        "id": "691d9e93e905bbe84e7e1ef6"
+      }
+    ],
+    "createdBy": "691adeb9affd04191f5119dd",
+    "facilities": [],
+    "createdAt": "2025-11-19T10:40:19.619Z",
+    "updatedAt": "2025-11-19T10:40:19.619Z",
+    "__v": 0,
+    "id": "691d9e93e905bbe84e7e1ef5"
+  },
+  {
+    "contactInfo": {
+      "email": "departmentcivil@learnaid.edu",
+      "phone": "+918574142396",
+      "location": "RK,Ground Floor"
+    },
+    "_id": "691eb84322900bfe2d78adbe",
+    "name": "Civil Engineering",
+    "code": "CIVIL",
+    "description": "Department of Civil",
+    "establishedYear": 2005,
+    "sections": [
+      "A"
+    ],
+    "maxStudentsPerSection": 65,
+    "status": "Active",
+    "createdBy": "691adeb9affd04191f5119dd",
+    "facilities": [],
+    "programs": [],
+    "createdAt": "2025-11-20T06:42:11.484Z",
+    "updatedAt": "2025-11-20T06:48:30.288Z",
+    "__v": 0,
+    "hod": "691eb99d22900bfe2d78ae2e",
+    "id": "691eb84322900bfe2d78adbe"
+  }
+]

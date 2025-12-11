@@ -1,0 +1,114 @@
+[
+  {
+    "fileMetadata": {
+      "size": 169077
+    },
+    "_id": "69154f85ca3c371fd9690ac3",
+    "chapter": "6915401624ebffd55c4b7abc",
+    "subject": "68fc9c39a541164381d62248",
+    "title": "sample-material",
+    "description": "PDF material for example-chapter",
+    "type": "PDF",
+    "file": "69154f82ca3c371fd9690ac1",
+    "order": 1,
+    "duration": 0,
+    "status": "Published",
+    "isPublic": true,
+    "allowDownload": true,
+    "viewCount": 0,
+    "downloadCount": 0,
+    "tags": [],
+    "createdBy": "68fc9ecea541164381d623ae",
+    "createdAt": "2025-11-13T03:24:53.846Z",
+    "updatedAt": "2025-11-13T03:24:53.846Z",
+    "__v": 0,
+    "formattedSize": "165.11 KB",
+    "id": "69154f85ca3c371fd9690ac3"
+  },
+  {
+    "fileMetadata": {
+      "size": 3937
+    },
+    "_id": "6915697cf59614e8cda7e9f8",
+    "chapter": "690432037e705b968cf954d5",
+    "subject": "68fc9c39a541164381d62248",
+    "title": "agile-method-notes",
+    "description": "PDF material for intrduction to Agile",
+    "type": "PDF",
+    "file": "6915697bf59614e8cda7e9f6",
+    "order": 1,
+    "duration": 0,
+    "status": "Published",
+    "isPublic": true,
+    "allowDownload": true,
+    "viewCount": 0,
+    "downloadCount": 0,
+    "tags": [],
+    "createdBy": "68fc9ecea541164381d623ae",
+    "createdAt": "2025-11-13T05:15:40.362Z",
+    "updatedAt": "2025-11-13T05:15:40.362Z",
+    "__v": 0,
+    "formattedSize": "3.84 KB",
+    "id": "6915697cf59614e8cda7e9f8"
+  },
+  {
+    "fileMetadata": {
+      "size": 348872
+    },
+    "_id": "6916d72eef078aabe8f9692b",
+    "chapter": "6916d58def078aabe8f968bf",
+    "subject": "68fc9c39a541164381d62248",
+    "title": "RPOS",
+    "description": "PDF material for Framework",
+    "type": "PDF",
+    "file": "6916d72def078aabe8f96929",
+    "order": 1,
+    "duration": 0,
+    "status": "Published",
+    "isPublic": true,
+    "allowDownload": true,
+    "viewCount": 0,
+    "downloadCount": 0,
+    "tags": [
+      "EXAM",
+      "PROJECT"
+    ],
+    "createdBy": "68fc9ecea541164381d623ae",
+    "createdAt": "2025-11-14T07:15:58.028Z",
+    "updatedAt": "2025-11-14T07:15:58.028Z",
+    "__v": 0,
+    "formattedSize": "340.7 KB",
+    "id": "6916d72eef078aabe8f9692b"
+  },
+  {
+    "fileMetadata": {
+      "originalName": "UNIT-III CN -PPT.pdf",
+      "mimeType": "application/pdf",
+      "size": 1555289,
+      "filePath": "uploads\\materials\\file-1763622751805-653942085.pdf"
+    },
+    "_id": "691ebf640f8e5b823f4a4333",
+    "chapter": "691ebcd80f8e5b823f4a42ce",
+    "subject": "691da401e905bbe84e7e2167",
+    "title": "Computer networks",
+    "description": "PDF material for Introduction to networks",
+    "type": "PDF",
+    "file": "691ebf620f8e5b823f4a4331",
+    "order": 1,
+    "duration": 0,
+    "status": "Published",
+    "isPublic": true,
+    "allowDownload": true,
+    "viewCount": 0,
+    "downloadCount": 0,
+    "tags": [
+      "exam"
+    ],
+    "createdBy": "691d9e19e905bbe84e7e1e84",
+    "createdAt": "2025-11-20T07:12:36.095Z",
+    "updatedAt": "2025-11-20T07:12:36.095Z",
+    "__v": 0,
+    "formattedSize": "1.48 MB",
+    "id": "691ebf640f8e5b823f4a4333"
+  }
+]

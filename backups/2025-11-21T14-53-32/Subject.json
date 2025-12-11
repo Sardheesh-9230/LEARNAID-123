@@ -1,0 +1,248 @@
+[
+  {
+    "schedule": {
+      "lecturesPerWeek": 3,
+      "duration": 60,
+      "timeSlots": []
+    },
+    "assessmentStructure": {
+      "internals": 40,
+      "externals": 60,
+      "practicals": 0
+    },
+    "_id": "691adec4affd04191f511a1d",
+    "name": "Data Structures and Algorithms",
+    "code": "CS301",
+    "type": "Core",
+    "description": "Fundamental data structures and algorithmic techniques",
+    "credits": 4,
+    "department": "691adebbaffd04191f5119f4",
+    "year": "2nd Year",
+    "section": "A",
+    "semester": 3,
+    "faculty": [
+      {
+        "user": "691adebaaffd04191f5119e5",
+        "isExternal": false,
+        "isPrimary": true,
+        "_id": "691adec4affd04191f511a1e",
+        "assignedDate": "2025-11-17T08:37:24.791Z",
+        "id": "691adec4affd04191f511a1e"
+      }
+    ],
+    "enrolledStudents": [
+      "691adec1affd04191f511a15",
+      "691adec2affd04191f511a17"
+    ],
+    "maxStudents": 60,
+    "learningOutcomes": [],
+    "status": "Active",
+    "academicYear": "2024-2025",
+    "createdBy": "691adeb9affd04191f5119dd",
+    "resources": [],
+    "createdAt": "2025-11-17T08:37:24.793Z",
+    "updatedAt": "2025-11-17T08:39:18.753Z",
+    "__v": 1,
+    "enrollmentPercentage": 3,
+    "facultyNames": "691adebaaffd04191f5119e5",
+    "isFull": false,
+    "availableSlots": 58,
+    "id": "691adec4affd04191f511a1d"
+  },
+  {
+    "schedule": {
+      "lecturesPerWeek": 3,
+      "duration": 60,
+      "timeSlots": []
+    },
+    "assessmentStructure": {
+      "internals": 40,
+      "externals": 60,
+      "practicals": 0
+    },
+    "_id": "691adec5affd04191f511a20",
+    "name": "Database Management Systems",
+    "code": "CS302",
+    "type": "Core",
+    "description": "Relational database design and SQL programming",
+    "credits": 3,
+    "department": "691adebbaffd04191f5119f4",
+    "year": "2nd Year",
+    "section": "A",
+    "semester": 3,
+    "faculty": [
+      {
+        "user": "691adec0affd04191f511a13",
+        "isExternal": false,
+        "isPrimary": true,
+        "_id": "691adec5affd04191f511a21",
+        "assignedDate": "2025-11-17T08:37:25.046Z",
+        "id": "691adec5affd04191f511a21"
+      }
+    ],
+    "enrolledStudents": [
+      "691adec1affd04191f511a15",
+      "691adec2affd04191f511a17"
+    ],
+    "maxStudents": 60,
+    "learningOutcomes": [],
+    "status": "Active",
+    "academicYear": "2024-2025",
+    "createdBy": "691adeb9affd04191f5119dd",
+    "resources": [],
+    "createdAt": "2025-11-17T08:37:25.048Z",
+    "updatedAt": "2025-11-17T08:39:19.563Z",
+    "__v": 1,
+    "enrollmentPercentage": 3,
+    "facultyNames": "691adec0affd04191f511a13",
+    "isFull": false,
+    "availableSlots": 58,
+    "id": "691adec5affd04191f511a20"
+  },
+  {
+    "schedule": {
+      "lecturesPerWeek": 3,
+      "duration": 60,
+      "timeSlots": []
+    },
+    "assessmentStructure": {
+      "internals": 40,
+      "externals": 60,
+      "practicals": 0
+    },
+    "_id": "691adec5affd04191f511a23",
+    "name": "Digital Signal Processing",
+    "code": "EC501",
+    "type": "Core",
+    "description": "Processing of digital signals and systems",
+    "credits": 4,
+    "department": "691adebdaffd04191f511a00",
+    "year": "3rd Year",
+    "section": "A",
+    "semester": 5,
+    "faculty": [
+      {
+        "user": "691adebcaffd04191f5119fe",
+        "isExternal": false,
+        "isPrimary": true,
+        "_id": "691adec5affd04191f511a24",
+        "assignedDate": "2025-11-17T08:37:25.387Z",
+        "id": "691adec5affd04191f511a24"
+      }
+    ],
+    "enrolledStudents": [
+      "691adec3affd04191f511a19"
+    ],
+    "maxStudents": 40,
+    "learningOutcomes": [],
+    "status": "Active",
+    "academicYear": "2024-2025",
+    "createdBy": "691adeb9affd04191f5119dd",
+    "resources": [],
+    "createdAt": "2025-11-17T08:37:25.388Z",
+    "updatedAt": "2025-11-17T08:39:20.297Z",
+    "__v": 1,
+    "enrollmentPercentage": 3,
+    "facultyNames": "691adebcaffd04191f5119fe",
+    "isFull": false,
+    "availableSlots": 39,
+    "id": "691adec5affd04191f511a23"
+  },
+  {
+    "schedule": {
+      "lecturesPerWeek": 3,
+      "duration": 60,
+      "timeSlots": []
+    },
+    "assessmentStructure": {
+      "internals": 40,
+      "externals": 60,
+      "practicals": 0
+    },
+    "_id": "691adec5affd04191f511a26",
+    "name": "Engineering Mechanics",
+    "code": "ME101",
+    "type": "Core",
+    "description": "Fundamental principles of mechanics",
+    "credits": 3,
+    "department": "691adebfaffd04191f511a0a",
+    "year": "1st Year",
+    "section": "A",
+    "semester": 1,
+    "faculty": [
+      {
+        "user": "691adebeaffd04191f511a08",
+        "isExternal": false,
+        "isPrimary": true,
+        "_id": "691adec5affd04191f511a27",
+        "assignedDate": "2025-11-17T08:37:25.640Z",
+        "id": "691adec5affd04191f511a27"
+      }
+    ],
+    "enrolledStudents": [],
+    "maxStudents": 50,
+    "learningOutcomes": [],
+    "status": "Active",
+    "academicYear": "2024-2025",
+    "createdBy": "691adeb9affd04191f5119dd",
+    "resources": [],
+    "createdAt": "2025-11-17T08:37:25.641Z",
+    "updatedAt": "2025-11-17T08:37:25.641Z",
+    "__v": 0,
+    "enrollmentPercentage": 0,
+    "facultyNames": "691adebeaffd04191f511a08",
+    "isFull": false,
+    "availableSlots": 50,
+    "id": "691adec5affd04191f511a26"
+  },
+  {
+    "schedule": {
+      "lecturesPerWeek": 3,
+      "duration": 60,
+      "timeSlots": []
+    },
+    "assessmentStructure": {
+      "internals": 40,
+      "externals": 60,
+      "practicals": 0
+    },
+    "_id": "691da401e905bbe84e7e2167",
+    "name": "Enginnering graphics",
+    "code": "GEA1101",
+    "type": "Elective",
+    "description": "it",
+    "credits": 3,
+    "department": "691adebbaffd04191f5119eb",
+    "year": "1st Year",
+    "section": "A",
+    "semester": 1,
+    "faculty": [
+      {
+        "user": "691adebeaffd04191f511a08",
+        "isExternal": true,
+        "assignedDate": "2025-11-20T09:50:18.837Z",
+        "isPrimary": false,
+        "_id": "691ee45a99a11ed41c5cd004",
+        "id": "691ee45a99a11ed41c5cd004"
+      }
+    ],
+    "enrolledStudents": [
+      "691ec0a90f8e5b823f4a43fc"
+    ],
+    "maxStudents": 65,
+    "prerequisite": null,
+    "learningOutcomes": [],
+    "status": "Active",
+    "academicYear": "2024-2025",
+    "createdBy": "691adeb9affd04191f5119dd",
+    "resources": [],
+    "createdAt": "2025-11-19T11:03:29.777Z",
+    "updatedAt": "2025-11-20T09:50:18.843Z",
+    "__v": 8,
+    "enrollmentPercentage": 2,
+    "facultyNames": "691adebeaffd04191f511a08",
+    "isFull": false,
+    "availableSlots": 64,
+    "id": "691da401e905bbe84e7e2167"
+  }
+]
