@@ -2,7 +2,17 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import ParticleText from '@/components/ParticleText'
+import dynamic from 'next/dynamic'
+
+// Lazy load Three.js component (only loads when visible)
+const ParticleText = dynamic(() => import('@/components/ParticleText'), {
+  ssr: false,
+  loading: () => (
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 flex items-center justify-center">
+      <div className="text-4xl font-bold text-white animate-pulse">Loading...</div>
+    </div>
+  ),
+})
 
 export default function Home() {
   const [scrollY, setScrollY] = useState(0)

@@ -2,8 +2,20 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import FacultyLayout from '../../components/FacultyLayout';
-import TeacherDashboard from '../../components/TeacherDashboard';
+
+// Lazy load the heavy TeacherDashboard component
+const TeacherDashboard = dynamic(() => import('../../components/TeacherDashboard'), {
+  loading: () => (
+    <div className="flex items-center justify-center min-h-screen">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+        <p className="mt-4 text-gray-600">Loading dashboard...</p>
+      </div>
+    </div>
+  ),
+});
 
 export default function FacultyDashboardPage() {
   const router = useRouter();

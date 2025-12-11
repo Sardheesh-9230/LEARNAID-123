@@ -3,10 +3,10 @@
 import { useState, useEffect } from 'react'
 import { 
   FiTarget, FiAlertTriangle, FiUsers, FiCalendar, 
-  FiClock, FiSettings, FiCheckCircle, FiTrendingDown 
+  FiClock, FiCheckCircle, FiTrendingDown, FiZap 
 } from 'react-icons/fi'
 import apiService from '../services/api'
-import MCQPreviewModal from './MCQPreviewModal'
+import TaskAssessmentWizard from './TaskAssessmentWizard'
 
 interface COPerformance {
   courseOutcome: string
@@ -48,14 +48,10 @@ export default function COBasedStudentIdentification({
   const [examType, setExamType] = useState<string>('ALL')
   const [threshold, setThreshold] = useState<number>(50)
   const [loading, setLoading] = useState(false)
-  const [assigning, setAssigning] = useState(false)
   const [selectedStudents, setSelectedStudents] = useState<string[]>([])
   
-  // MCQ Preview states
-  const [showMCQPreview, setShowMCQPreview] = useState(false)
-  const [generatedMCQs, setGeneratedMCQs] = useState<any[]>([])
-  const [generatingMCQs, setGeneratingMCQs] = useState(false)
-  const [previewStudentInfo, setPreviewStudentInfo] = useState<any>(null)
+  // Wizard state
+  const [showWizard, setShowWizard] = useState(false)
   
   // Notification state
   const [notification, setNotification] = useState<{
@@ -71,18 +67,6 @@ export default function COBasedStudentIdentification({
   const closeNotification = () => {
     setNotification({ show: false, type: 'info', message: '' })
   }
-  
-  // Task configuration
-  const [taskConfig, setTaskConfig] = useState({
-    difficultyLevel: 'Medium' as 'Easy' | 'Medium' | 'Hard' | 'Mixed',
-    numberOfQuestions: 10,
-    studyTimeMinutes: 90,
-    scheduledStartTime: '',
-    scheduledEndTime: '',
-    dueDate: '',
-    allowRetake: true,
-    maxAttempts: 3
-  })
 
   useEffect(() => {
     if (subjectId) {
@@ -194,199 +178,6 @@ export default function COBasedStudentIdentification({
     setSelectedStudents([])
   }
 
-  const generateMCQsPreview = async () => {
-    if (selectedStudents.length === 0) {
-      showNotification('Please select at least one student to continue', 'warning')
-      return
-    }
-
-    if (!taskConfig.dueDate) {
-      showNotification('Please set a due date for the tasks', 'warning')
-      return
-    }
-
-    try {
-      setGeneratingMCQs(true)
-
-      // Get first selected student for preview
-      const firstStudent = laggingStudents.find(s => selectedStudents.includes(s.studentId))
-      if (!firstStudent) return
-
-      // Generate MCQs for ALL weak COs
-      const allMCQs: any[] = []
-      
-      for (const co of firstStudent.weakCOs) {
-        setPreviewStudentInfo({
-          name: firstStudent.studentName,
-          courseOutcome: co.courseOutcome,
-          weakAreas: co.weakTopics,
-          currentPerformance: co.currentPerformance,
-          threshold: threshold,
-          performanceGap: co.performanceGap
-        })
-
-        // Generate MCQs from materials for this CO
-        const response = await apiService.makeRequest(
-          '/mcq-generator/generate-from-materials',
-          {
-            method: 'POST',
-            body: JSON.stringify({
-              subjectId: subjectId,
-              courseOutcome: co.courseOutcome,
-              topics: co.weakTopics,
-              difficulty: taskConfig.difficultyLevel,
-              numberOfQuestions: Math.ceil(taskConfig.numberOfQuestions / firstStudent.weakCOs.length),
-              threshold: threshold,
-              currentPerformance: co.currentPerformance,
-              performanceGap: co.performanceGap
-            })
-          }
-        )
-
-        if (response.success && response.questions) {
-          allMCQs.push(...response.questions)
-        }
-      }
-
-      if (allMCQs.length > 0) {
-        setGeneratedMCQs(allMCQs)
-        setPreviewStudentInfo({
-          name: firstStudent.studentName,
-          courseOutcome: firstStudent.weakCOs.map(co => co.courseOutcome).join(', '),
-          weakAreas: Array.from(new Set(firstStudent.weakCOs.flatMap(co => co.weakTopics))),
-          currentPerformance: firstStudent.overallPerformance,
-          threshold: threshold,
-          performanceGap: firstStudent.totalGap
-        })
-        setShowMCQPreview(true)
-      } else {
-        showNotification('Failed to generate MCQs. Please check if materials are uploaded for this subject.', 'error')
-      }
-    } catch (error: any) {
-      console.error('Error generating MCQs:', error)
-      showNotification(error?.message || 'Failed to generate MCQs. Please try again.', 'error')
-    } finally {
-      setGeneratingMCQs(false)
-    }
-  }
-
-  const assignImprovementTasks = async () => {
-    if (selectedStudents.length === 0) {
-      showNotification('Please select at least one student to continue', 'warning')
-      return
-    }
-
-    if (!taskConfig.dueDate) {
-      showNotification('Please set a due date for the tasks', 'warning')
-      return
-    }
-
-    // First, generate MCQs and show preview
-    await generateMCQsPreview()
-  }
-
-  const handleApproveMCQs = async () => {
-    try {
-      setAssigning(true)
-
-      const assignmentPromises = []
-
-      // Assign tasks for each selected student with ALL their weak COs
-      for (const student of laggingStudents) {
-        if (!selectedStudents.includes(student.studentId)) continue
-
-        const taskData = {
-          studentId: student.studentId,
-          subjectId: subjectId,
-          subjectName: subjectName,
-          courseOutcomes: student.weakCOs.map(co => co.courseOutcome), // Multiple COs
-          coNumbers: student.weakCOs.map(co => co.coNumber),
-          currentPerformance: student.overallPerformance,
-          taskType: 'CO_IMPROVEMENT',
-          priority: student.priority,
-          description: `Improve performance in ${student.weakCOs.map(co => co.courseOutcome).join(', ')} - Current: ${student.overallPerformance.toFixed(1)}%, Target: ${threshold}%`,
-          dueDate: taskConfig.dueDate,
-          generatedMCQs: true,
-          approvedMCQs: generatedMCQs, // Include faculty-approved MCQs for ALL COs
-          weakAreas: Array.from(new Set(student.weakCOs.flatMap(co => co.weakTopics))),
-          studyTimeMinutes: taskConfig.studyTimeMinutes,
-          teacherSettings: {
-            difficultyLevel: taskConfig.difficultyLevel,
-            numberOfQuestions: taskConfig.numberOfQuestions,
-            scheduledStartTime: taskConfig.scheduledStartTime,
-            scheduledEndTime: taskConfig.scheduledEndTime,
-            allowRetake: taskConfig.allowRetake,
-            maxAttempts: taskConfig.maxAttempts,
-            focusAreas: Array.from(new Set(student.weakCOs.flatMap(co => co.weakTopics))),
-            threshold: threshold,
-            targetPerformance: threshold
-          },
-          coWeakAreas: student.weakCOs.map(co => ({
-            co: co.courseOutcome,
-            topics: co.weakTopics,
-            performanceGap: co.performanceGap,
-            currentPerformance: co.currentPerformance
-          }))
-        }
-
-        assignmentPromises.push(
-          apiService.makeRequest('/improvement-tasks/assign-co-specific', {
-            method: 'POST',
-            body: JSON.stringify(taskData)
-          })
-        )
-      }
-
-      const results = await Promise.allSettled(assignmentPromises)
-      const successful = results.filter(r => r.status === 'fulfilled').length
-      const failed = results.filter(r => r.status === 'rejected').length
-
-      // Log detailed results
-      console.log('📊 Task Assignment Results:')
-      console.log(`  ✅ Successful: ${successful}`)
-      console.log(`  ❌ Failed: ${failed}`)
-      
-      results.forEach((result, index) => {
-        if (result.status === 'fulfilled') {
-          const data = result.value
-          console.log(`  Task ${index + 1}:`, data)
-          if (data.data?.task?.mcqData) {
-            console.log(`    🧠 MCQs: ${data.data.task.mcqData.totalQuestions} questions`)
-            console.log(`    📚 Material: ${data.data.task.mcqData.materialUsed || 'N/A'}`)
-            console.log(`    ⚠️ Needs Generation: ${data.data.task.mcqData.needsGeneration || false}`)
-          }
-        } else {
-          console.error(`  Task ${index + 1} failed:`, result.reason)
-        }
-      })
-
-      const successMessage = `Successfully assigned ${successful} improvement task(s)!${failed > 0 ? ` ${failed} assignment(s) failed.` : ''} Faculty-approved MCQs have been assigned to students.`
-      showNotification(successMessage, failed > 0 ? 'warning' : 'success')
-      
-      // Clear selection and close
-      clearSelection()
-      setShowMCQPreview(false)
-      setGeneratedMCQs([])
-
-    } catch (error: any) {
-      console.error('❌ Error assigning improvement tasks:', error)
-      showNotification(error?.message || 'Failed to assign improvement tasks. Please try again.', 'error')
-    } finally {
-      setAssigning(false)
-    }
-  }
-
-  const handleRegenerateMCQs = async () => {
-    // Regenerate MCQs with same parameters
-    await generateMCQsPreview()
-  }
-
-  const handleCancelMCQPreview = () => {
-    setShowMCQPreview(false)
-    setGeneratedMCQs([])
-    setPreviewStudentInfo(null)
-  }
-
   const getPerformanceColor = (percentage: number) => {
     if (percentage < 30) return 'text-red-600 bg-red-50'
     if (percentage < 50) return 'text-orange-600 bg-orange-50'
@@ -471,129 +262,6 @@ export default function COBasedStudentIdentification({
             </div>
           </div>
 
-          {/* Task Configuration */}
-          <div className="bg-blue-50 rounded-lg p-4 mb-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-              <FiSettings />
-              Task Configuration
-            </h3>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Difficulty Level
-                </label>
-                <select
-                  value={taskConfig.difficultyLevel}
-                  onChange={(e) => setTaskConfig({...taskConfig, difficultyLevel: e.target.value as any})}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="Easy">Easy</option>
-                  <option value="Medium">Medium</option>
-                  <option value="Hard">Hard</option>
-                  <option value="Mixed">Mixed</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Number of Questions
-                </label>
-                <input
-                  type="number"
-                  value={taskConfig.numberOfQuestions}
-                  onChange={(e) => setTaskConfig({...taskConfig, numberOfQuestions: parseInt(e.target.value) || 10})}
-                  min="5"
-                  max="50"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Study Time (minutes)
-                </label>
-                <input
-                  type="number"
-                  value={taskConfig.studyTimeMinutes}
-                  onChange={(e) => setTaskConfig({...taskConfig, studyTimeMinutes: parseInt(e.target.value) || 90})}
-                  min="30"
-                  max="300"
-                  step="15"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  <FiCalendar className="inline mr-1" /> Due Date
-                </label>
-                <input
-                  type="date"
-                  value={taskConfig.dueDate}
-                  onChange={(e) => setTaskConfig({...taskConfig, dueDate: e.target.value})}
-                  min={new Date().toISOString().split('T')[0]}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  <FiClock className="inline mr-1" /> Start Time (Optional)
-                </label>
-                <input
-                  type="datetime-local"
-                  value={taskConfig.scheduledStartTime}
-                  onChange={(e) => setTaskConfig({...taskConfig, scheduledStartTime: e.target.value})}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  <FiClock className="inline mr-1" /> End Time (Optional)
-                </label>
-                <input
-                  type="datetime-local"
-                  value={taskConfig.scheduledEndTime}
-                  onChange={(e) => setTaskConfig({...taskConfig, scheduledEndTime: e.target.value})}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="allowRetake"
-                  checked={taskConfig.allowRetake}
-                  onChange={(e) => setTaskConfig({...taskConfig, allowRetake: e.target.checked})}
-                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                />
-                <label htmlFor="allowRetake" className="text-sm text-gray-700">
-                  Allow Retake
-                </label>
-              </div>
-
-              {taskConfig.allowRetake && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Max Attempts
-                  </label>
-                  <input
-                    type="number"
-                    value={taskConfig.maxAttempts}
-                    onChange={(e) => setTaskConfig({...taskConfig, maxAttempts: parseInt(e.target.value) || 3})}
-                    min="1"
-                    max="10"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-              )}
-            </div>
-          </div>
-
           {/* Students List */}
           <div className="bg-white rounded-lg border border-gray-200">
             <div className="bg-gray-50 px-6 py-4 border-b border-gray-200 flex items-center justify-between">
@@ -646,18 +314,17 @@ export default function COBasedStudentIdentification({
                         />
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">CO</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Performance</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Gap</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Weak COs</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Overall Performance</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Gap</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Priority</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Weak Topics</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Exam Types</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {laggingStudents.map((student, index) => (
                       <tr 
-                        key={`${student.studentId}-${student.courseOutcome}-${index}`}
+                        key={`${student.studentId}-${index}`}
                         className={selectedStudents.includes(student.studentId) ? 'bg-blue-50' : 'hover:bg-gray-50'}
                       >
                         <td className="px-6 py-4 whitespace-nowrap">
@@ -674,54 +341,63 @@ export default function COBasedStudentIdentification({
                             <div className="text-xs text-gray-500">{student.rollNumber}</div>
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-sm font-semibold">
-                            {student.courseOutcome}
-                          </span>
+                        <td className="px-6 py-4">
+                          <div className="space-y-2">
+                            {student.weakCOs && student.weakCOs.length > 0 ? (
+                              student.weakCOs.map((co, idx) => (
+                                <div key={idx} className="flex items-center gap-2">
+                                  <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-sm font-semibold">
+                                    {co.courseOutcome}
+                                  </span>
+                                  <span className={`text-xs font-semibold px-2 py-1 rounded ${getPerformanceColor(co.currentPerformance || 0)}`}>
+                                    {(co.currentPerformance || 0).toFixed(1)}%
+                                  </span>
+                                  <span className="text-xs text-gray-500">
+                                    ({co.obtainedMarks}/{co.totalMarks})
+                                  </span>
+                                </div>
+                              ))
+                            ) : (
+                              <span className="text-gray-400 text-xs">No data</span>
+                            )}
+                          </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className={`text-sm font-semibold px-3 py-1 rounded inline-block ${getPerformanceColor(student.currentPerformance)}`}>
-                            {student.currentPerformance.toFixed(1)}%
-                          </div>
-                          <div className="text-xs text-gray-500 mt-1">
-                            {student.obtainedMarks}/{student.totalMarks} marks
+                          <div className={`text-sm font-semibold px-3 py-1 rounded inline-block ${getPerformanceColor(student.overallPerformance || 0)}`}>
+                            {(student.overallPerformance || 0).toFixed(1)}%
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm font-semibold text-red-600">
-                            -{student.performanceGap.toFixed(1)}%
+                            -{(student.totalGap || 0).toFixed(1)}%
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          {getPriorityBadge(student.performanceGap)}
+                          {getPriorityBadge((student.totalGap || 0) / Math.max(student.weakCOs?.length || 1, 1))}
                         </td>
                         <td className="px-6 py-4">
                           <div className="text-sm text-gray-900 max-w-xs">
-                            {student.weakTopics.length > 0 ? (
-                              <div className="flex flex-wrap gap-1">
-                                {student.weakTopics.slice(0, 3).map((topic, i) => (
-                                  <span key={i} className="px-2 py-1 bg-orange-100 text-orange-800 rounded text-xs">
-                                    {topic}
-                                  </span>
-                                ))}
-                                {student.weakTopics.length > 3 && (
-                                  <span className="px-2 py-1 bg-gray-100 text-gray-800 rounded text-xs">
-                                    +{student.weakTopics.length - 3} more
-                                  </span>
-                                )}
-                              </div>
-                            ) : (
-                              <span className="text-gray-400 text-xs">No specific topics</span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex flex-wrap gap-1">
-                            {student.examTypes.map((exam, i) => (
-                              <span key={i} className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs">
-                                {exam}
-                              </span>
-                            ))}
+                            {(() => {
+                              const allTopics = student.weakCOs && student.weakCOs.length > 0 
+                                ? Array.from(new Set(student.weakCOs.flatMap(co => co.weakTopics || [])))
+                                : []
+                              return allTopics.length > 0 ? (
+                                <div className="flex flex-wrap gap-1">
+                                  {allTopics.slice(0, 3).map((topic, i) => (
+                                    <span key={i} className="px-2 py-1 bg-orange-100 text-orange-800 rounded text-xs">
+                                      {topic}
+                                    </span>
+                                  ))}
+                                  {allTopics.length > 3 && (
+                                    <span className="px-2 py-1 bg-gray-100 text-gray-800 rounded text-xs">
+                                      +{allTopics.length - 3} more
+                                    </span>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-gray-400 text-xs">No specific topics</span>
+                              )
+                            })()}
                           </div>
                         </td>
                       </tr>
@@ -750,28 +426,16 @@ export default function COBasedStudentIdentification({
               Cancel
             </button>
             <button
-              onClick={assignImprovementTasks}
-              disabled={selectedStudents.length === 0 || assigning || !taskConfig.dueDate || generatingMCQs}
-              className="px-6 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-colors disabled:from-gray-400 disabled:to-gray-400 disabled:cursor-not-allowed flex items-center gap-2"
+              onClick={() => setShowWizard(true)}
+              disabled={selectedStudents.length === 0 || !examType || examType === 'ALL'}
+              className="px-6 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:from-purple-700 hover:to-pink-700 transition-colors disabled:from-gray-400 disabled:to-gray-400 disabled:cursor-not-allowed flex items-center gap-2"
             >
-              <FiCheckCircle />
-              {generatingMCQs ? 'Generating MCQs...' : assigning ? 'Assigning Tasks...' : `Assign Improvement Tasks (${selectedStudents.length})`}
+              <FiZap />
+              Create Assessment ({selectedStudents.length})
             </button>
           </div>
         </div>
       </div>
-
-      {/* MCQ Preview Modal */}
-      {showMCQPreview && (
-        <MCQPreviewModal
-          mcqs={generatedMCQs}
-          studentInfo={previewStudentInfo}
-          onApprove={handleApproveMCQs}
-          onRegenerate={handleRegenerateMCQs}
-          onCancel={handleCancelMCQPreview}
-          loading={assigning}
-        />
-      )}
 
       {/* Custom Notification Dialog */}
       {notification.show && (
@@ -820,6 +484,24 @@ export default function COBasedStudentIdentification({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Task Assessment Wizard */}
+      {showWizard && (
+        <TaskAssessmentWizard
+          subjectId={subjectId}
+          subjectName={subjectName}
+          facultyId={facultyId}
+          examType={examType as any}
+          selectedStudents={selectedStudents}
+          studentDetails={laggingStudents.filter(s => selectedStudents.includes(s.studentId))}
+          onClose={() => setShowWizard(false)}
+          onComplete={() => {
+            setShowWizard(false)
+            showNotification('Assessment created and assigned successfully!', 'success')
+            identifyLaggingStudents() // Refresh the list
+          }}
+        />
       )}
     </div>
   )

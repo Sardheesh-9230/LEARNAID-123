@@ -40,6 +40,7 @@ const improvementTasksRoutes = require('./routes/improvementTasks'); // Improvem
 const coPerformanceRoutes = require('./routes/coPerformance'); // CO Performance Analysis
 const publicAnalyticsRoutes = require('./routes/publicAnalytics'); // Public Analytics (no auth required)
 const coAnalyticsRoutes = require('./routes/coAnalytics'); // CO-wise Analytics for Faculty
+const taskAssessmentRoutes = require('./routes/taskAssessment'); // Task Assessment Wizard with CO-specific Question Generation
 
 // Student Module Routes
 const chatbotRoutes = require('./routes/chatbot');
@@ -148,6 +149,7 @@ app.use('/api/student-marks', studentMarkEntryRoutes); // Student Mark Entry Sys
 app.use('/api/student-analytics', studentMarksRoutes); // Student Marks Analytics & Retrieval
 app.use('/api/public-analytics', publicAnalyticsRoutes); // Public Analytics (no authentication required)
 app.use('/api/co-analytics', coAnalyticsRoutes); // CO-wise Performance Analytics for Faculty
+app.use('/api', taskAssessmentRoutes); // Task Assessment Wizard Routes (includes materials, mcq-generator, tasks)
 
 // Student Module Routes
 app.use('/api/chatbot', chatbotRoutes);
