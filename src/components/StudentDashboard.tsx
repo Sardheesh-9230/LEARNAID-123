@@ -5,7 +5,6 @@ import StudentSidebar from '@/components/StudentSidebar'
 import StudentChatbot from '@/components/StudentChatbot'
 import StudentImprovementDashboard from '@/components/StudentImprovementDashboard'
 import StudentStudyMaterials from '@/components/StudentStudyMaterials'
-import StudentTaskDashboard from '@/components/StudentTaskDashboard'
 import apiService from '@/services/api'
 
 interface Discussion {
@@ -193,9 +192,6 @@ export default function StudentDashboard() {
             </div>
           </div>
         )
-      
-      case 'learning-tasks':
-        return <StudentTaskDashboard />
       
       case 'resources':
         return <StudentStudyMaterials />
