@@ -155,6 +155,38 @@ export default function StudentMCQTest({ task, onComplete, onClose }: MCQTestPro
             </div>
           </div>
 
+          {/* CO-wise Performance */}
+          {results.coWiseResults && Object.keys(results.coWiseResults).length > 0 && (
+            <div className="p-6 bg-blue-50 border-b">
+              <h3 className="text-lg font-semibold mb-4 text-blue-900">📊 CO-wise Performance</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {Object.entries(results.coWiseResults).map(([co, data]: [string, any]) => {
+                  const coPercentage = data.totalMarks > 0 ? (data.obtainedMarks / data.totalMarks) * 100 : 0
+                  return (
+                    <div key={co} className="bg-white rounded-lg p-4 border-2 border-blue-200">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-bold text-blue-900">{co}</span>
+                        <span className={`font-semibold ${coPercentage >= 70 ? 'text-green-600' : 'text-red-600'}`}>
+                          {coPercentage.toFixed(1)}%
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm text-gray-600">
+                        <span>{data.correctAnswers}/{data.totalQuestions} correct</span>
+                        <span>{data.obtainedMarks}/{data.totalMarks} marks</span>
+                      </div>
+                      <div className="mt-2 w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                          className={`h-2 rounded-full ${coPercentage >= 70 ? 'bg-green-500' : 'bg-red-500'}`}
+                          style={{ width: `${coPercentage}%` }}
+                        />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
           <div className="p-6 max-h-96 overflow-y-auto">
             <h3 className="text-lg font-semibold mb-4">Detailed Results</h3>
             <div className="space-y-4">
@@ -170,9 +202,16 @@ export default function StudentMCQTest({ task, onComplete, onClose }: MCQTestPro
                       <FiX className="text-red-600 mt-1 flex-shrink-0" size={20} />
                     )}
                     <div className="flex-1">
-                      <p className="font-medium text-gray-900 mb-2">
-                        Q{index + 1}. {result.question}
-                      </p>
+                      <div className="flex items-center gap-2 mb-2">
+                        <p className="font-medium text-gray-900">
+                          Q{index + 1}. {result.question}
+                        </p>
+                        {result.courseOutcome && (
+                          <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded text-xs font-medium">
+                            {result.courseOutcome}
+                          </span>
+                        )}
+                      </div>
                       <div className="text-sm space-y-1">
                         <p>
                           <span className="font-medium">Your Answer:</span>{' '}

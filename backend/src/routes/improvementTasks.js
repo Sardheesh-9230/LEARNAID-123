@@ -335,16 +335,47 @@ router.put('/:taskId/progress', protect, async (req, res) => {
     }
 
     // Verify access (student can update their own task, faculty can update any)
-    if (req.user.id !== task.student.toString() && !['faculty', 'admin'].includes(req.user.role)) {
+    let hasAccess = false
+    
+    if (['faculty', 'admin'].includes(req.user.role)) {
+      hasAccess = true
+    } else {
+      // For single-student tasks
+      if (task.student && task.student.toString() === req.user.id) {
+        hasAccess = true
+      }
+      // For multi-student tasks
+      if (task.studentAssignments && task.studentAssignments.length > 0) {
+        hasAccess = task.studentAssignments.some(
+          assignment => assignment.student.toString() === req.user.id
+        )
+      }
+    }
+    
+    if (!hasAccess) {
       return res.status(403).json({
         success: false,
         message: 'Access denied'
       })
     }
 
-    // Update task progress
-    if (status) task.status = status
-    if (progressPercentage !== undefined) task.progressPercentage = progressPercentage
+    // For multi-student tasks, update the specific student's assignment
+    if (task.studentAssignments && task.studentAssignments.length > 0) {
+      const studentAssignment = task.studentAssignments.find(
+        a => a.student.toString() === req.user.id
+      )
+      
+      if (studentAssignment) {
+        if (status) studentAssignment.status = status
+        // Note: progressPercentage is not stored per student in multi-student tasks
+      }
+    } else {
+      // For single-student tasks, update the main task fields
+      if (status) task.status = status
+      if (progressPercentage !== undefined) task.progressPercentage = progressPercentage
+    }
+    
+    // Update metadata (shared for all students)
     if (studyTimeCompleted) {
       task.metadata.studyTimeCompleted = (task.metadata.studyTimeCompleted || 0) + studyTimeCompleted
     }
@@ -839,66 +870,203 @@ router.post('/:taskId/submit-mcq', protect, async (req, res) => {
   try {
     const { taskId } = req.params
     const { answers, timeTaken } = req.body
+    const studentId = req.user.id
 
     const task = await ImprovementTask.findById(taskId)
     if (!task) {
       return res.status(404).json({ success: false, message: 'Task not found' })
     }
 
-    if (req.user.id !== task.student.toString() && !['faculty', 'admin'].includes(req.user.role)) {
-      return res.status(403).json({ success: false, message: 'Access denied' })
+    // Check if this is a multi-student task
+    let questions = []
+    let studentAssignment = null
+    let isMultiStudent = false
+
+    if (task.studentAssignments && task.studentAssignments.length > 0) {
+      // Multi-student task - find this student's assignment
+      isMultiStudent = true
+      studentAssignment = task.studentAssignments.find(
+        a => a.student.toString() === studentId
+      )
+      
+      if (!studentAssignment) {
+        return res.status(403).json({ 
+          success: false, 
+          message: 'You are not assigned to this task' 
+        })
+      }
+      
+      questions = studentAssignment.personalizedQuestions || []
+    } else {
+      // Single-student task
+      if (req.user.id !== task.student.toString() && !['faculty', 'admin'].includes(req.user.role)) {
+        return res.status(403).json({ success: false, message: 'Access denied' })
+      }
+      
+      questions = task.metadata?.generatedMCQs?.questions || []
     }
 
-    const questions = task.metadata?.generatedMCQs?.questions || []
     if (questions.length === 0) {
       return res.status(400).json({ success: false, message: 'No questions found' })
     }
 
+    // Calculate results
     let correctAnswers = 0
     let totalMarks = 0
     let obtainedMarks = 0
     const detailedResults = []
+    const coWiseResults = {}
 
     questions.forEach((q, index) => {
       const questionId = q.id || 'q_' + (index + 1)
       const studentAnswer = answers[questionId]
       const correctAnswer = q.correctAnswer
       const marks = q.marks || 1
+      const courseOutcome = q.courseOutcome || 'General'
+      
       totalMarks += marks
-      const isCorrect = studentAnswer === correctAnswer || studentAnswer === q.options[correctAnswer]
+      
+      const isCorrect = studentAnswer === correctAnswer || 
+                       studentAnswer === q.options[correctAnswer]
+      
       if (isCorrect) {
         correctAnswers++
         obtainedMarks += marks
       }
-      detailedResults.push({ questionId, question: q.question, studentAnswer, correctAnswer, isCorrect, marks, marksObtained: isCorrect ? marks : 0, explanation: q.explanation })
+
+      // Track CO-wise performance
+      if (!coWiseResults[courseOutcome]) {
+        coWiseResults[courseOutcome] = {
+          totalQuestions: 0,
+          correctAnswers: 0,
+          totalMarks: 0,
+          obtainedMarks: 0
+        }
+      }
+      coWiseResults[courseOutcome].totalQuestions++
+      coWiseResults[courseOutcome].totalMarks += marks
+      if (isCorrect) {
+        coWiseResults[courseOutcome].correctAnswers++
+        coWiseResults[courseOutcome].obtainedMarks += marks
+      }
+
+      detailedResults.push({
+        questionId,
+        question: q.question,
+        studentAnswer,
+        correctAnswer,
+        isCorrect,
+        marks,
+        marksObtained: isCorrect ? marks : 0,
+        explanation: q.explanation,
+        courseOutcome
+      })
     })
 
     const percentage = totalMarks > 0 ? (obtainedMarks / totalMarks) * 100 : 0
     const passed = percentage >= 70
-    const attemptNumber = (task.metadata.mcqScores?.length || 0) + 1
-    const maxAttempts = task.metadata.teacherSettings?.maxAttempts || 3
+    const maxAttempts = task.metadata?.teacherSettings?.maxAttempts || 3
 
-    if (!task.metadata.mcqScores) task.metadata.mcqScores = []
-    task.metadata.mcqScores.push({ attemptNumber, score: percentage, timestamp: new Date(), totalQuestions: questions.length, correctAnswers, totalMarks, obtainedMarks, timeTaken, passed, detailedResults })
-
-    if (passed) {
-      task.status = 'Completed'
-      task.completedAt = new Date()
-      task.progressPercentage = 100
-    } else {
-      task.status = 'In Progress'
-      task.progressPercentage = Math.min(90, task.progressPercentage + 20)
+    // Prepare score entry
+    const scoreEntry = {
+      attemptNumber: 0, // Will be set below
+      score: percentage,
+      percentage,
+      timestamp: new Date(),
+      totalQuestions: questions.length,
+      correctAnswers,
+      totalMarks,
+      obtainedMarks,
+      timeTaken,
+      passed,
+      detailedResults,
+      coWiseResults
     }
 
-    if (timeTaken) task.metadata.studyTimeCompleted = (task.metadata.studyTimeCompleted || 0) + timeTaken
-    await task.save()
+    if (isMultiStudent) {
+      // Update the specific student's assignment
+      if (!studentAssignment.scores) studentAssignment.scores = []
+      scoreEntry.attemptNumber = studentAssignment.scores.length + 1
+      studentAssignment.scores.push(scoreEntry)
+      studentAssignment.attemptCount = (studentAssignment.attemptCount || 0) + 1
+      
+      if (passed) {
+        studentAssignment.status = 'Completed'
+      } else {
+        studentAssignment.status = 'In Progress'
+      }
+      
+      // Update overall task status if all students completed
+      const allCompleted = task.studentAssignments.every(
+        a => a.status === 'Completed'
+      )
+      if (allCompleted) {
+        task.status = 'Completed'
+        task.completedAt = new Date()
+        task.progressPercentage = 100
+      }
+      
+      await task.save()
+      
+      console.log(`✅ Student ${studentId} submitted MCQ: ${percentage.toFixed(1)}% (${correctAnswers}/${questions.length})`)
+      console.log(`   Attempt: ${scoreEntry.attemptNumber}/${maxAttempts}`)
+      console.log(`   Status: ${passed ? 'PASSED' : 'FAILED'}`)
+      
+    } else {
+      // Single-student task - use old logic
+      if (!task.metadata.mcqScores) task.metadata.mcqScores = []
+      scoreEntry.attemptNumber = task.metadata.mcqScores.length + 1
+      task.metadata.mcqScores.push(scoreEntry)
 
-    const updatedTask = await ImprovementTask.findById(taskId).populate('student', 'name email rollNumber').populate('subject', 'name code credits').populate('assignedBy', 'name email')
+      if (passed) {
+        task.status = 'Completed'
+        task.completedAt = new Date()
+        task.progressPercentage = 100
+      } else {
+        task.status = 'In Progress'
+        task.progressPercentage = Math.min(90, task.progressPercentage + 20)
+      }
 
-    res.json({ success: true, data: updatedTask, results: { attemptNumber, totalQuestions: questions.length, correctAnswers, totalMarks, obtainedMarks, percentage, passed, timeTaken, remainingAttempts: maxAttempts - attemptNumber, detailedResults }, message: passed ? 'Congratulations! You passed with ' + percentage.toFixed(1) + '%' : 'Keep trying! You scored ' + percentage.toFixed(1) + '%. Minimum required: 70%' })
+      if (timeTaken) {
+        task.metadata.studyTimeCompleted = (task.metadata.studyTimeCompleted || 0) + timeTaken
+      }
+      
+      await task.save()
+    }
+
+    const updatedTask = await ImprovementTask.findById(taskId)
+      .populate('student', 'name email rollNumber')
+      .populate('studentAssignments.student', 'name email rollNumber')
+      .populate('subject', 'name code credits')
+      .populate('assignedBy', 'name email')
+
+    res.json({
+      success: true,
+      data: updatedTask,
+      results: {
+        attemptNumber: scoreEntry.attemptNumber,
+        totalQuestions: questions.length,
+        correctAnswers,
+        totalMarks,
+        obtainedMarks,
+        percentage,
+        passed,
+        timeTaken,
+        remainingAttempts: maxAttempts - scoreEntry.attemptNumber,
+        detailedResults,
+        coWiseResults
+      },
+      message: passed 
+        ? `Congratulations! You passed with ${percentage.toFixed(1)}%` 
+        : `Keep trying! You scored ${percentage.toFixed(1)}%. Minimum required: 70%`
+    })
   } catch (error) {
     console.error('Error submitting MCQ quiz:', error)
-    res.status(500).json({ success: false, message: 'Failed to submit quiz', error: error.message })
+    res.status(500).json({
+      success: false,
+      message: 'Failed to submit quiz',
+      error: error.message
+    })
   }
 })
 

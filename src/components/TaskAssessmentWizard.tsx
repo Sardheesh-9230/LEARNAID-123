@@ -332,7 +332,7 @@ export default function TaskAssessmentWizard({
       // Build personalized student assignments
       const studentAssignments = studentDetails.map(student => {
         // Find which COs this student is weak in
-        const studentWeakCONumbers = student.weakCOs.map(co => co.coNumber)
+        const studentWeakCONumbers = student.weakCOs.map((co: any) => co.coNumber)
         
         // Filter questions to include only those for this student's weak COs
         const studentQuestions = coConfigs
@@ -354,7 +354,7 @@ export default function TaskAssessmentWizard({
         
         return {
           studentId: student.studentId,
-          weakCOs: student.weakCOs.map(co => ({
+          weakCOs: student.weakCOs.map((co: any) => ({
             courseOutcome: co.courseOutcome,
             coNumber: co.coNumber,
             performanceGap: co.performanceGap,
@@ -367,7 +367,7 @@ export default function TaskAssessmentWizard({
 
       console.log('📊 Student Assignments:', studentAssignments.map(a => ({
         studentId: a.studentId,
-        weakCOs: a.weakCOs.map(co => co.courseOutcome),
+        weakCOs: a.weakCOs.map((co: any) => co.courseOutcome),
         questionsCount: a.questions.length,
         totalMarks: a.totalMarks
       })))

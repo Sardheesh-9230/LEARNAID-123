@@ -178,10 +178,14 @@ export default function StudentImprovementDashboard({ studentId }: StudentImprov
 
   const updateTaskProgress = async (taskId: string, updates: any) => {
     try {
+      console.log('📤 Updating task progress:', { taskId, updates })
+      
       const response = await apiService.makeRequest(`/improvement-tasks/${taskId}/progress`, {
         method: 'PUT',
         body: JSON.stringify(updates)
       })
+
+      console.log('📥 Progress update response:', response)
 
       if (response.success) {
         // Update local task state
@@ -192,17 +196,39 @@ export default function StudentImprovementDashboard({ studentId }: StudentImprov
         if (selectedTask && selectedTask._id === taskId) {
           setSelectedTask(response.data)
         }
+        
+        console.log('✅ Local state updated successfully')
+        
+        // Reload tasks to get fresh data
+        await loadImprovementTasks()
+      } else {
+        console.error('❌ Progress update failed:', response)
+        throw new Error(response.message || 'Failed to update progress')
       }
     } catch (error) {
-      console.error('Error updating task progress:', error)
+      console.error('❌ Error updating task progress:', error)
+      throw error
     }
   }
 
   const startTask = async (task: ImprovementTask) => {
-    await updateTaskProgress(task._id, { 
-      status: 'In Progress',
-      progressPercentage: 10
+    console.log('🚀 Starting task:', task._id, task.title)
+    console.log('Task details:', { 
+      isMultiStudent: task.isMultiStudent, 
+      status: task.status,
+      personalizedStatus: task.personalizedData?.status 
     })
+    
+    try {
+      await updateTaskProgress(task._id, { 
+        status: 'In Progress',
+        progressPercentage: 10
+      })
+      console.log('✅ Task started successfully')
+    } catch (error) {
+      console.error('❌ Error starting task:', error)
+      alert('Failed to start task. Please check console for details.')
+    }
   }
 
   const completeStudySession = async (task: ImprovementTask, minutesStudied: number) => {
@@ -602,48 +628,150 @@ export default function StudentImprovementDashboard({ studentId }: StudentImprov
                   </div>
                   <div className="text-center">
                     <div className="text-lg font-bold text-purple-600">
-                      {task.metadata.mcqScores ? Math.max(...task.metadata.mcqScores.map(s => s.score)) : 0}%
+                      {task.isMultiStudent 
+                        ? (task.personalizedData?.scores && task.personalizedData.scores.length > 0
+                          ? Math.max(...task.personalizedData.scores.map((s: any) => s.percentage || 0)).toFixed(1)
+                          : 0)
+                        : (task.metadata.mcqScores && task.metadata.mcqScores.length > 0
+                          ? Math.max(...task.metadata.mcqScores.map(s => s.score))
+                          : 0)
+                      }%
                     </div>
                     <div className="text-xs text-gray-500">Best MCQ Score</div>
                   </div>
                 </div>
 
+                {/* Previous Attempts History */}
+                {((task.isMultiStudent && task.personalizedData?.scores && task.personalizedData.scores.length > 0) ||
+                  (!task.isMultiStudent && task.metadata.mcqScores && task.metadata.mcqScores.length > 0)) && (
+                  <div className="mb-4 p-4 bg-blue-50 rounded-lg">
+                    <h4 className="text-sm font-semibold text-blue-900 mb-3 flex items-center gap-2">
+                      <FiTarget size={16} />
+                      Previous Attempts ({task.isMultiStudent ? task.personalizedData?.attemptCount || 0 : task.metadata.mcqScores?.length || 0}/{task.maxAttempts || 3})
+                    </h4>
+                    <div className="space-y-2">
+                      {task.isMultiStudent 
+                        ? task.personalizedData?.scores?.slice(-3).reverse().map((attempt: any, index: number) => (
+                            <div key={index} className="flex items-center justify-between p-2 bg-white rounded border">
+                              <div className="flex items-center gap-3">
+                                <span className="text-sm font-medium text-gray-700">
+                                  Attempt {task.personalizedData.scores.length - index}
+                                </span>
+                                <span className="text-xs text-gray-500">
+                                  {new Date(attempt.timestamp).toLocaleDateString()}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <span className={`text-sm font-bold ${attempt.percentage >= 70 ? 'text-green-600' : 'text-red-600'}`}>
+                                  {attempt.percentage.toFixed(1)}%
+                                </span>
+                                <span className="text-xs text-gray-600">
+                                  {attempt.correctAnswers}/{attempt.totalQuestions} correct
+                                </span>
+                                {attempt.passed && (
+                                  <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
+                                    ✓ Passed
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          ))
+                        : task.metadata.mcqScores?.slice(-3).reverse().map((attempt: any, index: number) => (
+                            <div key={index} className="flex items-center justify-between p-2 bg-white rounded border">
+                              <div className="flex items-center gap-3">
+                                <span className="text-sm font-medium text-gray-700">
+                                  Attempt {task.metadata.mcqScores.length - index}
+                                </span>
+                                <span className="text-xs text-gray-500">
+                                  {new Date(attempt.timestamp).toLocaleDateString()}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <span className={`text-sm font-bold ${attempt.score >= 70 ? 'text-green-600' : 'text-red-600'}`}>
+                                  {attempt.score}%
+                                </span>
+                                <span className="text-xs text-gray-600">
+                                  {attempt.correctAnswers}/{attempt.totalQuestions} correct
+                                </span>
+                              </div>
+                            </div>
+                          ))
+                      }
+                    </div>
+                  </div>
+                )}
+
                 {/* Action Buttons */}
-                <div className="flex gap-3">
-                  {task.status === 'Assigned' && (
-                    <button
-                      onClick={() => startTask(task)}
-                      className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                    >
-                      <FiPlay size={16} />
-                      Start Task
-                    </button>
-                  )}
-                  
-                  {task.status === 'In Progress' && (
-                    <>
-                      <button
-                        onClick={() => completeStudySession(task, 30)}
-                        className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                      >
-                        <FiClock size={16} />
-                        Log 30min Study
-                      </button>
-                      
-                      {task.metadata.generatedMCQs && task.metadata.generatedMCQs.questions && task.metadata.generatedMCQs.questions.length > 0 && (
+                <div className="flex flex-wrap gap-3">
+                  {(() => {
+                    // Get the correct status for multi-student or single-student tasks
+                    const currentStatus = task.isMultiStudent 
+                      ? (task.personalizedData?.status || task.status)
+                      : task.status
+                    
+                    console.log('🔘 Button rendering for task:', task.title, {
+                      isMultiStudent: task.isMultiStudent,
+                      taskStatus: task.status,
+                      personalizedStatus: task.personalizedData?.status,
+                      currentStatus: currentStatus
+                    })
+                    
+                    if (currentStatus === 'Assigned') {
+                      console.log('✅ Rendering "Start Task" button')
+                      return (
                         <button
                           onClick={() => {
-                            setSelectedTask(task)
-                            setTakingTest(true)
+                            console.log('🖱️ Start Task button clicked!')
+                            startTask(task)
                           }}
-                          className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                         >
-                          <FiTarget size={16} />
-                          Take MCQ Quiz ({task.metadata.generatedMCQs.questions.length} Questions)
+                          <FiPlay size={16} />
+                          Start Task
                         </button>
-                      )}
-                    </>
-                  )}
+                      )
+                    }
+                    
+                    if (currentStatus === 'In Progress') {
+                      console.log('✅ Rendering "In Progress" buttons')
+                      return (
+                        <>
+                          {task.metadata.generatedMCQs && task.metadata.generatedMCQs.questions && task.metadata.generatedMCQs.questions.length > 0 && (() => {
+                            const attemptCount = task.isMultiStudent 
+                              ? (task.personalizedData?.attemptCount || 0)
+                              : (task.metadata.mcqScores?.length || 0)
+                            const maxAttempts = task.maxAttempts || 3
+                            const canRetake = attemptCount < maxAttempts
+                            const hasAttempted = attemptCount > 0
+                            
+                            console.log('🎯 MCQ Button logic:', { attemptCount, maxAttempts, canRetake, hasAttempted })
+                            
+                            return canRetake ? (
+                              <button
+                                onClick={() => {
+                                  console.log('🖱️ Take MCQ Quiz button clicked!')
+                                  console.log('Selected task:', task._id, task.title)
+                                  setSelectedTask(task)
+                                  setTakingTest(true)
+                                }}
+                                className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                              >
+                                <FiTarget size={16} />
+                                {hasAttempted ? `Retake Quiz (${attemptCount}/${maxAttempts})` : `Take MCQ Quiz (${task.metadata.generatedMCQs.questions.length} Questions)`}
+                              </button>
+                            ) : (
+                              <div className="flex items-center gap-2 px-4 py-2 bg-gray-300 text-gray-600 rounded-lg cursor-not-allowed">
+                                <FiTarget size={16} />
+                                Max Attempts Reached ({maxAttempts}/{maxAttempts})
+                              </div>
+                            )
+                          })()}
+                        </>
+                      )
+                    }
+                    
+                    return null
+                  })()}
                   
                   <button
                     onClick={() => setSelectedTask(task)}
@@ -661,20 +789,29 @@ export default function StudentImprovementDashboard({ studentId }: StudentImprov
 
       {/* MCQ Test Modal */}
       {takingTest && selectedTask && (
-        <StudentMCQTest
-          task={selectedTask}
-          onComplete={() => {
-            loadImprovementTasks()
-            setTakingTest(false)
-          }}
-          onClose={() => {
-            setTakingTest(false)
-          }}
-        />
+        <>
+          {console.log('🎯 Rendering StudentMCQTest component', { 
+            takingTest, 
+            selectedTaskId: selectedTask._id,
+            selectedTaskTitle: selectedTask.title 
+          })}
+          <StudentMCQTest
+            task={selectedTask}
+            onComplete={() => {
+              console.log('✅ MCQ Test completed')
+              loadImprovementTasks()
+              setTakingTest(false)
+            }}
+            onClose={() => {
+              console.log('❌ MCQ Test closed')
+              setTakingTest(false)
+            }}
+          />
+        </>
       )}
 
-      {/* Task Detail Modal */}
-      {selectedTask && (
+      {/* Task Detail Modal - Only show when NOT taking test */}
+      {selectedTask && !takingTest && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b">
@@ -765,7 +902,11 @@ export default function StudentImprovementDashboard({ studentId }: StudentImprov
                       </div>
                       <button
                         onClick={() => {
+                          console.log('🖱️ Start Practice Quiz button clicked in modal!')
+                          console.log('Selected task:', selectedTask._id, selectedTask.title)
+                          console.log('Setting takingTest to true')
                           setTakingTest(true)
+                          // Don't close selectedTask modal - it will be hidden by the MCQ test modal
                         }}
                         className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                       >
@@ -779,6 +920,92 @@ export default function StudentImprovementDashboard({ studentId }: StudentImprov
                       <span>No questions available yet. Please contact your instructor.</span>
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* Test Results Section */}
+              {((selectedTask.isMultiStudent && selectedTask.personalizedData?.scores && selectedTask.personalizedData.scores.length > 0) ||
+                (!selectedTask.isMultiStudent && selectedTask.metadata.mcqScores && selectedTask.metadata.mcqScores.length > 0)) && (
+                <div className="mt-6 p-4 bg-green-50 rounded-lg">
+                  <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <FiCheckCircle className="text-green-600" />
+                    Test Results History
+                  </h3>
+                  <div className="space-y-4">
+                    {selectedTask.isMultiStudent 
+                      ? selectedTask.personalizedData?.scores?.map((attempt: any, index: number) => (
+                          <div key={index} className="p-4 bg-white rounded-lg border-2 border-green-200">
+                            <div className="flex items-center justify-between mb-3">
+                              <div>
+                                <span className="font-bold text-gray-900">Attempt {index + 1}</span>
+                                <span className="ml-3 text-sm text-gray-500">
+                                  {new Date(attempt.timestamp).toLocaleString()}
+                                </span>
+                              </div>
+                              <div className="text-right">
+                                <div className={`text-2xl font-bold ${attempt.percentage >= 70 ? 'text-green-600' : 'text-red-600'}`}>
+                                  {attempt.percentage.toFixed(1)}%
+                                </div>
+                                <div className="text-sm text-gray-600">
+                                  {attempt.correctAnswers}/{attempt.totalQuestions} correct • {attempt.obtainedMarks}/{attempt.totalMarks} marks
+                                </div>
+                              </div>
+                            </div>
+                            
+                            {attempt.coWiseResults && Object.keys(attempt.coWiseResults).length > 0 && (
+                              <div className="mt-3 pt-3 border-t border-gray-200">
+                                <div className="text-sm font-semibold text-gray-700 mb-2">CO-wise Performance:</div>
+                                <div className="grid grid-cols-2 gap-2">
+                                  {Object.entries(attempt.coWiseResults).map(([co, data]: [string, any]) => {
+                                    const coPercentage = (data.obtainedMarks / data.totalMarks) * 100
+                                    return (
+                                      <div key={co} className="p-2 bg-gray-50 rounded">
+                                        <div className="flex items-center justify-between mb-1">
+                                          <span className="text-xs font-medium text-gray-700">{co}</span>
+                                          <span className={`text-xs font-bold ${coPercentage >= 70 ? 'text-green-600' : 'text-red-600'}`}>
+                                            {coPercentage.toFixed(1)}%
+                                          </span>
+                                        </div>
+                                        <div className="text-xs text-gray-500">
+                                          {data.correctAnswers}/{data.totalQuestions} • {data.obtainedMarks}/{data.totalMarks}
+                                        </div>
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                            
+                            {attempt.passed && (
+                              <div className="mt-3 flex items-center gap-2 text-green-700">
+                                <FiCheckCircle size={16} />
+                                <span className="text-sm font-medium">✓ Passed - Target achieved!</span>
+                              </div>
+                            )}
+                          </div>
+                        ))
+                      : selectedTask.metadata.mcqScores?.map((attempt: any, index: number) => (
+                          <div key={index} className="p-4 bg-white rounded-lg border-2 border-green-200">
+                            <div className="flex items-center justify-between mb-2">
+                              <div>
+                                <span className="font-bold text-gray-900">Attempt {index + 1}</span>
+                                <span className="ml-3 text-sm text-gray-500">
+                                  {new Date(attempt.timestamp).toLocaleString()}
+                                </span>
+                              </div>
+                              <div className="text-right">
+                                <div className={`text-2xl font-bold ${attempt.score >= 70 ? 'text-green-600' : 'text-red-600'}`}>
+                                  {attempt.score}%
+                                </div>
+                                <div className="text-sm text-gray-600">
+                                  {attempt.correctAnswers}/{attempt.totalQuestions} correct
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                    }
+                  </div>
                 </div>
               )}
             </div>
