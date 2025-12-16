@@ -18,7 +18,7 @@ const improvementTaskSchema = new mongoose.Schema({
   },
   taskType: {
     type: String,
-    enum: ['CO_IMPROVEMENT', 'SUBJECT_IMPROVEMENT', 'GENERAL_IMPROVEMENT'],
+    enum: ['CO_IMPROVEMENT', 'SUBJECT_IMPROVEMENT', 'GENERAL_IMPROVEMENT', 'CO_ASSESSMENT'],
     default: 'CO_IMPROVEMENT'
   },
   
@@ -26,7 +26,10 @@ const improvementTaskSchema = new mongoose.Schema({
   student: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: [true, 'Student is required']
+    required: function() {
+      // Student is required only if studentAssignments is empty (single-student tasks)
+      return !this.studentAssignments || this.studentAssignments.length === 0;
+    }
   },
   subject: {
     type: mongoose.Schema.Types.ObjectId,
@@ -38,6 +41,52 @@ const improvementTaskSchema = new mongoose.Schema({
     ref: 'User',
     required: [true, 'Assigned by is required']
   },
+  
+  // Multi-student assignment support (for CO_ASSESSMENT tasks)
+  studentAssignments: [{
+    student: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true
+    },
+    weakCOs: [{
+      courseOutcome: String,
+      coNumber: Number,
+      performanceGap: Number,
+      topics: [String]
+    }],
+    personalizedQuestions: [{
+      id: String,
+      question: String,
+      options: [String],
+      correctAnswer: mongoose.Schema.Types.Mixed,
+      explanation: String,
+      courseOutcome: String,
+      coNumber: Number,
+      topics: [String],
+      marks: Number,
+      difficulty: String,
+      bloomsLevel: String,
+      estimatedTime: Number
+    }],
+    totalMarks: Number,
+    status: {
+      type: String,
+      enum: ['Assigned', 'In Progress', 'Completed', 'Overdue'],
+      default: 'Assigned'
+    },
+    scores: [{
+      score: Number,
+      percentage: Number,
+      timestamp: Date,
+      attemptNumber: Number,
+      timeSpent: Number
+    }],
+    attemptCount: {
+      type: Number,
+      default: 0
+    }
+  }],
   
   // Task details
   priority: {
@@ -68,9 +117,17 @@ const improvementTaskSchema = new mongoose.Schema({
     maxlength: [50, 'Course outcome cannot exceed 50 characters']
   },
   coNumber: {
-    type: Number,
-    min: 1,
-    max: 10
+    type: mongoose.Schema.Types.Mixed,
+    validate: {
+      validator: function(v) {
+        if (v === null || v === undefined) return true;
+        if (typeof v === 'number') return v >= 1 && v <= 10;
+        if (Array.isArray(v)) return v.every(n => typeof n === 'number' && n >= 1 && n <= 10);
+        if (typeof v === 'string') return true; // Allow string for comma-separated values
+        return false;
+      },
+      message: 'coNumber must be a number (1-10), array of numbers, or comma-separated string'
+    }
   },
   
   // Performance-specific metadata
@@ -120,10 +177,13 @@ const improvementTaskSchema = new mongoose.Schema({
         id: String,
         question: String,
         options: [String],
-        correctAnswer: Number,
+        correctAnswer: mongoose.Schema.Types.Mixed, // Support both number index and string
         explanation: String,
         area: String,
         courseOutcome: String,
+        coNumber: mongoose.Schema.Types.Mixed, // Support both single number and array
+        topics: [String], // Support topic tags
+        marks: Number, // Support marks per question
         difficulty: {
           type: String,
           enum: ['Easy', 'Medium', 'Hard'],
@@ -131,7 +191,7 @@ const improvementTaskSchema = new mongoose.Schema({
         },
         bloomsLevel: {
           type: String,
-          enum: ['Remember', 'Understand', 'Apply', 'Analyze', 'Evaluate', 'Create']
+          enum: ['Remember', 'Understand', 'Apply', 'Analyze', 'Evaluate', 'Create', 'remember', 'understand', 'apply', 'analyze', 'evaluate', 'create']
         },
         estimatedTime: Number
       }],
@@ -143,6 +203,9 @@ const improvementTaskSchema = new mongoose.Schema({
       focusedCO: String,
       estimatedTime: Number,
       areas: [String],
+      numberOfQuestions: Number, // Add explicit numberOfQuestions field
+      needsGeneration: Boolean, // Add needsGeneration flag
+      materialUsed: String, // Add materialUsed field
       generatedAt: Date,
       generatedBy: {
         type: mongoose.Schema.Types.ObjectId,
@@ -151,6 +214,7 @@ const improvementTaskSchema = new mongoose.Schema({
     },
     // Teacher-set parameters
     teacherSettings: {
+      examType: String, // Add exam type field
       difficultyLevel: {
         type: String,
         enum: ['Easy', 'Medium', 'Hard', 'Mixed'],
@@ -165,6 +229,7 @@ const improvementTaskSchema = new mongoose.Schema({
         max: 50
       },
       focusAreas: [String],
+      courseOutcomes: [String], // Add course outcomes array
       allowRetake: {
         type: Boolean,
         default: true
@@ -174,7 +239,25 @@ const improvementTaskSchema = new mongoose.Schema({
         default: 3,
         min: 1,
         max: 10
-      }
+      },
+      shuffleQuestions: {
+        type: Boolean,
+        default: false
+      },
+      showResultsImmediately: {
+        type: Boolean,
+        default: true
+      },
+      totalMarks: {
+        type: Number,
+        min: 0
+      },
+      coBreakdown: [{ // Add CO breakdown array
+        coNumber: Number,
+        topics: [String],
+        questions: Number,
+        marks: Number
+      }]
     },
     autoAssigned: {
       type: Boolean,

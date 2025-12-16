@@ -194,6 +194,14 @@ export default function StudentSidebar({ activeTab, onTabChange, isExpanded = tr
       badge: notifications > 0 ? notifications.toString() : null
     },
     {
+      id: 'improvement-tasks',
+      title: 'Improvement Tasks',
+      icon: '📋',
+      description: 'Auto-assigned tasks',
+      color: 'from-red-500 to-pink-600',
+      badge: 'NEW'
+    },
+    {
       id: 'discussions',
       title: 'Discussions',
       icon: '💬',

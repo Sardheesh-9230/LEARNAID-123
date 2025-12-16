@@ -874,80 +874,172 @@ exports.createAssessmentTask = async (req, res) => {
       subjectName,
       examType,
       courseOutcomes,
-      studentIds,
-      questions,
-      totalMarks,
+      studentAssignments, // NEW: Array of {studentId, weakCOs, questions, totalMarks}
       totalTime,
       startDateTime,
       dueDateTime,
       allowRetake,
       maxAttempts,
       shuffleQuestions,
-      showResultsImmediately,
-      coBreakdown
+      showResultsImmediately
     } = req.body;
     
-    console.log(`📋 Creating assessment task: ${title}`);
-    console.log(`   Students: ${studentIds.length}`);
-    console.log(`   Questions: ${questions.length}`);
-    console.log(`   Total Marks: ${totalMarks}`);
+    console.log(`📋 Creating multi-student assessment task: ${title}`);
+    console.log(`   Students: ${studentAssignments?.length || 0}`);
+    console.log(`   Exam Type: ${examType}`);
+    console.log(`   Course Outcomes: ${courseOutcomes?.length || 0}`);
     
-    // Create task for each student
-    const taskPromises = studentIds.map(studentId => {
-      return TaskAssignment.create({
-        title,
-        description,
-        taskType: 'ASSESSMENT',
-        subject: subjectId,
-        assignedTo: studentId,
-        assignedBy: req.user._id,
-        dueDate: new Date(dueDateTime),
-        startDate: startDateTime ? new Date(startDateTime) : new Date(),
-        priority: 'HIGH',
-        status: 'PENDING',
-        assessmentData: {
-          examType,
-          courseOutcomes,
-          questions,
-          totalMarks,
-          totalTime,
-          allowRetake,
-          maxAttempts,
-          shuffleQuestions,
-          showResultsImmediately,
-          coBreakdown
-        },
-        metadata: {
-          subjectName,
-          totalQuestions: questions.length,
-          coBreakdown
-        }
+    // Validate inputs
+    if (!studentAssignments || studentAssignments.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'At least one student assignment must be provided'
       });
+    }
+    
+    // Validate each student has questions
+    for (const assignment of studentAssignments) {
+      if (!assignment.questions || assignment.questions.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: `Student ${assignment.studentId} has no questions assigned`
+        });
+      }
+    }
+    
+    // Use ImprovementTask model
+    const ImprovementTask = require('../models/ImprovementTask');
+    
+    // Calculate overall metrics
+    const totalQuestions = studentAssignments.reduce((sum, a) => sum + a.questions.length, 0);
+    const totalMarks = studentAssignments.reduce((sum, a) => sum + a.totalMarks, 0);
+    
+    // Build student assignments array for the model
+    const studentAssignmentsForDB = studentAssignments.map(assignment => ({
+      student: assignment.studentId,
+      weakCOs: assignment.weakCOs.map(co => ({
+        courseOutcome: co.courseOutcome,
+        coNumber: co.coNumber,
+        performanceGap: co.performanceGap || 0,
+        topics: co.topics || []
+      })),
+      personalizedQuestions: assignment.questions.map((q, index) => ({
+        id: `q_${assignment.studentId}_${index + 1}`,
+        question: q.question,
+        options: q.options,
+        correctAnswer: q.correctAnswer,
+        explanation: q.explanation,
+        courseOutcome: q.courseOutcome,
+        coNumber: q.coNumber,
+        topics: q.topics || [],
+        marks: q.marks,
+        difficulty: q.difficulty,
+        bloomsLevel: q.bloomsLevel,
+        estimatedTime: q.estimatedTime || 2
+      })),
+      totalMarks: assignment.totalMarks,
+      status: 'Assigned',
+      scores: [],
+      attemptCount: 0
+    }));
+    
+    // Create ONE task with multiple student assignments
+    const task = await ImprovementTask.create({
+      title: title,
+      description: description || `Complete personalized assessment covering ${courseOutcomes.join(', ')}`,
+      taskType: 'CO_ASSESSMENT',
+      courseOutcome: courseOutcomes.join(', '),
+      coNumber: [...new Set(studentAssignments.flatMap(a => a.weakCOs.map(co => co.coNumber)))].join(','),
+      subject: subjectId,
+      assignedBy: req.user._id || req.user.id,
+      priority: 'HIGH',
+      status: 'Assigned',
+      dueDate: new Date(dueDateTime),
+      
+      // Multi-student assignments
+      studentAssignments: studentAssignmentsForDB,
+      
+      metadata: {
+        currentPerformance: 0,
+        targetPerformance: 70,
+        studyTimeMinutes: totalTime,
+        weakAreas: studentAssignments.flatMap(a => a.weakCOs.flatMap(co => co.topics)),
+        teacherSettings: {
+          examType: examType,
+          difficultyLevel: 'Mixed',
+          scheduledStartTime: startDateTime ? new Date(startDateTime) : null,
+          scheduledEndTime: dueDateTime ? new Date(dueDateTime) : null,
+          numberOfQuestions: Math.round(totalQuestions / studentAssignments.length), // Average per student
+          allowRetake: allowRetake || false,
+          maxAttempts: maxAttempts || 1,
+          shuffleQuestions: shuffleQuestions || false,
+          showResultsImmediately: showResultsImmediately || true,
+          totalMarks: totalMarks,
+          courseOutcomes: courseOutcomes
+        },
+        autoAssigned: false,
+        assignmentReason: 'Teacher Assessment - Personalized per Student'
+      },
+      
+      requirements: [
+        `Personalized for ${studentAssignments.length} student(s)`,
+        `Time limit: ${totalTime} minutes`,
+        `Minimum passing score: 70%`,
+        courseOutcomes.length > 1 
+          ? `Covers multiple COs: ${courseOutcomes.join(', ')}`
+          : `Focused on ${courseOutcomes[0]}`,
+        allowRetake 
+          ? `Retakes allowed (max ${maxAttempts} attempts)`
+          : 'Single attempt only',
+        'Each student has personalized questions based on their weak COs'
+      ],
+      
+      progressPercentage: 0
     });
     
-    const createdTasks = await Promise.all(taskPromises);
+    // Populate the task
+    const populatedTask = await ImprovementTask.findById(task._id)
+      .populate('studentAssignments.student', 'name email rollNumber')
+      .populate('subject', 'name code credits')
+      .populate('assignedBy', 'name email');
     
-    console.log(`✅ Created ${createdTasks.length} assessment tasks`);
+    console.log(`✅ Created 1 assessment task for ${studentAssignments.length} students`);
+    console.log(`   Task ID: ${task._id}`);
+    console.log(`   Total Questions: ${totalQuestions}`);
+    console.log(`   Student Assignments:`, studentAssignments.map(a => ({
+      studentId: a.studentId,
+      weakCOs: a.weakCOs.map(co => co.courseOutcome),
+      questions: a.questions.length,
+      marks: a.totalMarks
+    })));
     
     res.json({
       success: true,
-      message: `Assessment assigned to ${createdTasks.length} student(s)`,
-      tasks: createdTasks,
+      message: `Assessment created and assigned to ${studentAssignments.length} student(s) with personalized questions`,
+      task: populatedTask,
       summary: {
-        totalTasks: createdTasks.length,
-        totalQuestions: questions.length,
+        taskId: task._id,
+        studentsAssigned: studentAssignments.length,
+        totalQuestions,
         totalMarks,
         courseOutcomes,
-        coBreakdown
+        studentBreakdown: studentAssignments.map(a => ({
+          studentId: a.studentId,
+          weakCOs: a.weakCOs.map(co => co.courseOutcome),
+          questionsCount: a.questions.length,
+          totalMarks: a.totalMarks
+        }))
       }
     });
     
   } catch (error) {
     console.error('❌ Error creating assessment task:', error);
+    console.error('Stack:', error.stack);
     res.status(500).json({
       success: false,
       message: 'Failed to create assessment task',
-      error: error.message
+      error: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 };

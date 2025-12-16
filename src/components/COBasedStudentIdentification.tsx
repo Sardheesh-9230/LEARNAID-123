@@ -52,6 +52,7 @@ export default function COBasedStudentIdentification({
   
   // Wizard state
   const [showWizard, setShowWizard] = useState(false)
+  const [showMCQPreview, setShowMCQPreview] = useState(false)
   
   // Notification state
   const [notification, setNotification] = useState<{

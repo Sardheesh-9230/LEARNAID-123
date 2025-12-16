@@ -329,15 +329,48 @@ export default function TaskAssessmentWizard({
     setPublishing(true)
     
     try {
-      // Prepare task data
-      const allQuestions = coConfigs.flatMap(c => 
-        c.generatedQuestions.map(q => ({
-          ...q,
-          courseOutcome: c.courseOutcome,
-          coNumber: c.coNumber,
-          marks: c.marksPerQuestion
-        }))
-      )
+      // Build personalized student assignments
+      const studentAssignments = studentDetails.map(student => {
+        // Find which COs this student is weak in
+        const studentWeakCONumbers = student.weakCOs.map((co: any) => co.coNumber)
+        
+        // Filter questions to include only those for this student's weak COs
+        const studentQuestions = coConfigs
+          .filter(config => studentWeakCONumbers.includes(config.coNumber))
+          .flatMap(config => 
+            config.generatedQuestions.map(q => ({
+              ...q,
+              courseOutcome: config.courseOutcome,
+              coNumber: config.coNumber,
+              marks: config.marksPerQuestion,
+              topics: q.topics || config.topics || []
+            }))
+          )
+        
+        // Calculate total marks for this student
+        const studentTotalMarks = coConfigs
+          .filter(config => studentWeakCONumbers.includes(config.coNumber))
+          .reduce((sum, config) => sum + config.totalMarks, 0)
+        
+        return {
+          studentId: student.studentId,
+          weakCOs: student.weakCOs.map((co: any) => ({
+            courseOutcome: co.courseOutcome,
+            coNumber: co.coNumber,
+            performanceGap: co.performanceGap,
+            topics: co.weakTopics || []
+          })),
+          questions: studentQuestions,
+          totalMarks: studentTotalMarks
+        }
+      })
+
+      console.log('📊 Student Assignments:', studentAssignments.map(a => ({
+        studentId: a.studentId,
+        weakCOs: a.weakCOs.map((co: any) => co.courseOutcome),
+        questionsCount: a.questions.length,
+        totalMarks: a.totalMarks
+      })))
 
       const taskData = {
         title: assessmentConfig.title,
@@ -346,9 +379,7 @@ export default function TaskAssessmentWizard({
         subjectName,
         examType,
         courseOutcomes: coConfigs.map(c => c.courseOutcome),
-        studentIds: selectedStudents,
-        questions: allQuestions,
-        totalMarks: coConfigs.reduce((sum, c) => sum + c.totalMarks, 0),
+        studentAssignments, // NEW: Array of personalized assignments
         totalTime: assessmentConfig.totalTime,
         startDateTime: assessmentConfig.startDate && assessmentConfig.startTime 
           ? `${assessmentConfig.startDate}T${assessmentConfig.startTime}`
@@ -357,14 +388,7 @@ export default function TaskAssessmentWizard({
         allowRetake: assessmentConfig.allowRetake,
         maxAttempts: assessmentConfig.maxAttempts,
         shuffleQuestions: assessmentConfig.shuffleQuestions,
-        showResultsImmediately: assessmentConfig.showResultsImmediately,
-        coBreakdown: coConfigs.map(c => ({
-          courseOutcome: c.courseOutcome,
-          coNumber: c.coNumber,
-          numberOfQuestions: c.generatedQuestions.length,
-          totalMarks: c.totalMarks,
-          topics: c.topics
-        }))
+        showResultsImmediately: assessmentConfig.showResultsImmediately
       }
 
       const response = await apiService.makeRequest(
@@ -377,7 +401,7 @@ export default function TaskAssessmentWizard({
 
       if (response.success) {
         showNotification(
-          `Assessment assigned to ${selectedStudents.length} student(s) successfully!`,
+          `Assessment created with personalized questions for ${selectedStudents.length} student(s)!`,
           'success'
         )
         setTimeout(() => {
