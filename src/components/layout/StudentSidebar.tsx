@@ -31,10 +31,10 @@ export default function StudentSidebar({ activeTab, onTabChange, isExpanded = tr
       badge: null
     },
     {
-      id: 'assignments',
-      title: 'Assignments',
+      id: 'tasks',
+      title: 'Tasks',
       icon: '📝',
-      description: 'Tasks & Homework',
+      description: 'Assignments & Tasks',
       color: 'from-purple-500 to-indigo-600',
       badge: '5'
     },

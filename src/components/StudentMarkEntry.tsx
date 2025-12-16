@@ -1076,8 +1076,7 @@ export default function StudentMarkEntry({ preSelectedSubject, preSelectedStuden
       const response = await apiService.getMarksBySubjectAndExam(
         selectedSubject,
         selectedExamType,
-        '2024-2025',
-        'Odd'
+        { academicYear: '2024-2025', semester: 'Odd' }
       )
       
       const savedMarks = response.data || []

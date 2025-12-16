@@ -76,21 +76,27 @@ const StudentTaskDashboard: React.FC = () => {
   // Fetch tasks
   const fetchTasks = async () => {
     try {
-      const response = await fetch('/api/tasks/student/tasks', {
+      const token = localStorage.getItem('authToken');
+      const response = await fetch('http://localhost:5000/api/tasks/student/tasks', {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
         }
       });
       
       if (response.ok) {
         const data = await response.json();
-        setTasks(data.tasks);
+        console.log('✅ Fetched tasks:', data);
+        setTasks(data.tasks || []);
+        setError('');
       } else {
-        setError('Failed to fetch tasks');
+        const errorData = await response.json().catch(() => ({ message: 'Failed to fetch tasks' }));
+        console.error('❌ Failed to fetch tasks:', errorData);
+        setError(errorData.message || 'Failed to fetch tasks');
       }
-    } catch (error) {
-      console.error('Error fetching tasks:', error);
-      setError('Network error occurred');
+    } catch (error: any) {
+      console.error('❌ Error fetching tasks:', error);
+      setError(error.message || 'Network error occurred');
     } finally {
       setLoading(false);
     }
@@ -148,10 +154,11 @@ const StudentTaskDashboard: React.FC = () => {
   // Start study session
   const handleStartStudy = async (taskId: string) => {
     try {
-      const response = await fetch(`/api/tasks/study/start/${taskId}`, {
+      const token = localStorage.getItem('authToken');
+      const response = await fetch(`http://localhost:5000/api/tasks/study/start/${taskId}`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });
@@ -194,10 +201,11 @@ const StudentTaskDashboard: React.FC = () => {
   // Start task session
   const handleStartTask = async (taskId: string) => {
     try {
-      const response = await fetch(`/api/tasks/task/start/${taskId}`, {
+      const token = localStorage.getItem('authToken');
+      const response = await fetch(`http://localhost:5000/api/tasks/task/start/${taskId}`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });
@@ -235,10 +243,10 @@ const StudentTaskDashboard: React.FC = () => {
         selectedOption
       }));
       
-      const response = await fetch(`/api/tasks/task/submit/${taskSession.taskId}`, {
+      const response = await fetch(`http://localhost:5000/api/tasks/task/submit/${taskSession.taskId}`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ answers })

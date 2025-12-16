@@ -154,14 +154,6 @@ export default function StudentSidebar({ activeTab, onTabChange, isExpanded = tr
       badge: null
     },
     {
-      id: 'assignments',
-      title: 'Assignments',
-      icon: '📝',
-      description: 'Tasks & Homework',
-      color: 'from-purple-500 to-indigo-600',
-      badge: '5'
-    },
-    {
       id: 'grades',
       title: 'Grades',
       icon: '📊',
@@ -194,20 +186,12 @@ export default function StudentSidebar({ activeTab, onTabChange, isExpanded = tr
       badge: null
     },
     {
-      id: 'learning-tasks',
-      title: 'Learning Tasks',
-      icon: '🎯',
-      description: 'CO-based MCQ Tasks',
-      color: 'from-teal-500 to-cyan-600',
+      id: 'tasks',
+      title: 'Tasks',
+      icon: '📝',
+      description: 'All Assignments & Tasks',
+      color: 'from-purple-500 to-indigo-600',
       badge: notifications > 0 ? notifications.toString() : null
-    },
-    {
-      id: 'improvement-tasks',
-      title: 'Improvement Tasks',
-      icon: '📋',
-      description: 'Auto-assigned tasks',
-      color: 'from-red-500 to-pink-600',
-      badge: 'NEW'
     },
     {
       id: 'discussions',

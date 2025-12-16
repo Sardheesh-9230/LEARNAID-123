@@ -149,12 +149,6 @@ router.post(
       .isArray()
       .withMessage('Topics must be an array'),
     
-    body('difficulty')
-      .optional()
-      .customSanitizer(value => value ? value.toLowerCase() : 'medium')
-      .isIn(['easy', 'medium', 'hard'])
-      .withMessage('Difficulty must be easy, medium, or hard'),
-    
     body('numberOfQuestions')
       .optional()
       .isInt({ min: 1, max: 50 })
@@ -182,17 +176,27 @@ router.post(
         subjectId, 
         courseOutcome, 
         topics, 
-        difficulty = 'medium', 
-        numberOfQuestions = 10,
         threshold,
         currentPerformance,
         performanceGap
       } = req.body;
       
+      // Normalize difficulty to lowercase
+      let difficulty = req.body.difficulty ? req.body.difficulty.toLowerCase() : 'medium';
+      if (!['easy', 'medium', 'hard'].includes(difficulty)) {
+        difficulty = 'medium';
+      }
+      
+      // Normalize numberOfQuestions
+      let numberOfQuestions = parseInt(req.body.numberOfQuestions) || 10;
+      if (numberOfQuestions < 1 || numberOfQuestions > 50) {
+        numberOfQuestions = 10;
+      }
+      
       console.log('🎯 MCQ Generation Request:', {
         subjectId,
         courseOutcome,
-        topics,
+        topics: topics || [],
         difficulty,
         numberOfQuestions
       });

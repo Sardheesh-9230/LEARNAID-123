@@ -468,7 +468,7 @@ export default function COBasedStudentIdentification({
                 onClick={() => {
                   closeNotification()
                   // Close parent modal if this was a success notification after task assignment
-                  if (notification.type === 'success' && !showMCQPreview && selectedStudents.length === 0) {
+                  if (notification.type === 'success' && selectedStudents.length === 0) {
                     onClose()
                   }
                 }}
