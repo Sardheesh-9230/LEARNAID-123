@@ -63,11 +63,19 @@ export default function LoginPage() {
         if (typeof window !== 'undefined') {
           localStorage.setItem('user', JSON.stringify(response.user))
           localStorage.setItem('authToken', response.token)
+          // Backward compatibility: some components still read `token`
+          localStorage.setItem('token', response.token)
           localStorage.setItem('userRole', response.user.role.toLowerCase())
           localStorage.setItem('userEmail', response.user.email)
           localStorage.setItem('userName', response.user.name)
           localStorage.setItem('userDepartment', response.user.department?.name || '')
           localStorage.setItem('userDepartmentId', response.user.department?.id || '')
+
+          // Ensure userId exists for dashboards that need it
+          const resolvedUserId = (response.user as any)?.id || (response.user as any)?._id || (response.user as any)?.userId
+          if (resolvedUserId) {
+            localStorage.setItem('userId', String(resolvedUserId))
+          }
         }
         
         const role = response.user.role.toLowerCase()

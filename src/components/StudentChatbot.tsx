@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import apiService from '@/services/api'
 
 interface Message {
   id: string
@@ -9,6 +10,7 @@ interface Message {
   timestamp: Date
   materials?: Material[]
   suggestions?: string[]
+  sources?: Array<{ title: string; url?: string }>
 }
 
 interface Material {
@@ -26,8 +28,25 @@ interface Subject {
   code: string
 }
 
-export default function StudentChatbot() {
-  const [isOpen, setIsOpen] = useState(false)
+interface Chapter {
+  _id: string
+  title: string
+  chapterNumber: number
+}
+
+interface ChapterMaterial {
+  _id: string
+  title: string
+  type: string
+}
+
+type ChatMode = 'material' | 'web'
+
+export default function StudentChatbot({ mode = 'floating' }: { mode?: 'floating' | 'page' }) {
+  const isPage = mode === 'page'
+  const [isOpen, setIsOpen] = useState(isPage)
+
+  const [chatMode, setChatMode] = useState<ChatMode>('material')
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
@@ -40,7 +59,11 @@ export default function StudentChatbot() {
   const [isTyping, setIsTyping] = useState(false)
   const [subjects, setSubjects] = useState<Subject[]>([])
   const [selectedSubject, setSelectedSubject] = useState<string>('')
-  const [showFilters, setShowFilters] = useState(false)
+  const [chapters, setChapters] = useState<Chapter[]>([])
+  const [selectedChapter, setSelectedChapter] = useState<string>('')
+  const [materials, setMaterials] = useState<ChapterMaterial[]>([])
+  const [selectedMaterial, setSelectedMaterial] = useState<string>('')
+  const [showFilters, setShowFilters] = useState(isPage)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const scrollToBottom = () => {
@@ -52,33 +75,78 @@ export default function StudentChatbot() {
   }, [messages])
 
   useEffect(() => {
+    if (isPage) setIsOpen(true)
+  }, [isPage])
+
+  useEffect(() => {
     if (isOpen && subjects.length === 0) {
       fetchSubjects()
     }
   }, [isOpen, subjects.length])
 
+  useEffect(() => {
+    if (!isOpen) return
+    if (!selectedSubject) {
+      setChapters([])
+      setSelectedChapter('')
+      setMaterials([])
+      setSelectedMaterial('')
+      return
+    }
+    fetchChapters(selectedSubject)
+  }, [isOpen, selectedSubject])
+
+  useEffect(() => {
+    if (!isOpen) return
+    if (!selectedChapter) {
+      setMaterials([])
+      setSelectedMaterial('')
+      return
+    }
+    fetchMaterials(selectedChapter)
+  }, [isOpen, selectedChapter])
+
+  useEffect(() => {
+    if (chatMode === 'web') {
+      setSelectedMaterial('')
+    }
+  }, [chatMode])
+
   const fetchSubjects = async () => {
     try {
-      const token = localStorage.getItem('authToken')
-      if (!token) {
-        console.log('No auth token found - user needs to log in')
-        return
-      }
-
-      const response = await fetch('http://localhost:5000/api/chatbot/subjects', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        setSubjects(data.data || [])
-      } else {
-        console.warn('Failed to fetch subjects:', response.status)
-      }
+      const response = await apiService.makeRequest('/subjects/student/my-subjects')
+      if (response?.success) setSubjects(response.data || [])
     } catch (error) {
       console.warn('Backend not available - please ensure server is running on port 5000')
+    }
+  }
+
+  const fetchChapters = async (subjectId: string) => {
+    try {
+      const response = await apiService.makeRequest(`/chatbot/chapters/${subjectId}`)
+      if (response?.success) {
+        setChapters(response.data || [])
+      } else {
+        setChapters([])
+      }
+    } catch {
+      setChapters([])
+    }
+  }
+
+  const fetchMaterials = async (chapterId: string) => {
+    try {
+      const response = await apiService.makeRequest(`/materials/chapters/${chapterId}/materials`)
+      if (response?.success) {
+        setMaterials(response.data || [])
+        setSelectedMaterial('')
+      } else {
+        setMaterials([])
+        setSelectedMaterial('')
+      }
+    } catch {
+      setMaterials([])
+      setSelectedMaterial('')
     }
   }
 
@@ -98,9 +166,12 @@ export default function StudentChatbot() {
     setIsTyping(true)
 
     try {
-      const token = localStorage.getItem('authToken')
-      
-      if (!token) {
+      // apiService handles auth headers internally
+      if (!apiService.token && typeof window !== 'undefined') {
+        apiService.init()
+      }
+
+      if (!apiService.token) {
         const botMessage: Message = {
           id: (Date.now() + 1).toString(),
           text: '🔐 Please log in to access course materials and get personalized answers from your uploaded study materials.\n\nTo test the chatbot:\n1. Go back to login page\n2. Use the student credentials:\n   • Email: arjun.patel@student.learnaid.edu\n   • Password: student123\n3. Return to the student dashboard',
@@ -112,39 +183,50 @@ export default function StudentChatbot() {
         return
       }
 
-      const response = await fetch('http://localhost:5000/api/chatbot/query', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          question,
-          subjectId: selectedSubject || undefined
-        })
-      })
+      let data
 
-      if (response.ok) {
-        const data = await response.json()
+      if (chatMode === 'web') {
+        data = await apiService.makeRequest('/chatbot/web-search', {
+          method: 'POST',
+          body: JSON.stringify({ question })
+        })
+      } else {
+        if (!selectedMaterial) {
+          const botMessage: Message = {
+            id: (Date.now() + 1).toString(),
+            text: 'Please select a Unit and a Material file before asking from materials.',
+            sender: 'bot',
+            timestamp: new Date()
+          }
+          setMessages(prev => [...prev, botMessage])
+          setIsTyping(false)
+          return
+        }
+
+        data = await apiService.makeRequest('/chatbot/material-chat', {
+          method: 'POST',
+          body: JSON.stringify({
+            question,
+            subjectId: selectedSubject || undefined,
+            chapterId: selectedChapter || undefined,
+            materialId: selectedMaterial
+          })
+        })
+      }
+
+      if (data?.success) {
         const botMessage: Message = {
           id: (Date.now() + 1).toString(),
           text: data.data.answer,
           sender: 'bot',
           timestamp: new Date(),
           materials: data.data.materials || [],
-          suggestions: data.data.suggestions || []
-        }
-        setMessages(prev => [...prev, botMessage])
-      } else if (response.status === 401) {
-        const botMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          text: '🔐 Your session has expired. Please log in again to continue using the chatbot.',
-          sender: 'bot',
-          timestamp: new Date()
+          suggestions: data.data.suggestions || [],
+          sources: data.data.sources || []
         }
         setMessages(prev => [...prev, botMessage])
       } else {
-        throw new Error('Failed to get response')
+        throw new Error(data?.message || 'Failed to get response')
       }
     } catch (error) {
       console.error('Error:', error)
@@ -168,7 +250,7 @@ export default function StudentChatbot() {
     setInputMessage(suggestion)
   }
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSendMessage()
@@ -185,32 +267,44 @@ export default function StudentChatbot() {
   return (
     <>
       {/* Chatbot Toggle Button */}
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className={`fixed bottom-6 right-6 w-16 h-16 rounded-full shadow-2xl flex items-center justify-center transition-all transform hover:scale-110 z-50 ${
-          isOpen ? 'bg-red-500 hover:bg-red-600' : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700'
-        }`}
-        title="AI Learning Assistant"
-      >
-        {isOpen ? (
-          <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        ) : (
-          <div className="relative">
+      {!isPage && (
+        <button
+          onClick={() => setIsOpen(!isOpen)}
+          className={`fixed bottom-6 right-6 w-16 h-16 rounded-full shadow-2xl flex items-center justify-center transition-all transform hover:scale-110 z-50 ${
+            isOpen ? 'bg-red-500 hover:bg-red-600' : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700'
+          }`}
+          title="AI Learning Assistant"
+        >
+          {isOpen ? (
             <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
-            <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full animate-pulse border-2 border-white"></span>
-          </div>
-        )}
-      </button>
+          ) : (
+            <div className="relative">
+              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+              </svg>
+              <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full animate-pulse border-2 border-white"></span>
+            </div>
+          )}
+        </button>
+      )}
 
       {/* Chatbot Window */}
       {isOpen && (
-        <div className="fixed bottom-24 right-6 w-[450px] h-[650px] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden z-50 border border-gray-200">
+        <div
+          className={
+            `${
+              isPage
+                ? 'w-full h-[calc(100vh-0px)]'
+                : 'fixed bottom-24 right-6 w-[450px] h-[650px]'
+            } ` +
+            `bg-white flex flex-col overflow-hidden ` +
+            `${isPage ? '' : 'border border-gray-200 rounded-2xl shadow-2xl z-50'}`
+          }
+        >
           {/* Header */}
-          <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-4">
+          <div className={`bg-gradient-to-r from-blue-600 to-indigo-600 text-white ${isPage ? 'p-6' : 'p-4'}`}>
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center space-x-3">
                 <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
@@ -237,19 +331,69 @@ export default function StudentChatbot() {
             {/* Filters */}
             {showFilters && (
               <div className="bg-white/10 backdrop-blur-sm rounded-lg p-3">
-                <label className="text-xs text-blue-100 mb-1 block">Filter by Subject</label>
-                <select
-                  value={selectedSubject}
-                  onChange={(e) => setSelectedSubject(e.target.value)}
-                  className="w-full px-3 py-1.5 bg-white/20 border border-white/30 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-white/50"
-                >
-                  <option value="" className="text-gray-800">All Subjects</option>
-                  {subjects.map(subject => (
-                    <option key={subject._id} value={subject._id} className="text-gray-800">
-                      {subject.code} - {subject.name}
-                    </option>
-                  ))}
-                </select>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs text-blue-100 mb-1 block">Answer Source</label>
+                    <select
+                      value={chatMode}
+                      onChange={(e) => setChatMode(e.target.value as ChatMode)}
+                      className="w-full px-3 py-1.5 bg-white/20 border border-white/30 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-white/50"
+                    >
+                      <option value="material" className="text-gray-800">Material (RAG)</option>
+                      <option value="web" className="text-gray-800">Web (Tavily)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-blue-100 mb-1 block">Subject</label>
+                    <select
+                      value={selectedSubject}
+                      onChange={(e) => setSelectedSubject(e.target.value)}
+                      className="w-full px-3 py-1.5 bg-white/20 border border-white/30 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-white/50"
+                    >
+                      <option value="" className="text-gray-800">Select subject</option>
+                      {subjects.map(subject => (
+                        <option key={subject._id} value={subject._id} className="text-gray-800">
+                          {subject.code} - {subject.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-blue-100 mb-1 block">Unit (Chapter)</label>
+                    <select
+                      value={selectedChapter}
+                      onChange={(e) => setSelectedChapter(e.target.value)}
+                      disabled={!selectedSubject}
+                      className="w-full px-3 py-1.5 bg-white/20 border border-white/30 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-white/50 disabled:opacity-60"
+                    >
+                      <option value="" className="text-gray-800">Select unit</option>
+                      {chapters.map(ch => (
+                        <option key={ch._id} value={ch._id} className="text-gray-800">
+                          Unit {ch.chapterNumber} - {ch.title}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-blue-100 mb-1 block">Material File</label>
+                    <select
+                      value={selectedMaterial}
+                      onChange={(e) => setSelectedMaterial(e.target.value)}
+                      disabled={!selectedChapter || chatMode === 'web'}
+                      className="w-full px-3 py-1.5 bg-white/20 border border-white/30 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-white/50 disabled:opacity-60"
+                    >
+                      <option value="" className="text-gray-800">Select material</option>
+                      {materials.map(m => (
+                        <option key={m._id} value={m._id} className="text-gray-800">
+                          {m.title}{m.type ? ` (${m.type})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -337,7 +481,9 @@ export default function StudentChatbot() {
                     <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce"></div>
                     <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                     <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></div>
-                    <span className="text-xs text-gray-500 ml-2">Searching materials...</span>
+                    <span className="text-xs text-gray-500 ml-2">
+                      {chatMode === 'web' ? 'Searching web...' : 'Searching materials...'}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -371,8 +517,8 @@ export default function StudentChatbot() {
                 type="text"
                 value={inputMessage}
                 onChange={(e) => setInputMessage(e.target.value)}
-                onKeyPress={handleKeyPress}
-                placeholder="Ask about course materials..."
+                onKeyDown={handleKeyDown}
+                placeholder={chatMode === 'web' ? 'Ask anything (web search)...' : 'Ask about the selected material...'}
                 className="flex-1 px-4 py-2.5 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
               />
               <button

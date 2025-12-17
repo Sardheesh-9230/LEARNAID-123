@@ -276,3 +276,28 @@ body {
   transform: translateY(-2px);
   box-shadow: 0 10px 25px rgba(99, 102, 241, 0.4);
 }
+
+/* Loading Animation Delays */
+.animation-delay-150 {
+  animation-delay: 150ms;
+}
+
+.animation-delay-300 {
+  animation-delay: 300ms;
+}
+
+/* Smooth fade-in for loaded content */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in-up {
+  animation: fadeInUp 0.6s ease-out forwards;
+}

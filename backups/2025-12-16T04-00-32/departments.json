@@ -1,0 +1,130 @@
+[
+  {
+    "_id": "69399896ee0571c2cdeee13c",
+    "name": "Artificial Intelligence and Data Science",
+    "code": "ADI",
+    "description": "Department of Ai&ds",
+    "establishedYear": 2025,
+    "sections": [
+      "A",
+      "B",
+      "C"
+    ],
+    "maxStudentsPerSection": 65,
+    "status": "Active",
+    "contactInfo": {
+      "email": "departmentofaids@learnaid.edu",
+      "phone": "+9189323436798",
+      "location": "Rk-Block"
+    },
+    "programs": [
+      {
+        "name": "B.Tech Artificial Intelligence and Data Science",
+        "duration": 4,
+        "type": "Undergraduate",
+        "_id": "69399896ee0571c2cdeee13d"
+      }
+    ],
+    "createdBy": "69315b99070476035069e277",
+    "facilities": [],
+    "createdAt": "2025-12-10T15:58:14.047Z",
+    "updatedAt": "2025-12-10T17:10:51.879Z",
+    "__v": 0,
+    "hod": "69399c7fee0571c2cdeee226"
+  },
+  {
+    "_id": "693998f3ee0571c2cdeee146",
+    "name": "Computer Science and Engineering",
+    "code": "CSE",
+    "description": "Department of CSE",
+    "establishedYear": 2008,
+    "sections": [
+      "A",
+      "B"
+    ],
+    "maxStudentsPerSection": 65,
+    "status": "Active",
+    "contactInfo": {
+      "email": "departmentofcs@learnaid.edu",
+      "phone": "+917890764356",
+      "location": "Apj-Block,Ground floor"
+    },
+    "programs": [
+      {
+        "name": "B.Tech Computer Science and Engineering",
+        "duration": 4,
+        "type": "Undergraduate",
+        "_id": "693998f3ee0571c2cdeee147"
+      }
+    ],
+    "createdBy": "69315b99070476035069e277",
+    "facilities": [],
+    "createdAt": "2025-12-10T15:59:47.529Z",
+    "updatedAt": "2025-12-10T16:53:11.483Z",
+    "__v": 0,
+    "hod": "69399fe6ee0571c2cdeee36e"
+  },
+  {
+    "_id": "6939995aee0571c2cdeee151",
+    "name": "Information Technology",
+    "code": "ITI",
+    "description": "Department of IT",
+    "establishedYear": 2010,
+    "sections": [
+      "A",
+      "B"
+    ],
+    "maxStudentsPerSection": 65,
+    "status": "Active",
+    "contactInfo": {
+      "email": "departmentofit@learnaid.edu",
+      "phone": "+9189765643632",
+      "location": "RK-Block,2nd Floor"
+    },
+    "programs": [
+      {
+        "name": "B.Tech Information Technology",
+        "duration": 4,
+        "type": "Undergraduate",
+        "_id": "6939995aee0571c2cdeee152"
+      }
+    ],
+    "createdBy": "69315b99070476035069e277",
+    "facilities": [],
+    "createdAt": "2025-12-10T16:01:30.737Z",
+    "updatedAt": "2025-12-10T16:54:07.628Z",
+    "__v": 0,
+    "hod": "69399f8bee0571c2cdeee351"
+  },
+  {
+    "_id": "693999d6ee0571c2cdeee161",
+    "name": "Computer science and engineering(AIML)",
+    "code": "AMI",
+    "description": "Department of AIML",
+    "establishedYear": 2025,
+    "sections": [
+      "A"
+    ],
+    "maxStudentsPerSection": 65,
+    "status": "Active",
+    "contactInfo": {
+      "email": "departmentofaiml@learnaid.edu",
+      "phone": "+916989302536",
+      "location": "Rk-Block"
+    },
+    "programs": [
+      {
+        "name": "B.Tech Computer science and engineering(AIML)",
+        "duration": 4,
+        "type": "Undergraduate",
+        "_id": "693999d6ee0571c2cdeee162"
+      }
+    ],
+    "createdBy": "69315b99070476035069e277",
+    "facilities": [],
+    "createdAt": "2025-12-10T16:03:34.661Z",
+    "updatedAt": "2025-12-10T16:53:43.461Z",
+    "__v": 0,
+    "hod": "6939a130ee0571c2cdeee451"
+  }
+]

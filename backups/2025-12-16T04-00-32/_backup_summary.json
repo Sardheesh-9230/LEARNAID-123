@@ -1,0 +1,94 @@
+{
+  "timestamp": "2025-12-16T04:00:54.016Z",
+  "backupPath": "/home/saravana/projects/AGILE/LEARNAID-REAL-ONE/LEARNAID-123/backups/2025-12-16T04-00-32",
+  "collections": [
+    {
+      "name": "improvementtasks",
+      "count": 1
+    },
+    {
+      "name": "mcqsessions",
+      "count": 0
+    },
+    {
+      "name": "departments",
+      "count": 4
+    },
+    {
+      "name": "tasks",
+      "count": 0
+    },
+    {
+      "name": "exammarks",
+      "count": 0
+    },
+    {
+      "name": "subjects",
+      "count": 6
+    },
+    {
+      "name": "questionwisemarks",
+      "count": 18
+    },
+    {
+      "name": "ciaexams",
+      "count": 0
+    },
+    {
+      "name": "generatedmcqs",
+      "count": 0
+    },
+    {
+      "name": "studentperformances",
+      "count": 0
+    },
+    {
+      "name": "courses",
+      "count": 0
+    },
+    {
+      "name": "files",
+      "count": 12
+    },
+    {
+      "name": "studentmarkentries",
+      "count": 2
+    },
+    {
+      "name": "chapters",
+      "count": 7
+    },
+    {
+      "name": "materials",
+      "count": 3
+    },
+    {
+      "name": "pdfcontents",
+      "count": 0
+    },
+    {
+      "name": "notes",
+      "count": 0
+    },
+    {
+      "name": "pdfdocuments",
+      "count": 17
+    },
+    {
+      "name": "examquestions",
+      "count": 0
+    },
+    {
+      "name": "users",
+      "count": 33
+    },
+    {
+      "name": "taskassignments",
+      "count": 0
+    },
+    {
+      "name": "activitylogs",
+      "count": 724
+    }
+  ]
+}

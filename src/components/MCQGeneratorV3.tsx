@@ -264,9 +264,9 @@ export default function MCQGeneratorV3() {
     try {
       console.log('🔍 Fetching materials for chapter:', chapterId)
       
-      // Use the materials API endpoint (mounted under /api/subjects/materials)
+      // Use the materials API endpoint
       const response = await fetch(
-        `http://localhost:5000/api/subjects/materials/chapters/${chapterId}/materials`,
+        `http://localhost:5000/api/materials/chapters/${chapterId}/materials`,
         {
           headers: {
             'Authorization': `Bearer ${getAuthToken()}`

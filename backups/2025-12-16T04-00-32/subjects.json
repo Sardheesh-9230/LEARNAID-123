@@ -1,0 +1,374 @@
+[
+  {
+    "_id": "6939a728ee0571c2cdeee74f",
+    "name": "Optimization techniques",
+    "code": "AGB1301",
+    "type": "Theory",
+    "description": "optmizaingthe resource",
+    "credits": 3,
+    "department": "69399896ee0571c2cdeee13c",
+    "year": "1st Year",
+    "section": "A",
+    "semester": 1,
+    "faculty": [
+      {
+        "user": "69399e61ee0571c2cdeee2dd",
+        "isExternal": false,
+        "assignedDate": "2025-12-10T17:06:14.888Z",
+        "isPrimary": false,
+        "_id": "6939a886ee0571c2cdeee80b"
+      }
+    ],
+    "enrolledStudents": [
+      "6939a25fee0571c2cdeee4a8",
+      "6939a2d8ee0571c2cdeee4d6",
+      "6939a334ee0571c2cdeee4e9",
+      "6939a363ee0571c2cdeee506",
+      "6939a3afee0571c2cdeee534",
+      "6939a3e6ee0571c2cdeee551",
+      "6939a427ee0571c2cdeee56e",
+      "6939a45fee0571c2cdeee58b",
+      "6939a4aaee0571c2cdeee5a8",
+      "6939a4f1ee0571c2cdeee5c5",
+      "6939a52eee0571c2cdeee5d8",
+      "6939a25fee0571c2cdeee4a8",
+      "6939a2d8ee0571c2cdeee4d6",
+      "6939a334ee0571c2cdeee4e9",
+      "6939a363ee0571c2cdeee506",
+      "6939a3afee0571c2cdeee534",
+      "6939a3e6ee0571c2cdeee551",
+      "6939a427ee0571c2cdeee56e",
+      "6939a45fee0571c2cdeee58b",
+      "6939a4aaee0571c2cdeee5a8",
+      "6939a4f1ee0571c2cdeee5c5",
+      "6939a52eee0571c2cdeee5d8"
+    ],
+    "maxStudents": 65,
+    "prerequisite": null,
+    "learningOutcomes": [],
+    "schedule": {
+      "lecturesPerWeek": 3,
+      "duration": 60,
+      "timeSlots": []
+    },
+    "assessmentStructure": {
+      "internals": 40,
+      "externals": 60,
+      "practicals": 0
+    },
+    "status": "Active",
+    "academicYear": "2024-2025",
+    "createdBy": "69315b99070476035069e277",
+    "resources": [],
+    "createdAt": "2025-12-10T17:00:24.485Z",
+    "updatedAt": "2025-12-10T17:13:12.559Z",
+    "__v": 3
+  },
+  {
+    "_id": "6939a758ee0571c2cdeee765",
+    "name": "Spark and scala Fundamentals",
+    "code": "ADI1303",
+    "type": "TCPR",
+    "description": "big data",
+    "credits": 3,
+    "department": "69399896ee0571c2cdeee13c",
+    "year": "1st Year",
+    "section": "A",
+    "semester": 1,
+    "faculty": [
+      {
+        "user": "69399f48ee0571c2cdeee334",
+        "isExternal": true,
+        "assignedDate": "2025-12-10T17:05:54.255Z",
+        "isPrimary": false,
+        "_id": "6939a872ee0571c2cdeee7f4"
+      }
+    ],
+    "enrolledStudents": [
+      "6939a25fee0571c2cdeee4a8",
+      "6939a2d8ee0571c2cdeee4d6",
+      "6939a334ee0571c2cdeee4e9",
+      "6939a363ee0571c2cdeee506",
+      "6939a3afee0571c2cdeee534",
+      "6939a3e6ee0571c2cdeee551",
+      "6939a427ee0571c2cdeee56e",
+      "6939a45fee0571c2cdeee58b",
+      "6939a4aaee0571c2cdeee5a8",
+      "6939a4f1ee0571c2cdeee5c5",
+      "6939a52eee0571c2cdeee5d8",
+      "6939a25fee0571c2cdeee4a8",
+      "6939a2d8ee0571c2cdeee4d6",
+      "6939a334ee0571c2cdeee4e9",
+      "6939a363ee0571c2cdeee506",
+      "6939a3afee0571c2cdeee534",
+      "6939a3e6ee0571c2cdeee551",
+      "6939a427ee0571c2cdeee56e",
+      "6939a45fee0571c2cdeee58b",
+      "6939a4aaee0571c2cdeee5a8",
+      "6939a4f1ee0571c2cdeee5c5",
+      "6939a52eee0571c2cdeee5d8"
+    ],
+    "maxStudents": 65,
+    "prerequisite": null,
+    "learningOutcomes": [],
+    "schedule": {
+      "lecturesPerWeek": 3,
+      "duration": 60,
+      "timeSlots": []
+    },
+    "assessmentStructure": {
+      "internals": 40,
+      "externals": 60,
+      "practicals": 0
+    },
+    "status": "Active",
+    "academicYear": "2024-2025",
+    "createdBy": "69315b99070476035069e277",
+    "resources": [],
+    "createdAt": "2025-12-10T17:01:12.680Z",
+    "updatedAt": "2025-12-10T17:13:17.375Z",
+    "__v": 3
+  },
+  {
+    "_id": "6939a78dee0571c2cdeee777",
+    "name": "Predictive modelling and Analytics",
+    "code": "ADI1301",
+    "type": "Theory",
+    "description": "Predictive modelling and Analytics",
+    "credits": 3,
+    "department": "69399896ee0571c2cdeee13c",
+    "year": "1st Year",
+    "section": "A",
+    "semester": 1,
+    "faculty": [
+      {
+        "user": "69399d49ee0571c2cdeee269",
+        "isExternal": false,
+        "assignedDate": "2025-12-10T17:06:29.976Z",
+        "isPrimary": false,
+        "_id": "6939a895ee0571c2cdeee823"
+      }
+    ],
+    "enrolledStudents": [
+      "6939a25fee0571c2cdeee4a8",
+      "6939a2d8ee0571c2cdeee4d6",
+      "6939a334ee0571c2cdeee4e9",
+      "6939a363ee0571c2cdeee506",
+      "6939a3afee0571c2cdeee534",
+      "6939a3e6ee0571c2cdeee551",
+      "6939a427ee0571c2cdeee56e",
+      "6939a45fee0571c2cdeee58b",
+      "6939a4aaee0571c2cdeee5a8",
+      "6939a4f1ee0571c2cdeee5c5",
+      "6939a52eee0571c2cdeee5d8",
+      "6939a25fee0571c2cdeee4a8",
+      "6939a2d8ee0571c2cdeee4d6",
+      "6939a334ee0571c2cdeee4e9",
+      "6939a363ee0571c2cdeee506",
+      "6939a3afee0571c2cdeee534",
+      "6939a3e6ee0571c2cdeee551",
+      "6939a427ee0571c2cdeee56e",
+      "6939a45fee0571c2cdeee58b",
+      "6939a4aaee0571c2cdeee5a8",
+      "6939a4f1ee0571c2cdeee5c5",
+      "6939a52eee0571c2cdeee5d8"
+    ],
+    "maxStudents": 65,
+    "prerequisite": null,
+    "learningOutcomes": [],
+    "schedule": {
+      "lecturesPerWeek": 3,
+      "duration": 60,
+      "timeSlots": []
+    },
+    "assessmentStructure": {
+      "internals": 40,
+      "externals": 60,
+      "practicals": 0
+    },
+    "status": "Active",
+    "academicYear": "2024-2025",
+    "createdBy": "69315b99070476035069e277",
+    "resources": [],
+    "createdAt": "2025-12-10T17:02:05.891Z",
+    "updatedAt": "2025-12-10T17:13:22.292Z",
+    "__v": 3
+  },
+  {
+    "_id": "6939a7daee0571c2cdeee79f",
+    "name": "Data and Information security",
+    "code": "ADI1355",
+    "type": "Theory",
+    "description": "security advanced",
+    "credits": 3,
+    "department": "69399896ee0571c2cdeee13c",
+    "year": "1st Year",
+    "section": "A",
+    "semester": 1,
+    "faculty": [
+      {
+        "user": "69399eb1ee0571c2cdeee2fa",
+        "isExternal": false,
+        "assignedDate": "2025-12-10T17:05:22.076Z",
+        "isPrimary": true,
+        "_id": "6939a852ee0571c2cdeee7d9"
+      }
+    ],
+    "enrolledStudents": [
+      "6939a25fee0571c2cdeee4a8",
+      "6939a2d8ee0571c2cdeee4d6",
+      "6939a334ee0571c2cdeee4e9",
+      "6939a363ee0571c2cdeee506",
+      "6939a3afee0571c2cdeee534",
+      "6939a3e6ee0571c2cdeee551",
+      "6939a427ee0571c2cdeee56e",
+      "6939a45fee0571c2cdeee58b",
+      "6939a4aaee0571c2cdeee5a8",
+      "6939a4f1ee0571c2cdeee5c5",
+      "6939a52eee0571c2cdeee5d8",
+      "6939a25fee0571c2cdeee4a8",
+      "6939a2d8ee0571c2cdeee4d6",
+      "6939a334ee0571c2cdeee4e9",
+      "6939a363ee0571c2cdeee506",
+      "6939a3afee0571c2cdeee534",
+      "6939a3e6ee0571c2cdeee551",
+      "6939a427ee0571c2cdeee56e",
+      "6939a45fee0571c2cdeee58b",
+      "6939a4aaee0571c2cdeee5a8",
+      "6939a4f1ee0571c2cdeee5c5",
+      "6939a52eee0571c2cdeee5d8"
+    ],
+    "maxStudents": 65,
+    "prerequisite": null,
+    "learningOutcomes": [],
+    "schedule": {
+      "lecturesPerWeek": 3,
+      "duration": 60,
+      "timeSlots": []
+    },
+    "assessmentStructure": {
+      "internals": 40,
+      "externals": 60,
+      "practicals": 0
+    },
+    "status": "Active",
+    "academicYear": "2024-2025",
+    "createdBy": "69315b99070476035069e277",
+    "resources": [],
+    "createdAt": "2025-12-10T17:03:22.999Z",
+    "updatedAt": "2025-12-10T17:13:27.537Z",
+    "__v": 3
+  },
+  {
+    "_id": "6939a81fee0571c2cdeee7b9",
+    "name": "Smart sensor technology",
+    "code": "EEEC1388",
+    "type": "Elective",
+    "description": "Smart sensor technology",
+    "credits": 3,
+    "department": "69399896ee0571c2cdeee13c",
+    "year": "1st Year",
+    "section": "A",
+    "semester": 1,
+    "faculty": [
+      {
+        "user": "69399d01ee0571c2cdeee256",
+        "isExternal": false,
+        "assignedDate": "2025-12-10T17:06:46.699Z",
+        "isPrimary": true,
+        "_id": "6939a8a6ee0571c2cdeee83c"
+      }
+    ],
+    "enrolledStudents": [
+      "6939a25fee0571c2cdeee4a8",
+      "6939a2d8ee0571c2cdeee4d6",
+      "6939a334ee0571c2cdeee4e9",
+      "6939a363ee0571c2cdeee506",
+      "6939a3afee0571c2cdeee534",
+      "6939a3e6ee0571c2cdeee551",
+      "6939a427ee0571c2cdeee56e",
+      "6939a45fee0571c2cdeee58b",
+      "6939a4aaee0571c2cdeee5a8",
+      "6939a4f1ee0571c2cdeee5c5",
+      "6939a52eee0571c2cdeee5d8",
+      "6939a25fee0571c2cdeee4a8",
+      "6939a2d8ee0571c2cdeee4d6",
+      "6939a334ee0571c2cdeee4e9",
+      "6939a363ee0571c2cdeee506",
+      "6939a3afee0571c2cdeee534",
+      "6939a3e6ee0571c2cdeee551",
+      "6939a427ee0571c2cdeee56e",
+      "6939a45fee0571c2cdeee58b",
+      "6939a4aaee0571c2cdeee5a8",
+      "6939a4f1ee0571c2cdeee5c5",
+      "6939a52eee0571c2cdeee5d8"
+    ],
+    "maxStudents": 65,
+    "prerequisite": null,
+    "learningOutcomes": [],
+    "schedule": {
+      "lecturesPerWeek": 3,
+      "duration": 60,
+      "timeSlots": []
+    },
+    "assessmentStructure": {
+      "internals": 40,
+      "externals": 60,
+      "practicals": 0
+    },
+    "status": "Active",
+    "academicYear": "2024-2025",
+    "createdBy": "69315b99070476035069e277",
+    "resources": [],
+    "createdAt": "2025-12-10T17:04:31.951Z",
+    "updatedAt": "2025-12-10T17:13:31.858Z",
+    "__v": 3
+  },
+  {
+    "_id": "6939a99bee0571c2cdeee8b7",
+    "name": "Predictive modelling",
+    "code": "ADI1304",
+    "type": "Theory",
+    "description": "+91 85689 95555",
+    "credits": 3,
+    "department": "69399896ee0571c2cdeee13c",
+    "year": "1st Year",
+    "section": "B",
+    "semester": 1,
+    "faculty": [
+      {
+        "user": "69399d49ee0571c2cdeee269",
+        "isExternal": false,
+        "assignedDate": "2025-12-10T17:12:05.020Z",
+        "isPrimary": true,
+        "_id": "6939a9e5ee0571c2cdeee912"
+      }
+    ],
+    "enrolledStudents": [
+      "6939a914ee0571c2cdeee86a",
+      "6939a957ee0571c2cdeee88b",
+      "6939a914ee0571c2cdeee86a",
+      "6939a957ee0571c2cdeee88b"
+    ],
+    "maxStudents": 65,
+    "prerequisite": null,
+    "learningOutcomes": [],
+    "schedule": {
+      "lecturesPerWeek": 3,
+      "duration": 60,
+      "timeSlots": []
+    },
+    "assessmentStructure": {
+      "internals": 40,
+      "externals": 60,
+      "practicals": 0
+    },
+    "status": "Active",
+    "academicYear": "2024-2025",
+    "createdBy": "69315b99070476035069e277",
+    "resources": [],
+    "createdAt": "2025-12-10T17:10:51.044Z",
+    "updatedAt": "2025-12-10T17:13:32.877Z",
+    "__v": 3
+  }
+]

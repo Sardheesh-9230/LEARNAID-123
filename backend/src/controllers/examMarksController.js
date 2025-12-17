@@ -356,8 +356,11 @@ exports.getMarksByStudent = async (req, res, next) => {
     let marks = await ExamMarks.find(filter)
       .populate({
         path: 'exam',
-        select: 'title examType totalMarks passingMarks scheduledDate course',
-        populate: { path: 'course', select: 'name code' }
+        select: 'title examType totalMarks passingMarks scheduledDate course subject',
+        populate: [
+          { path: 'course', select: 'name code' },
+          { path: 'subject', select: 'name code' }
+        ]
       })
       .populate('questionMarks.question', 'questionNumber questionText marks')
       .populate('questionMarks.chapter', 'title chapterNumber')
