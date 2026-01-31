@@ -8,8 +8,31 @@ import dynamic from 'next/dynamic'
 const ParticleText = dynamic(() => import('@/components/ParticleText'), {
   ssr: false,
   loading: () => (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 flex items-center justify-center">
-      <div className="text-4xl font-bold text-white animate-pulse">Loading...</div>
+    <div className="fixed inset-0 bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 flex items-center justify-center">
+      <div className="text-center space-y-6 max-w-md w-full px-8">
+        {/* Animated spinner */}
+        <div className="relative inline-block">
+          <div className="w-20 h-20 border-4 border-blue-400/30 border-t-blue-400 rounded-full animate-spin"></div>
+          <div className="absolute inset-0 w-20 h-20 border-4 border-purple-400/30 border-t-purple-400 rounded-full animate-spin animation-delay-150"></div>
+        </div>
+        
+        {/* Loading text with gradient */}
+        <div className="space-y-2">
+          <h2 className="text-3xl font-bold bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent animate-pulse">
+            LearnAID
+          </h2>
+          <p className="text-blue-200 text-sm font-medium">
+            Initializing Experience...
+          </p>
+        </div>
+        
+        {/* Progress dots */}
+        <div className="flex gap-2 justify-center">
+          <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce"></div>
+          <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce animation-delay-150"></div>
+          <div className="w-2 h-2 bg-pink-400 rounded-full animate-bounce animation-delay-300"></div>
+        </div>
+      </div>
     </div>
   ),
 })

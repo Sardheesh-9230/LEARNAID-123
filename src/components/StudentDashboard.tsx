@@ -5,6 +5,7 @@ import StudentSidebar from '@/components/StudentSidebar'
 import StudentChatbot from '@/components/StudentChatbot'
 import StudentImprovementDashboard from '@/components/StudentImprovementDashboard'
 import StudentStudyMaterials from '@/components/StudentStudyMaterials'
+import StudentPerformanceDashboard from '@/components/StudentPerformanceDashboard'
 import apiService from '@/services/api'
 
 interface Discussion {
@@ -82,22 +83,7 @@ export default function StudentDashboard() {
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard':
-        return (
-          <div className="space-y-6">
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <h2 className="text-2xl font-bold text-gray-800 mb-4">🎓 Welcome Back, Student!</h2>
-              <p className="text-gray-600">
-                Your learning journey continues here. Check your courses, assignments, and progress below.
-              </p>
-            </div>
-            
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <p className="text-gray-600 text-center py-8">
-                Dashboard statistics will be displayed here based on your real data.
-              </p>
-            </div>
-          </div>
-        )
+        return <StudentPerformanceDashboard />
       
       case 'courses':
         return (
@@ -173,16 +159,10 @@ export default function StudentDashboard() {
         return <StudentTaskDashboard />
       
       case 'grades':
-        return (
-          <div className="space-y-6">
-            <h2 className="text-2xl font-bold text-gray-800">📊 Grade Report</h2>
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <p className="text-gray-600 text-center py-8">
-                Your grades and academic performance will be shown here.
-              </p>
-            </div>
-          </div>
-        )
+        return <StudentPerformanceDashboard />
+
+      case 'chatbot':
+        return <StudentChatbot mode="page" />
       
       case 'resources':
         return <StudentStudyMaterials />
@@ -310,14 +290,20 @@ export default function StudentDashboard() {
         onToggle={() => setSidebarExpanded(!sidebarExpanded)}
       />
       
-      <main className="flex-1 p-8 overflow-auto">
-        <div className="max-w-7xl mx-auto">
-          {renderContent()}
-        </div>
+      <main className={`flex-1 overflow-auto ${activeTab === 'chatbot' ? 'p-0' : 'p-8'}`}>
+        {activeTab === 'chatbot' ? (
+          <div className="h-full">
+            {renderContent()}
+          </div>
+        ) : (
+          <div className="max-w-7xl mx-auto">
+            {renderContent()}
+          </div>
+        )}
       </main>
 
-      {/* AI Chatbot */}
-      <StudentChatbot />
+      {/* AI Chatbot (floating) */}
+      {activeTab !== 'chatbot' && <StudentChatbot />}
 
       {/* Discussion Modal */}
       {selectedDiscussion && (

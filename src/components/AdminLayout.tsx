@@ -26,9 +26,6 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, activeSection, onSe
     { id: 'departments', label: 'Departments', icon: FiGrid },
     { id: 'users', label: 'User Management', icon: FiUsers },
     { id: 'analytics', label: 'Pilot Analytics', icon: FiBarChart2 },
-    { id: 'subjects', label: 'Subject Management', icon: FiBook },
-    { id: 'faculty-assignment', label: 'Faculty Assignment', icon: FiUserCheck },
-    { id: 'reports', label: 'System Reports', icon: FiSettings },
   ];
 
   return (

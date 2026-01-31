@@ -108,7 +108,7 @@ export default function StudentStudyMaterials() {
             // Get materials for each chapter
             for (const chapter of chaptersResponse.data) {
               try {
-                const materialsResponse = await apiService.makeRequest(`/materials/chapters/${chapter._id}/materials`)
+                const materialsResponse = await apiService.getMaterialsByChapter(chapter._id)
                 
                 if (materialsResponse.success && materialsResponse.data) {
                   const chapterMaterials = materialsResponse.data.map((material: any) => ({
@@ -149,16 +149,25 @@ export default function StudentStudyMaterials() {
 
   const handleViewMaterial = async (material: Material) => {
     try {
-      // Record view and open material
-      await apiService.recordMaterialDownload(material._id)
-      
-      if (material.type === 'Link' && material.url) {
-        window.open(material.url, '_blank')
+      // Prefer direct URL (works even when no uploaded file exists)
+      if (material.url) {
+        window.open(material.url, '_blank', 'noopener,noreferrer')
+        setMaterials(prev => prev.map(m => (m._id === material._id ? { ...m, viewCount: m.viewCount + 1 } : m)))
+        return
+      }
+
+      // Otherwise stream from backend and open using browser default viewer
+      const newTab = window.open('', '_blank')
+      const viewUrl = await apiService.viewMaterialFile(material._id)
+      if (!viewUrl) {
+        newTab?.close()
+        throw new Error('Unable to open material')
+      }
+
+      if (newTab) {
+        newTab.location.href = viewUrl
       } else {
-        const viewUrl = await apiService.viewMaterialFile(material._id)
-        if (viewUrl) {
-          window.open(viewUrl, '_blank')
-        }
+        window.open(viewUrl, '_blank', 'noopener,noreferrer')
       }
       
       // Update view count locally
@@ -169,13 +178,16 @@ export default function StudentStudyMaterials() {
       ))
     } catch (error) {
       console.error('Error viewing material:', error)
+      setError(error?.message || 'Unable to view material (file/url missing)')
     }
   }
 
   const handleDownloadMaterial = async (material: Material) => {
     try {
-      if (material.type === 'Link') {
-        window.open(material.url, '_blank')
+      // If a direct URL exists, let the browser handle download/open
+      if (material.url) {
+        window.open(material.url, '_blank', 'noopener,noreferrer')
+        setMaterials(prev => prev.map(m => (m._id === material._id ? { ...m, downloadCount: m.downloadCount + 1 } : m)))
         return
       }
 
@@ -187,8 +199,9 @@ export default function StudentStudyMaterials() {
           ? { ...m, downloadCount: m.downloadCount + 1 }
           : m
       ))
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error downloading material:', error)
+      setError(error?.message || 'Unable to download material (file/url missing)')
     }
   }
 

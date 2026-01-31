@@ -31,12 +31,6 @@ export default function AdminPage() {
         return <UserManagement />;
       case 'analytics':
         return <AnalyticsDashboard userRole="admin" />;
-      case 'subjects':
-        return <div className="text-center text-gray-600 py-20">Subject Management - Coming Soon</div>;
-      case 'faculty-assignment':
-        return <div className="text-center text-gray-600 py-20">Faculty Assignment - Coming Soon</div>;
-      case 'reports':
-        return <div className="text-center text-gray-600 py-20">Reports & Analytics - Coming Soon</div>;
       default:
         return <AdminDashboardOverview />;
     }

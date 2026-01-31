@@ -129,7 +129,11 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/departments', departmentRoutes);
 app.use('/api/subjects', subjectRoutes);
-app.use('/api/subjects/materials', materialRoutes); // Material routes (nested under subjects)
+// Materials
+// Primary mount used by frontend: /api/materials/chapters/:chapterId/materials
+app.use('/api/materials', materialRoutes);
+// Backward-compatible mount (older/incorrect path)
+app.use('/api/subjects/materials', materialRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/pdf', pdfRoutes);

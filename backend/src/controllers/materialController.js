@@ -5,6 +5,116 @@ const File = require('../models/File');
 const fs = require('fs').promises;
 const path = require('path');
 
+const normalizeStoredPath = (p) => {
+  if (!p || typeof p !== 'string') return p;
+  return p.replace(/\\/g, '/');
+};
+
+const resolveMaterialFileInfo = async (material) => {
+  const meta = material?.fileMetadata || {};
+
+  const filePath = normalizeStoredPath(meta.filePath || meta.path);
+  const mimeType = meta.mimeType || meta.mimetype;
+  const originalName = meta.originalName || meta.originalname;
+  const size = meta.size;
+
+  const basename = filePath ? path.basename(filePath) : undefined;
+
+  if (filePath) {
+    return { filePath, mimeType, originalName, basename, size };
+  }
+
+  if (material?.file) {
+    const fileRecord = await File.findById(material.file).select('path mimetype originalName filename').lean();
+    if (fileRecord?.path) {
+      const recordPath = normalizeStoredPath(fileRecord.path);
+      return {
+        filePath: recordPath,
+        mimeType: fileRecord.mimetype,
+        originalName: fileRecord.originalName || fileRecord.filename,
+        basename: path.basename(recordPath),
+        size: fileRecord.size
+      };
+    }
+  }
+
+  return null;
+};
+
+const tryFindBySize = async ({ dirs, size, ext }) => {
+  if (!size || !Number.isFinite(size)) return null;
+  const matches = [];
+
+  for (const dir of dirs) {
+    try {
+      const entries = await fs.readdir(dir);
+      for (const entry of entries) {
+        if (entry.startsWith('.')) continue;
+        if (ext && path.extname(entry).toLowerCase() !== ext) continue;
+        const full = path.join(dir, entry);
+        try {
+          const st = await fs.stat(full);
+          if (st.isFile() && st.size === size) {
+            matches.push(full);
+            if (matches.length > 1) return { ambiguous: true, matches };
+          }
+        } catch (_) {
+          // ignore
+        }
+      }
+    } catch (_) {
+      // ignore missing dirs
+    }
+  }
+
+  return matches.length === 1 ? { path: matches[0] } : null;
+};
+
+const resolveExistingPhysicalPath = async (fileInfo) => {
+  if (!fileInfo?.filePath) return null;
+
+  const candidatePaths = [];
+
+  // 1) Stored relative path (normalized)
+  candidatePaths.push(path.join(process.cwd(), fileInfo.filePath));
+
+  // 2) Common uploads/materials locations by basename
+  if (fileInfo.basename) {
+    candidatePaths.push(path.join(process.cwd(), 'uploads', 'materials', fileInfo.basename));
+    candidatePaths.push(path.join(process.cwd(), 'uploads/materials', fileInfo.basename));
+  }
+
+  // 3) If backend is started from repo root, also try backend/uploads
+  if (fileInfo.basename) {
+    candidatePaths.push(path.join(process.cwd(), 'backend', 'uploads', 'materials', fileInfo.basename));
+  }
+
+  for (const candidate of candidatePaths) {
+    try {
+      await fs.access(candidate);
+      return candidate;
+    } catch (_) {
+      // keep trying
+    }
+  }
+
+  // Final fallback: search uploads dirs by recorded file size (handles renamed/moved files)
+  const ext = fileInfo.basename ? path.extname(fileInfo.basename).toLowerCase() : undefined;
+  const uploadsDirs = [
+    path.join(process.cwd(), 'uploads', 'materials'),
+    path.join(process.cwd(), 'uploads', 'pdfs'),
+    path.join(process.cwd(), 'uploads'),
+    path.join(process.cwd(), 'backend', 'uploads', 'materials'),
+    path.join(process.cwd(), 'backend', 'uploads', 'pdfs')
+  ];
+
+  const sizeSearch = await tryFindBySize({ dirs: uploadsDirs, size: fileInfo.size, ext });
+  if (sizeSearch?.path) return sizeSearch.path;
+  if (sizeSearch?.ambiguous) return null;
+
+  return null;
+};
+
 /**
  * @desc    Get all materials for a chapter
  * @route   GET /api/chapters/:chapterId/materials
@@ -172,11 +282,12 @@ const createMaterial = async (req, res) => {
 
     // Handle file upload if present
     if (req.file) {
+      const normalizedUploadPath = (req.file.path || '').replace(/\\/g, '/');
       // Create a File record first with all required fields (matching File model schema)
       const fileData = {
         originalName: req.file.originalname,   // File model field: originalName
         filename: req.file.filename,           // File model field: filename  
-        path: req.file.path,                   // File model field: path (not filePath)
+        path: normalizedUploadPath,            // Normalize to forward slashes for cross-OS compatibility
         size: req.file.size,                   // File model field: size (not fileSize)
         mimetype: req.file.mimetype,           // File model field: mimetype (not mimeType)
         uploadedBy: req.user._id,              // File model field: uploadedBy
@@ -196,7 +307,7 @@ const createMaterial = async (req, res) => {
         originalName: req.file.originalname,
         mimeType: req.file.mimetype,
         size: req.file.size,
-        filePath: req.file.path
+        filePath: normalizedUploadPath
       };
     } else if (url) {
       // If no file but URL provided
@@ -492,24 +603,21 @@ const downloadMaterialFile = async (req, res) => {
         message: 'Download not allowed for this material'
       });
     }
-    
-    if (!material.fileMetadata || !material.fileMetadata.path) {
+
+    const fileInfo = await resolveMaterialFileInfo(material);
+    if (!fileInfo || !fileInfo.filePath) {
       return res.status(404).json({
         success: false,
         message: 'File not found'
       });
     }
-    
-    const filePath = path.join(process.cwd(), material.fileMetadata.path);
-    
-    // Check if file exists
-    try {
-      await fs.access(filePath);
-    } catch (error) {
-      console.error('File not found:', filePath);
+
+    const filePath = await resolveExistingPhysicalPath(fileInfo);
+    if (!filePath) {
+      console.error('File not found on server for material:', material._id, fileInfo.filePath);
       return res.status(404).json({
         success: false,
-        message: 'Physical file not found on server'
+        message: 'Physical file not found on server. Please re-upload the material file.'
       });
     }
     
@@ -517,8 +625,8 @@ const downloadMaterialFile = async (req, res) => {
     await material.incrementDownloadCount();
     
     // Set headers for download
-    res.setHeader('Content-Type', material.fileMetadata.mimetype || 'application/octet-stream');
-    res.setHeader('Content-Disposition', `attachment; filename="${material.fileMetadata.originalname || 'download'}"`);
+    res.setHeader('Content-Type', fileInfo.mimeType || 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileInfo.originalName || 'download'}"`);
     
     // Stream the file
     const fileStream = require('fs').createReadStream(filePath);
@@ -560,23 +668,20 @@ const viewMaterialFile = async (req, res) => {
       });
     }
     
-    if (!material.fileMetadata || !material.fileMetadata.path) {
+    const fileInfo = await resolveMaterialFileInfo(material);
+    if (!fileInfo || !fileInfo.filePath) {
       return res.status(404).json({
         success: false,
         message: 'File not found'
       });
     }
-    
-    const filePath = path.join(process.cwd(), material.fileMetadata.path);
-    
-    // Check if file exists
-    try {
-      await fs.access(filePath);
-    } catch (error) {
-      console.error('File not found:', filePath);
+
+    const filePath = await resolveExistingPhysicalPath(fileInfo);
+    if (!filePath) {
+      console.error('File not found on server for material:', material._id, fileInfo.filePath);
       return res.status(404).json({
         success: false,
-        message: 'Physical file not found on server'
+        message: 'Physical file not found on server. Please re-upload the material file.'
       });
     }
     
@@ -584,8 +689,8 @@ const viewMaterialFile = async (req, res) => {
     await material.incrementViewCount();
     
     // Set headers for inline viewing
-    res.setHeader('Content-Type', material.fileMetadata.mimetype || 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename="${material.fileMetadata.originalname || 'view'}"`);
+    res.setHeader('Content-Type', fileInfo.mimeType || 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${fileInfo.originalName || 'view'}"`);
     
     // Stream the file
     const fileStream = require('fs').createReadStream(filePath);

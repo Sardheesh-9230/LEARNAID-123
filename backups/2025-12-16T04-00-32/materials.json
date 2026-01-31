@@ -1,0 +1,83 @@
+[
+  {
+    "_id": "6939abb3ee0571c2cdeeeaa9",
+    "chapter": "6939aa9cee0571c2cdeeea60",
+    "subject": "6939a78dee0571c2cdeee777",
+    "title": "Introduction to predictive modelling",
+    "description": "PDF material for Introduction to predictive modelling",
+    "type": "PDF",
+    "file": "6939abb2ee0571c2cdeeeaa7",
+    "fileMetadata": {
+      "originalName": "ssf-document.pdf",
+      "mimeType": "application/pdf",
+      "size": 1196604,
+      "filePath": "uploads\\materials\\file-1765387186314-282117674.pdf"
+    },
+    "order": 1,
+    "duration": 0,
+    "status": "Published",
+    "isPublic": true,
+    "allowDownload": true,
+    "viewCount": 0,
+    "downloadCount": 0,
+    "tags": [],
+    "createdBy": "69399d49ee0571c2cdeee269",
+    "createdAt": "2025-12-10T17:19:47.181Z",
+    "updatedAt": "2025-12-10T17:19:47.181Z",
+    "__v": 0
+  },
+  {
+    "_id": "693a9e17402380b41f89f85d",
+    "chapter": "693a9cf9402380b41f89f82a",
+    "subject": "6939a99bee0571c2cdeee8b7",
+    "title": "introduction to predictive modeling",
+    "description": "PDF material for INTRODUCTION TO PREDICTIVE ANALYTICS",
+    "type": "PDF",
+    "file": "693a9e16402380b41f89f85b",
+    "fileMetadata": {
+      "originalName": "unit-3 detailed notes.pdf",
+      "mimeType": "application/pdf",
+      "size": 701891,
+      "filePath": "uploads/materials/file-1765449238340-754316693.pdf"
+    },
+    "order": 1,
+    "duration": 0,
+    "status": "Published",
+    "isPublic": true,
+    "allowDownload": true,
+    "viewCount": 0,
+    "downloadCount": 0,
+    "tags": [],
+    "createdBy": "69399d49ee0571c2cdeee269",
+    "createdAt": "2025-12-11T10:33:59.970Z",
+    "updatedAt": "2025-12-11T10:33:59.970Z",
+    "__v": 0
+  },
+  {
+    "_id": "693a9f52402380b41f89f8e2",
+    "chapter": "693a9f2c402380b41f89f8c4",
+    "subject": "6939a99bee0571c2cdeee8b7",
+    "title": "DATA FIELD TRANSFORMATION",
+    "description": "PDF material for DATA FIELD TRANSFORMATION",
+    "type": "PDF",
+    "file": "693a9f52402380b41f89f8e0",
+    "fileMetadata": {
+      "originalName": "UNIT-4 DETAILED NOTES.pdf",
+      "mimeType": "application/pdf",
+      "size": 1096260,
+      "filePath": "uploads/materials/file-1765449553500-130318756.pdf"
+    },
+    "order": 1,
+    "duration": 0,
+    "status": "Published",
+    "isPublic": true,
+    "allowDownload": true,
+    "viewCount": 0,
+    "downloadCount": 0,
+    "tags": [],
+    "createdBy": "69399d49ee0571c2cdeee269",
+    "createdAt": "2025-12-11T10:39:14.831Z",
+    "updatedAt": "2025-12-11T10:39:14.831Z",
+    "__v": 0
+  }
+]

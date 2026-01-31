@@ -421,17 +421,17 @@ class ApiService {
 
   // Get materials by subject
   async getMaterialsBySubject(subjectId) {
-    return this.makeRequest(`/subjects/${subjectId}/materials`);
+    return this.makeRequest(`/materials/subjects/${subjectId}/materials`);
   }
 
   // Get materials by chapter
   async getMaterialsByChapter(chapterId) {
-    return this.makeRequest(`/subjects/materials/chapters/${chapterId}/materials`);
+    return this.makeRequest(`/materials/chapters/${chapterId}/materials`);
   }
 
   // Get single material
   async getMaterial(materialId) {
-    return this.makeRequest(`/subjects/materials/${materialId}`);
+    return this.makeRequest(`/materials/${materialId}`);
   }
 
   // Create material
@@ -442,7 +442,7 @@ class ApiService {
       const headers = this.getHeaders();
       delete headers['Content-Type'];
 
-      return fetch(`${this.baseURL}/subjects/materials/chapters/${chapterId}/materials`, {
+      return fetch(`${this.baseURL}/materials/chapters/${chapterId}/materials`, {
         method: 'POST',
         headers: {
           Authorization: headers.Authorization,
@@ -457,7 +457,7 @@ class ApiService {
       });
     } else {
       // For regular JSON data
-      return this.makeRequest(`/subjects/materials/chapters/${chapterId}/materials`, {
+      return this.makeRequest(`/materials/chapters/${chapterId}/materials`, {
         method: 'POST',
         body: JSON.stringify(materialData),
       });
@@ -466,7 +466,7 @@ class ApiService {
 
   // Update material
   async updateMaterial(materialId, materialData) {
-    return this.makeRequest(`/subjects/materials/${materialId}`, {
+    return this.makeRequest(`/materials/${materialId}`, {
       method: 'PUT',
       body: JSON.stringify(materialData),
     });
@@ -474,7 +474,7 @@ class ApiService {
 
   // Delete material
   async deleteMaterial(materialId) {
-    return this.makeRequest(`/subjects/materials/${materialId}`, {
+    return this.makeRequest(`/materials/${materialId}`, {
       method: 'DELETE',
     });
   }
@@ -484,7 +484,7 @@ class ApiService {
     const token = this.token || localStorage.getItem('authToken');
     console.log('🔍 Viewing material:', materialId);
     
-    const response = await fetch(`${this.baseURL}/subjects/materials/${materialId}/view`, {
+    const response = await fetch(`${this.baseURL}/materials/${materialId}/view`, {
       method: 'GET',
       headers: {
         Authorization: `Bearer ${token}`,
@@ -509,7 +509,7 @@ class ApiService {
     const token = this.token || localStorage.getItem('authToken');
     console.log('⬇️ Downloading material:', materialId, filename);
     
-    const response = await fetch(`${this.baseURL}/subjects/materials/${materialId}/file`, {
+    const response = await fetch(`${this.baseURL}/materials/${materialId}/file`, {
       method: 'GET',
       headers: {
         Authorization: `Bearer ${token}`,
@@ -542,7 +542,7 @@ class ApiService {
 
   // Reorder materials
   async reorderMaterials(chapterId, materialOrders) {
-    return this.makeRequest(`/subjects/materials/chapters/${chapterId}/materials/reorder`, {
+    return this.makeRequest(`/materials/chapters/${chapterId}/materials/reorder`, {
       method: 'PUT',
       body: JSON.stringify({ materialOrders }),
     });
@@ -550,7 +550,7 @@ class ApiService {
 
   // Record material download
   async recordMaterialDownload(materialId) {
-    return this.makeRequest(`/subjects/materials/${materialId}/download`, {
+    return this.makeRequest(`/materials/${materialId}/download`, {
       method: 'POST',
     });
   }

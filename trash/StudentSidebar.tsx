@@ -31,14 +31,6 @@ export default function StudentSidebar({ activeTab, onTabChange, isExpanded = tr
       badge: null
     },
     {
-      id: 'tasks',
-      title: 'Tasks',
-      icon: '📝',
-      description: 'Assignments & Tasks',
-      color: 'from-purple-500 to-indigo-600',
-      badge: '5'
-    },
-    {
       id: 'grades',
       title: 'Grades',
       icon: '📊',
@@ -52,14 +44,6 @@ export default function StudentSidebar({ activeTab, onTabChange, isExpanded = tr
       icon: '📖',
       description: 'Notes & Resources',
       color: 'from-orange-500 to-red-600',
-      badge: null
-    },
-    {
-      id: 'schedule',
-      title: 'Class Schedule',
-      icon: '🗓️',
-      description: 'Timetable & Events',
-      color: 'from-pink-500 to-rose-600',
       badge: null
     },
     {
@@ -94,15 +78,15 @@ export default function StudentSidebar({ activeTab, onTabChange, isExpanded = tr
 
   return (
     <div className={`${isExpanded ? 'w-80' : 'w-16'} ${
-      isDarkMode ? 'bg-gradient-to-b from-gray-900 via-emerald-900 to-teal-900' : 'bg-gradient-to-b from-emerald-500 via-teal-500 to-green-600'
+      isDarkMode ? 'bg-gradient-to-b from-gray-900 via-slate-900 to-gray-900' : 'bg-gradient-to-b from-slate-800 via-slate-900 to-gray-900'
     } text-white transition-all duration-300 ease-in-out shadow-2xl relative overflow-hidden`}>
       
       {/* Animated Background Elements */}
-      <div className="absolute inset-0 opacity-10">
-        <div className="absolute top-10 right-8 w-20 h-20 bg-white rounded-full animate-pulse"></div>
-        <div className="absolute top-1/3 -left-6 w-16 h-16 bg-white rounded-full animate-bounce slow"></div>
-        <div className="absolute bottom-20 right-12 w-12 h-12 bg-white rounded-full animate-ping slow"></div>
-        <div className="absolute top-2/3 left-1/2 w-8 h-8 bg-white rounded-full animate-pulse"></div>
+      <div className="absolute inset-0 opacity-5">
+        <div className="absolute top-10 right-8 w-20 h-20 bg-blue-400 rounded-full animate-pulse"></div>
+        <div className="absolute top-1/3 -left-6 w-16 h-16 bg-emerald-400 rounded-full animate-bounce slow"></div>
+        <div className="absolute bottom-20 right-12 w-12 h-12 bg-purple-400 rounded-full animate-ping slow"></div>
+        <div className="absolute top-2/3 left-1/2 w-8 h-8 bg-cyan-400 rounded-full animate-pulse"></div>
       </div>
 
       {/* Floating Particles */}
@@ -110,7 +94,7 @@ export default function StudentSidebar({ activeTab, onTabChange, isExpanded = tr
         {[...Array(6)].map((_, i) => (
           <div
             key={i}
-            className={`absolute w-2 h-2 bg-white rounded-full opacity-20 animate-float-${i + 1}`}
+            className={`absolute w-2 h-2 bg-blue-300 rounded-full opacity-10 animate-float-${i + 1}`}
             style={{
               left: `${Math.random() * 100}%`,
               top: `${Math.random() * 100}%`,
@@ -122,17 +106,17 @@ export default function StudentSidebar({ activeTab, onTabChange, isExpanded = tr
       </div>
 
       {/* Header */}
-      <div className="relative z-10 p-6 border-b border-white/20">
+      <div className="relative z-10 p-6 border-b border-white/10">
         <div className="flex items-center justify-between">
           <div className={`${isExpanded ? 'block' : 'hidden'} transition-all duration-300`}>
-            <h2 className="text-xl font-bold bg-gradient-to-r from-white to-green-100 bg-clip-text text-transparent">
+            <h2 className="text-xl font-bold bg-gradient-to-r from-blue-300 via-cyan-300 to-emerald-300 bg-clip-text text-transparent">
               StudentHub
             </h2>
-            <p className="text-green-100 text-sm mt-1">Learning Portal</p>
+            <p className="text-gray-300 text-sm mt-1">Learning Portal</p>
           </div>
           <button
             onClick={onToggle}
-            className="p-2 rounded-lg bg-white/20 backdrop-blur-sm hover:bg-white/30 transition-all duration-200 transform hover:scale-110 hover:rotate-180"
+            className="p-2 rounded-lg bg-white/10 backdrop-blur-sm hover:bg-white/20 transition-all duration-200 transform hover:scale-110 hover:rotate-180"
           >
             <svg 
               className={`w-5 h-5 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} 
@@ -149,20 +133,20 @@ export default function StudentSidebar({ activeTab, onTabChange, isExpanded = tr
       {/* Student Stats Cards */}
       {isExpanded && (
         <div className="relative z-10 p-4 grid grid-cols-3 gap-2">
-          <div className="bg-white/15 backdrop-blur-sm rounded-xl p-3 border border-white/20 transform hover:scale-105 transition-all duration-200">
+          <div className="bg-blue-500/20 backdrop-blur-sm rounded-xl p-3 border border-blue-400/30 transform hover:scale-105 transition-all duration-200 hover:bg-blue-500/30">
             <div className="text-xl mb-1">📈</div>
-            <div className="text-xs text-green-100">GPA</div>
-            <div className="text-sm font-bold">3.85</div>
+            <div className="text-xs text-blue-200">GPA</div>
+            <div className="text-sm font-bold text-white">3.85</div>
           </div>
-          <div className="bg-white/15 backdrop-blur-sm rounded-xl p-3 border border-white/20 transform hover:scale-105 transition-all duration-200">
+          <div className="bg-emerald-500/20 backdrop-blur-sm rounded-xl p-3 border border-emerald-400/30 transform hover:scale-105 transition-all duration-200 hover:bg-emerald-500/30">
             <div className="text-xl mb-1">📚</div>
-            <div className="text-xs text-teal-100">Courses</div>
-            <div className="text-sm font-bold">6</div>
+            <div className="text-xs text-emerald-200">Courses</div>
+            <div className="text-sm font-bold text-white">6</div>
           </div>
-          <div className="bg-white/15 backdrop-blur-sm rounded-xl p-3 border border-white/20 transform hover:scale-105 transition-all duration-200">
+          <div className="bg-purple-500/20 backdrop-blur-sm rounded-xl p-3 border border-purple-400/30 transform hover:scale-105 transition-all duration-200 hover:bg-purple-500/30">
             <div className="text-xl mb-1">⏰</div>
-            <div className="text-xs text-emerald-100">Due Soon</div>
-            <div className="text-sm font-bold">3</div>
+            <div className="text-xs text-purple-200">Due Soon</div>
+            <div className="text-sm font-bold text-white">3</div>
           </div>
         </div>
       )}
@@ -175,8 +159,8 @@ export default function StudentSidebar({ activeTab, onTabChange, isExpanded = tr
             onClick={() => onTabChange(item.id)}
             className={`w-full flex items-center space-x-3 p-3 rounded-xl transition-all duration-300 group relative overflow-hidden ${
               activeTab === item.id
-                ? 'bg-white/25 backdrop-blur-md shadow-lg border border-white/40 transform scale-105'
-                : 'hover:bg-white/15 backdrop-blur-sm hover:transform hover:scale-102 hover:shadow-lg'
+                ? 'bg-white/20 backdrop-blur-md shadow-xl border border-white/50 transform scale-105'
+                : 'hover:bg-white/10 backdrop-blur-sm hover:transform hover:scale-102 hover:shadow-lg hover:border hover:border-white/20'
             }`}
             style={{
               animationDelay: `${index * 50}ms`
@@ -197,15 +181,15 @@ export default function StudentSidebar({ activeTab, onTabChange, isExpanded = tr
               {isExpanded && (
                 <>
                   <div className="flex-1 text-left">
-                    <div className="font-medium group-hover:text-white transition-colors duration-200 flex items-center">
+                    <div className="font-medium text-gray-100 group-hover:text-white transition-colors duration-200 flex items-center">
                       {item.title}
                       {item.badge && (
-                        <span className="ml-2 bg-red-500 text-white text-xs px-2 py-1 rounded-full animate-pulse">
+                        <span className="ml-2 bg-red-500 text-white text-xs px-2 py-1 rounded-full animate-pulse shadow-lg">
                           {item.badge}
                         </span>
                       )}
                     </div>
-                    <div className="text-xs text-green-100 opacity-75 group-hover:opacity-100 transition-opacity duration-200">
+                    <div className="text-xs text-gray-300 opacity-90 group-hover:opacity-100 transition-opacity duration-200">
                       {item.description}
                     </div>
                   </div>
@@ -223,14 +207,14 @@ export default function StudentSidebar({ activeTab, onTabChange, isExpanded = tr
 
       {/* Quick Study Tools */}
       {isExpanded && (
-        <div className="relative z-10 p-4 border-t border-white/20">
-          <h3 className="text-sm font-semibold mb-3 text-green-100">Study Tools</h3>
+        <div className="relative z-10 p-4 border-t border-white/10">
+          <h3 className="text-sm font-semibold mb-3 text-gray-200">Study Tools</h3>
           <div className="grid grid-cols-2 gap-2">
-            <button className="bg-white/15 backdrop-blur-sm rounded-lg p-3 text-xs hover:bg-white/25 transition-all duration-300 transform hover:scale-105 border border-white/20">
+            <button className="bg-blue-500/20 backdrop-blur-sm rounded-lg p-3 text-xs hover:bg-blue-500/30 transition-all duration-300 transform hover:scale-105 border border-blue-400/30 text-gray-100 hover:text-white">
               <div className="text-lg mb-1">🔍</div>
               Quick Search
             </button>
-            <button className="bg-white/15 backdrop-blur-sm rounded-lg p-3 text-xs hover:bg-white/25 transition-all duration-300 transform hover:scale-105 border border-white/20">
+            <button className="bg-purple-500/20 backdrop-blur-sm rounded-lg p-3 text-xs hover:bg-purple-500/30 transition-all duration-300 transform hover:scale-105 border border-purple-400/30 text-gray-100 hover:text-white">
               <div className="text-lg mb-1">⏰</div>
               Study Timer
             </button>
@@ -240,11 +224,11 @@ export default function StudentSidebar({ activeTab, onTabChange, isExpanded = tr
 
       {/* Notifications Panel */}
       {isExpanded && notifications > 0 && (
-        <div className="relative z-10 p-4 border-t border-white/20">
-          <div className="bg-white/10 backdrop-blur-sm rounded-xl p-3 border border-white/20">
+        <div className="relative z-10 p-4 border-t border-white/10">
+          <div className="bg-red-500/20 backdrop-blur-sm rounded-xl p-3 border border-red-400/30">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-semibold">Notifications</span>
-              <span className="bg-red-500 text-xs px-2 py-1 rounded-full animate-bounce">
+              <span className="text-sm font-semibold text-gray-100">Notifications</span>
+              <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full animate-bounce shadow-lg">
                 {notifications}
               </span>
             </div>

@@ -1,0 +1,459 @@
+[
+  {
+    "_id": "693e97979381da182644d206",
+    "title": "imp-1",
+    "description": "Complete personalized assessment covering CO1, CO2",
+    "taskType": "CO_ASSESSMENT",
+    "subject": "6939a99bee0571c2cdeee8b7",
+    "assignedBy": "69399d49ee0571c2cdeee269",
+    "studentAssignments": [
+      {
+        "student": "6939a957ee0571c2cdeee88b",
+        "weakCOs": [
+          {
+            "courseOutcome": "CO1",
+            "coNumber": 1,
+            "performanceGap": 11.84,
+            "topics": [
+              "General Topics"
+            ],
+            "_id": "693e97979381da182644d208"
+          },
+          {
+            "courseOutcome": "CO2",
+            "coNumber": 2,
+            "performanceGap": 25,
+            "topics": [
+              "General Topics"
+            ],
+            "_id": "693e97979381da182644d209"
+          }
+        ],
+        "personalizedQuestions": [
+          {
+            "id": "q_6939a957ee0571c2cdeee88b_1",
+            "question": "What is the primary function of the Derive node in data field transformation?",
+            "options": [
+              "To reclassify categorical fields",
+              "To bin continuous fields",
+              "To create new columns from existing input columns",
+              "To replace missing values"
+            ],
+            "correctAnswer": 2,
+            "explanation": "The Derive node is used to create new columns (features) from existing input columns, allowing users to compute new fields by applying a certain expression.",
+            "courseOutcome": "CO1",
+            "coNumber": 1,
+            "topics": [
+              "DATA FIELD TRANSFORMATION"
+            ],
+            "marks": 2,
+            "difficulty": "Medium",
+            "bloomsLevel": "apply",
+            "estimatedTime": 2,
+            "_id": "693e97979381da182644d20a"
+          },
+          {
+            "id": "q_6939a957ee0571c2cdeee88b_2",
+            "question": "What is the purpose of the Binning node in data field transformation?",
+            "options": [
+              "To simplify complex data and handle non-linear relationships",
+              "To reclassify categorical fields into broader categories",
+              "To create new columns from existing input columns",
+              "To replace missing values"
+            ],
+            "correctAnswer": 0,
+            "explanation": "The Binning node is used to recode a continuous field into a nominal field, simplifying complex data and handling non-linear relationships.",
+            "courseOutcome": "CO1",
+            "coNumber": 1,
+            "topics": [
+              "DATA FIELD TRANSFORMATION"
+            ],
+            "marks": 2,
+            "difficulty": "Medium",
+            "bloomsLevel": "understand",
+            "estimatedTime": 2,
+            "_id": "693e97979381da182644d20b"
+          },
+          {
+            "id": "q_6939a957ee0571c2cdeee88b_3",
+            "question": "What is the function of the Reclassify node in data field transformation?",
+            "options": [
+              "To bin continuous fields",
+              "To create new columns from existing input columns",
+              "To reclassify categorical fields into broader categories",
+              "To replace missing values"
+            ],
+            "correctAnswer": 2,
+            "explanation": "The Reclassify node enables users to reclassify the values of a categorical field into broader categories, grouping together some of the original sub-categories into new master categories.",
+            "courseOutcome": "CO1",
+            "coNumber": 1,
+            "topics": [
+              "DATA FIELD TRANSFORMATION"
+            ],
+            "marks": 2,
+            "difficulty": "Medium",
+            "bloomsLevel": "apply",
+            "estimatedTime": 2,
+            "_id": "693e97979381da182644d20c"
+          },
+          {
+            "id": "q_6939a957ee0571c2cdeee88b_4",
+            "question": "What is the purpose of the Control Language for Expression Manipulation (CLEM) in IBM SPSS?",
+            "options": [
+              "To simplify complex data",
+              "To handle non-linear relationships",
+              "To specify expressions for data manipulation",
+              "To replace missing values"
+            ],
+            "correctAnswer": 2,
+            "explanation": "CLEM is a powerful language used to specify expressions for data manipulation, allowing users to apply conditional logic and looping constructs to transform data.",
+            "courseOutcome": "CO1",
+            "coNumber": 1,
+            "topics": [
+              "DATA FIELD TRANSFORMATION"
+            ],
+            "marks": 2,
+            "difficulty": "Medium",
+            "bloomsLevel": "understand",
+            "estimatedTime": 2,
+            "_id": "693e97979381da182644d20d"
+          },
+          {
+            "id": "q_6939a957ee0571c2cdeee88b_5",
+            "question": "What is the function of the Restructure node in data field transformation?",
+            "options": [
+              "To bin continuous fields",
+              "To create new columns from existing input columns",
+              "To spread out information from one field into multiple fields",
+              "To replace missing values"
+            ],
+            "correctAnswer": 2,
+            "explanation": "The Restructure node is used to spread out the information contained in one field into multiple fields, which can be useful when a sequence data field needs to be transformed into multiple fields.",
+            "courseOutcome": "CO1",
+            "coNumber": 1,
+            "topics": [
+              "DATA FIELD TRANSFORMATION"
+            ],
+            "marks": 2,
+            "difficulty": "Medium",
+            "bloomsLevel": "apply",
+            "estimatedTime": 2,
+            "_id": "693e97979381da182644d20e"
+          },
+          {
+            "id": "q_6939a957ee0571c2cdeee88b_6",
+            "question": "What is the primary purpose of using date and time functions in predictive modeling?",
+            "options": [
+              "To extract a part from a date or time field",
+              "To calculate statistical measures",
+              "To create a new dataset",
+              "To visualize data"
+            ],
+            "correctAnswer": 0,
+            "explanation": "The primary purpose of using date and time functions in predictive modeling is to extract a part from a date or time field, such as the year out of a date, which can be useful in analysis and modeling.",
+            "courseOutcome": "CO2",
+            "coNumber": 2,
+            "topics": [
+              "introduction to predictive modeling"
+            ],
+            "marks": 2,
+            "difficulty": "Medium",
+            "bloomsLevel": "apply",
+            "estimatedTime": 2,
+            "_id": "693e97979381da182644d20f"
+          },
+          {
+            "id": "q_6939a957ee0571c2cdeee88b_7",
+            "question": "Which of the following is an example of a date and time function in IBM SPSS Modeler?",
+            "options": [
+              "Calculating the mean of a dataset",
+              "Extracting the year from a date field",
+              "Creating a new variable",
+              "Visualizing data"
+            ],
+            "correctAnswer": 1,
+            "explanation": "Extracting the year from a date field is an example of a date and time function in IBM SPSS Modeler, which can be used to process date and time data fields.",
+            "courseOutcome": "CO2",
+            "coNumber": 2,
+            "topics": [
+              "introduction to predictive modeling"
+            ],
+            "marks": 2,
+            "difficulty": "Medium",
+            "bloomsLevel": "remember",
+            "estimatedTime": 2,
+            "_id": "693e97979381da182644d210"
+          },
+          {
+            "id": "q_6939a957ee0571c2cdeee88b_8",
+            "question": "What can be calculated using the date of birth and current date in predictive modeling?",
+            "options": [
+              "Length of time as a customer",
+              "Average order value",
+              "Customer lifetime value",
+              "Age"
+            ],
+            "correctAnswer": 3,
+            "explanation": "Using the date of birth and current date, the age of an individual can be calculated, which can be a useful variable in predictive modeling.",
+            "courseOutcome": "CO2",
+            "coNumber": 2,
+            "topics": [
+              "introduction to predictive modeling"
+            ],
+            "marks": 2,
+            "difficulty": "Medium",
+            "bloomsLevel": "apply",
+            "estimatedTime": 2,
+            "_id": "693e97979381da182644d211"
+          },
+          {
+            "id": "q_6939a957ee0571c2cdeee88b_9",
+            "question": "Which of the following is a benefit of using date and time functions in predictive modeling?",
+            "options": [
+              "Reducing data quality",
+              "Increasing data complexity",
+              "Improving data analysis",
+              "Decreasing model accuracy"
+            ],
+            "correctAnswer": 2,
+            "explanation": "Using date and time functions in predictive modeling can improve data analysis by allowing for the extraction of relevant information from date and time fields, which can lead to better insights and more accurate models.",
+            "courseOutcome": "CO2",
+            "coNumber": 2,
+            "topics": [
+              "introduction to predictive modeling"
+            ],
+            "marks": 2,
+            "difficulty": "Medium",
+            "bloomsLevel": "evaluate",
+            "estimatedTime": 2,
+            "_id": "693e97979381da182644d212"
+          },
+          {
+            "id": "q_6939a957ee0571c2cdeee88b_10",
+            "question": "What can be created using separate fields containing date and time information in predictive modeling?",
+            "options": [
+              "A new dataset",
+              "A data visualization",
+              "A statistical model",
+              "A date field"
+            ],
+            "correctAnswer": 3,
+            "explanation": "Using separate fields containing date and time information, a new date field can be created, which can be useful in analysis and modeling.",
+            "courseOutcome": "CO2",
+            "coNumber": 2,
+            "topics": [
+              "introduction to predictive modeling"
+            ],
+            "marks": 2,
+            "difficulty": "Medium",
+            "bloomsLevel": "apply",
+            "estimatedTime": 2,
+            "_id": "693e97979381da182644d213"
+          }
+        ],
+        "totalMarks": 20,
+        "status": "In Progress",
+        "scores": [
+          {
+            "score": 30,
+            "percentage": 30,
+            "timestamp": "2025-12-14T12:58:18.230Z",
+            "attemptNumber": 1,
+            "_id": "693eb46a6afb57170b5c1c4f"
+          }
+        ],
+        "attemptCount": 1,
+        "_id": "693e97979381da182644d207"
+      },
+      {
+        "student": "6939a914ee0571c2cdeee86a",
+        "weakCOs": [
+          {
+            "courseOutcome": "CO1",
+            "coNumber": 1,
+            "performanceGap": 21.05,
+            "topics": [
+              "General Topics"
+            ],
+            "_id": "693e97979381da182644d215"
+          }
+        ],
+        "personalizedQuestions": [
+          {
+            "id": "q_6939a914ee0571c2cdeee86a_1",
+            "question": "What is the primary function of the Derive node in data field transformation?",
+            "options": [
+              "To reclassify categorical fields",
+              "To bin continuous fields",
+              "To create new columns from existing input columns",
+              "To replace missing values"
+            ],
+            "correctAnswer": 2,
+            "explanation": "The Derive node is used to create new columns (features) from existing input columns, allowing users to compute new fields by applying a certain expression.",
+            "courseOutcome": "CO1",
+            "coNumber": 1,
+            "topics": [
+              "DATA FIELD TRANSFORMATION"
+            ],
+            "marks": 2,
+            "difficulty": "Medium",
+            "bloomsLevel": "apply",
+            "estimatedTime": 2,
+            "_id": "693e97979381da182644d216"
+          },
+          {
+            "id": "q_6939a914ee0571c2cdeee86a_2",
+            "question": "What is the purpose of the Binning node in data field transformation?",
+            "options": [
+              "To simplify complex data and handle non-linear relationships",
+              "To reclassify categorical fields into broader categories",
+              "To create new columns from existing input columns",
+              "To replace missing values"
+            ],
+            "correctAnswer": 0,
+            "explanation": "The Binning node is used to recode a continuous field into a nominal field, simplifying complex data and handling non-linear relationships.",
+            "courseOutcome": "CO1",
+            "coNumber": 1,
+            "topics": [
+              "DATA FIELD TRANSFORMATION"
+            ],
+            "marks": 2,
+            "difficulty": "Medium",
+            "bloomsLevel": "understand",
+            "estimatedTime": 2,
+            "_id": "693e97979381da182644d217"
+          },
+          {
+            "id": "q_6939a914ee0571c2cdeee86a_3",
+            "question": "What is the function of the Reclassify node in data field transformation?",
+            "options": [
+              "To bin continuous fields",
+              "To create new columns from existing input columns",
+              "To reclassify categorical fields into broader categories",
+              "To replace missing values"
+            ],
+            "correctAnswer": 2,
+            "explanation": "The Reclassify node enables users to reclassify the values of a categorical field into broader categories, grouping together some of the original sub-categories into new master categories.",
+            "courseOutcome": "CO1",
+            "coNumber": 1,
+            "topics": [
+              "DATA FIELD TRANSFORMATION"
+            ],
+            "marks": 2,
+            "difficulty": "Medium",
+            "bloomsLevel": "apply",
+            "estimatedTime": 2,
+            "_id": "693e97979381da182644d218"
+          },
+          {
+            "id": "q_6939a914ee0571c2cdeee86a_4",
+            "question": "What is the purpose of the Control Language for Expression Manipulation (CLEM) in IBM SPSS?",
+            "options": [
+              "To simplify complex data",
+              "To handle non-linear relationships",
+              "To specify expressions for data manipulation",
+              "To replace missing values"
+            ],
+            "correctAnswer": 2,
+            "explanation": "CLEM is a powerful language used to specify expressions for data manipulation, allowing users to apply conditional logic and looping constructs to transform data.",
+            "courseOutcome": "CO1",
+            "coNumber": 1,
+            "topics": [
+              "DATA FIELD TRANSFORMATION"
+            ],
+            "marks": 2,
+            "difficulty": "Medium",
+            "bloomsLevel": "understand",
+            "estimatedTime": 2,
+            "_id": "693e97979381da182644d219"
+          },
+          {
+            "id": "q_6939a914ee0571c2cdeee86a_5",
+            "question": "What is the function of the Restructure node in data field transformation?",
+            "options": [
+              "To bin continuous fields",
+              "To create new columns from existing input columns",
+              "To spread out information from one field into multiple fields",
+              "To replace missing values"
+            ],
+            "correctAnswer": 2,
+            "explanation": "The Restructure node is used to spread out the information contained in one field into multiple fields, which can be useful when a sequence data field needs to be transformed into multiple fields.",
+            "courseOutcome": "CO1",
+            "coNumber": 1,
+            "topics": [
+              "DATA FIELD TRANSFORMATION"
+            ],
+            "marks": 2,
+            "difficulty": "Medium",
+            "bloomsLevel": "apply",
+            "estimatedTime": 2,
+            "_id": "693e97979381da182644d21a"
+          }
+        ],
+        "totalMarks": 10,
+        "status": "Assigned",
+        "scores": [],
+        "attemptCount": 0,
+        "_id": "693e97979381da182644d214"
+      }
+    ],
+    "priority": "HIGH",
+    "status": "Assigned",
+    "dueDate": "2025-12-15T18:30:00.000Z",
+    "progressPercentage": 0,
+    "courseOutcome": "CO1, CO2",
+    "coNumber": "1,2",
+    "metadata": {
+      "currentPerformance": 0,
+      "targetPerformance": 70,
+      "studyTimeMinutes": 60,
+      "weakAreas": [
+        "General Topics",
+        "General Topics",
+        "General Topics"
+      ],
+      "teacherSettings": {
+        "examType": "CIA1",
+        "difficultyLevel": "Mixed",
+        "scheduledStartTime": null,
+        "scheduledEndTime": "2025-12-15T18:30:00.000Z",
+        "numberOfQuestions": 8,
+        "courseOutcomes": [
+          "CO1",
+          "CO2"
+        ],
+        "allowRetake": true,
+        "maxAttempts": 3,
+        "shuffleQuestions": true,
+        "showResultsImmediately": true,
+        "totalMarks": 30,
+        "focusAreas": [],
+        "coBreakdown": []
+      },
+      "autoAssigned": false,
+      "assignmentReason": "Teacher Assessment - Personalized per Student",
+      "studyTimeCompleted": 210,
+      "coWeakAreas": [],
+      "generatedMCQs": {
+        "totalQuestions": 0,
+        "questions": [],
+        "difficultyLevel": "Medium",
+        "areas": []
+      },
+      "mcqScores": []
+    },
+    "requirements": [
+      "Personalized for 2 student(s)",
+      "Time limit: 60 minutes",
+      "Minimum passing score: 70%",
+      "Covers multiple COs: CO1, CO2",
+      "Retakes allowed (max 3 attempts)",
+      "Each student has personalized questions based on their weak COs"
+    ],
+    "studyMaterials": [],
+    "progressNotes": [],
+    "createdAt": "2025-12-14T10:55:19.205Z",
+    "updatedAt": "2025-12-14T12:58:18.245Z",
+    "__v": 1
+  }
+]
