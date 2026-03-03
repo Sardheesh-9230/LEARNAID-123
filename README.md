@@ -1,4 +1,4 @@
-# LearnAIA - Admin-Centric Educational Management Platform
+# LearnAID - Admin-Centric Educational Management Platform
 
 ## Overview
 
