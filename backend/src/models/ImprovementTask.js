@@ -57,17 +57,37 @@ const improvementTaskSchema = new mongoose.Schema({
     }],
     personalizedQuestions: [{
       id: String,
+      questionType: { type: String, default: 'MCQ' }, // 'MCQ' | 'Short Answer' | 'Coding'
+      // MCQ fields
       question: String,
       options: [String],
       correctAnswer: mongoose.Schema.Types.Mixed,
+      bloomsLevel: String,
+      estimatedTime: Number,
+      // Short Answer fields
+      questionText: String,
+      expectedAnswer: String,
+      keyPoints: [String],
+      maxWords: Number,
+      // Coding fields
+      programmingLanguage: String,
+      starterCode: String,
+      sampleInput: String,
+      sampleOutput: String,
+      testCases: [{
+        input: String,
+        expectedOutput: String,
+        isHidden: { type: Boolean, default: false },
+        marks: { type: Number, default: 2 }
+      }],
+      constraints: [String],
+      // Common fields
       explanation: String,
       courseOutcome: String,
       coNumber: Number,
       topics: [String],
       marks: Number,
-      difficulty: String,
-      bloomsLevel: String,
-      estimatedTime: Number
+      difficulty: String
     }],
     totalMarks: Number,
     status: {
@@ -281,6 +301,41 @@ const improvementTaskSchema = new mongoose.Schema({
         type: Number,
         default: 10
       }
+    }],
+
+    // Coding question section
+    codingQuestions: [{
+      id: String,
+      questionText: String,
+      programmingLanguage: {
+        type: String,
+        default: 'Python'
+      },
+      starterCode: String,
+      sampleInput: String,
+      sampleOutput: String,
+      testCases: [{
+        input: String,
+        expectedOutput: String,
+        isHidden: { type: Boolean, default: false },
+        marks: { type: Number, default: 2 }
+      }],
+      constraints: [String],
+      marks: { type: Number, default: 10 },
+      explanation: String,
+      difficulty: { type: String, default: 'Medium' },
+      courseOutcome: String,
+      topics: [String]
+    }],
+    codingSubmissions: [{
+      questionId: String,
+      code: String,
+      language: String,
+      timestamp: { type: Date, default: Date.now },
+      testCasesPassed: Number,
+      testCasesTotal: Number,
+      marksAwarded: Number,
+      allPassed: { type: Boolean, default: false }
     }]
   },
   

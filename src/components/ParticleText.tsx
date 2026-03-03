@@ -36,6 +36,7 @@ const ParticleText: React.FC<ParticleTextProps> = ({
     let raycaster: THREE.Raycaster;
     let planeArea: THREE.Mesh;
     let currentEase = 0.08;
+    let isMounted = true;
 
     const colorChange = new THREE.Color();
     const mouse = new THREE.Vector2(-200, 200);
@@ -100,92 +101,111 @@ const ParticleText: React.FC<ParticleTextProps> = ({
 
     // Initialize Three.js scene
     const init = async () => {
-      scene = new THREE.Scene();
-
-      // Camera
-      camera = new THREE.PerspectiveCamera(
-        65,
-        containerRef.current!.clientWidth / containerRef.current!.clientHeight,
-        1,
-        10000
-      );
-      camera.position.set(0, 0, 100);
-
-      // Renderer
-      renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true, powerPreference: 'high-performance' });
-      renderer.setSize(containerRef.current!.clientWidth, containerRef.current!.clientHeight);
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
-      containerRef.current!.appendChild(renderer.domElement);
-
-      // Raycaster
-      raycaster = new THREE.Raycaster();
-
-      // Plane for mouse interaction
-      const geometry = new THREE.PlaneGeometry(
-        visibleWidthAtZDepth(100, camera),
-        visibleHeightAtZDepth(100, camera)
-      );
-      const material = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true });
-      planeArea = new THREE.Mesh(geometry, material);
-      planeArea.visible = false;
-      scene.add(planeArea);
-
-      // Load font and create particles
-      const loader = new FontLoader();
+      if (!containerRef.current || !isMounted) return;
       
-      // Using helvetiker font JSON (built-in with three.js examples)
-      const fontData = await fetch('https://threejs.org/examples/fonts/helvetiker_regular.typeface.json').then(res => res.json());
-      const font = loader.parse(fontData);
+      try {
+        scene = new THREE.Scene();
 
-      createTextParticles(font);
+        // Camera
+        camera = new THREE.PerspectiveCamera(
+          65,
+          containerRef.current.clientWidth / containerRef.current.clientHeight,
+          1,
+          10000
+        );
+        camera.position.set(0, 0, 100);
 
-      // Event listeners
-      const handleMouseDown = (event: MouseEvent) => {
-        mouseRef.current.x = (event.clientX / window.innerWidth) * 2 - 1;
-        mouseRef.current.y = -(event.clientY / window.innerHeight) * 2 + 1;
-        buttonRef.current = true;
-        currentEase = 0.02;
-      };
+        // Renderer
+        renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true, powerPreference: 'high-performance' });
+        renderer.setSize(containerRef.current.clientWidth, containerRef.current.clientHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+        containerRef.current.appendChild(renderer.domElement);
 
-      const handleMouseUp = () => {
-        buttonRef.current = false;
-        currentEase = 0.08;
-      };
+        // Raycaster
+        raycaster = new THREE.Raycaster();
 
-      const handleMouseMove = (event: MouseEvent) => {
-        mouseRef.current.x = (event.clientX / window.innerWidth) * 2 - 1;
-        mouseRef.current.y = -(event.clientY / window.innerHeight) * 2 + 1;
-      };
+        // Plane for mouse interaction
+        const geometry = new THREE.PlaneGeometry(
+          visibleWidthAtZDepth(100, camera),
+          visibleHeightAtZDepth(100, camera)
+        );
+        const material = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true });
+        planeArea = new THREE.Mesh(geometry, material);
+        planeArea.visible = false;
+        scene.add(planeArea);
 
-      const handleResize = () => {
-        camera.aspect = containerRef.current!.clientWidth / containerRef.current!.clientHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(containerRef.current!.clientWidth, containerRef.current!.clientHeight);
-      };
+        // Load font and create particles
+        const loader = new FontLoader();
+        
+        // Using helvetiker font JSON (built-in with three.js examples)
+        const fontData = await fetch('https://threejs.org/examples/fonts/helvetiker_regular.typeface.json').then(res => res.json());
+        
+        if (!isMounted) return; // Check if component is still mounted after async operation
+        
+        const font = loader.parse(fontData);
 
-      document.addEventListener('mousedown', handleMouseDown);
-      document.addEventListener('mouseup', handleMouseUp);
-      document.addEventListener('mousemove', handleMouseMove);
-      window.addEventListener('resize', handleResize);
+        createTextParticles(font);
 
-      // Animation loop
-      const animate = () => {
-        animationFrameId = requestAnimationFrame(animate);
-        renderParticles();
-        renderer.render(scene, camera);
-      };
-      animate();
+        // Event listeners
+        const handleMouseDown = (event: MouseEvent) => {
+          mouseRef.current.x = (event.clientX / window.innerWidth) * 2 - 1;
+          mouseRef.current.y = -(event.clientY / window.innerHeight) * 2 + 1;
+          buttonRef.current = true;
+          currentEase = 0.02;
+        };
 
-      // Cleanup
-      return () => {
-        document.removeEventListener('mousedown', handleMouseDown);
-        document.removeEventListener('mouseup', handleMouseUp);
-        document.removeEventListener('mousemove', handleMouseMove);
-        window.removeEventListener('resize', handleResize);
-        cancelAnimationFrame(animationFrameId);
-        renderer.dispose();
-        containerRef.current?.removeChild(renderer.domElement);
-      };
+        const handleMouseUp = () => {
+          buttonRef.current = false;
+          currentEase = 0.08;
+        };
+
+        const handleMouseMove = (event: MouseEvent) => {
+          mouseRef.current.x = (event.clientX / window.innerWidth) * 2 - 1;
+          mouseRef.current.y = -(event.clientY / window.innerHeight) * 2 + 1;
+        };
+
+        const handleResize = () => {
+          if (!containerRef.current) return;
+          camera.aspect = containerRef.current.clientWidth / containerRef.current.clientHeight;
+          camera.updateProjectionMatrix();
+          renderer.setSize(containerRef.current.clientWidth, containerRef.current.clientHeight);
+        };
+
+        document.addEventListener('mousedown', handleMouseDown);
+        document.addEventListener('mouseup', handleMouseUp);
+        document.addEventListener('mousemove', handleMouseMove);
+        window.addEventListener('resize', handleResize);
+
+        // Animation loop
+        const animate = () => {
+          if (!isMounted) return;
+          animationFrameId = requestAnimationFrame(animate);
+          renderParticles();
+          if (renderer && scene && camera) {
+            renderer.render(scene, camera);
+          }
+        };
+        animate();
+
+        // Cleanup
+        return () => {
+          document.removeEventListener('mousedown', handleMouseDown);
+          document.removeEventListener('mouseup', handleMouseUp);
+          document.removeEventListener('mousemove', handleMouseMove);
+          window.removeEventListener('resize', handleResize);
+          if (animationFrameId) {
+            cancelAnimationFrame(animationFrameId);
+          }
+          if (renderer) {
+            renderer.dispose();
+            if (containerRef.current && renderer.domElement.parentNode) {
+              containerRef.current.removeChild(renderer.domElement);
+            }
+          }
+        };
+      } catch (error) {
+        console.error('Error initializing ParticleText:', error);
+      }
     };
 
     const createTextParticles = (font: any) => {
@@ -349,21 +369,37 @@ const ParticleText: React.FC<ParticleTextProps> = ({
 
           pos.setXYZ(i, px, py, pz);
         }
-        
+
         pos.needsUpdate = true;
         colors.needsUpdate = true;
         size.needsUpdate = true;
       }
     };
 
-    init();
+    // Start the scene
+    const cleanup = init();
 
+    // useEffect cleanup
     return () => {
-      if (animationFrameId) cancelAnimationFrame(animationFrameId);
-      if (renderer && containerRef.current) {
-        renderer.dispose();
-        if (renderer.domElement.parentNode) {
-          renderer.domElement.parentNode.removeChild(renderer.domElement);
+      isMounted = false;
+
+      if (cleanup && typeof (cleanup as any).then === 'function') {
+        (cleanup as any).then((cleanupFn: any) => {
+          if (typeof cleanupFn === 'function') cleanupFn();
+        }).catch(() => {});
+      }
+
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+      }
+      if (renderer) {
+        try {
+          renderer.dispose();
+          if (containerRef.current && renderer.domElement && renderer.domElement.parentNode) {
+            containerRef.current.removeChild(renderer.domElement);
+          }
+        } catch (error) {
+          console.error('Error disposing renderer:', error);
         }
       }
     };

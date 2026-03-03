@@ -17,9 +17,15 @@ const taskAssignmentSchema = new mongoose.Schema({
   },
   taskType: {
     type: String,
-    enum: ['MCQ', 'Assignment', 'Practice', 'Reading', 'Video', 'Other'],
+    enum: ['MCQ', 'Short Answer', 'Coding', 'Assignment', 'Practice', 'Reading', 'Video', 'Other'],
     default: 'MCQ'
   },
+  
+  // Question type for mixed assessments
+  questionTypes: [{
+    type: String,
+    enum: ['MCQ', 'Short Answer', 'Coding']
+  }],
   
   // Student and Course information
   student: {
@@ -73,35 +79,89 @@ const taskAssignmentSchema = new mongoose.Schema({
     ref: 'CIAExam'
   },
   
-  // Task content - for MCQ tasks
+  // Task content - for all question types
   questions: [{
+    questionType: {
+      type: String,
+      enum: ['MCQ', 'Short Answer', 'Coding'],
+      default: 'MCQ'
+    },
     questionText: {
       type: String,
       required: true,
-      maxlength: [1000, 'Question text cannot exceed 1000 characters']
+      maxlength: [2000, 'Question text cannot exceed 2000 characters']
     },
+    
+    // MCQ specific fields
     options: [{
       optionText: String,
       isCorrect: Boolean
     }],
     correctAnswer: {
-      type: Number, // Index of correct option
+      type: Number, // Index of correct option for MCQ
       min: 0,
       max: 3
     },
+    
+    // Short Answer specific fields
+    expectedAnswer: {
+      type: String,
+      maxlength: [2000, 'Expected answer cannot exceed 2000 characters']
+    },
+    keyPoints: [{
+      type: String,
+      maxlength: [500, 'Key point cannot exceed 500 characters']
+    }],
+    maxWords: {
+      type: Number,
+      default: 200
+    },
+    
+    // Coding specific fields
+    programmingLanguage: {
+      type: String,
+      enum: ['Python', 'Java', 'JavaScript', 'C++', 'C', 'Go', 'Ruby', 'Other']
+    },
+    starterCode: {
+      type: String,
+      maxlength: [5000, 'Starter code cannot exceed 5000 characters']
+    },
+    sampleInput: {
+      type: String,
+      maxlength: [1000, 'Sample input cannot exceed 1000 characters']
+    },
+    sampleOutput: {
+      type: String,
+      maxlength: [1000, 'Sample output cannot exceed 1000 characters']
+    },
+    testCases: [{
+      input: String,
+      expectedOutput: String,
+      isHidden: Boolean,
+      marks: Number
+    }],
+    constraints: [{
+      type: String,
+      maxlength: [500, 'Constraint cannot exceed 500 characters']
+    }],
+    
+    // Common fields
     marks: {
       type: Number,
       default: 1
     },
     explanation: {
       type: String,
-      maxlength: [500, 'Explanation cannot exceed 500 characters']
+      maxlength: [1000, 'Explanation cannot exceed 1000 characters']
     },
     difficulty: {
       type: String,
       enum: ['Easy', 'Medium', 'Hard'],
       default: 'Medium'
-    }
+    },
+    courseOutcome: String,
+    coNumber: String,
+    topics: [String]
   }],
   
   // For non-MCQ tasks
@@ -150,9 +210,24 @@ const taskAssignmentSchema = new mongoose.Schema({
     percentage: Number,
     answers: [{
       questionIndex: Number,
-      selectedAnswer: mongoose.Schema.Types.Mixed,
+      questionType: String,
+      
+      // MCQ answer
+      selectedAnswer: Number,
+      
+      // Short Answer
+      textAnswer: String,
+      
+      // Coding answer
+      codeAnswer: String,
+      language: String,
+      testCasesPassed: Number,
+      testCasesFailed: Number,
+      
       isCorrect: Boolean,
-      marksAwarded: Number
+      marksAwarded: Number,
+      feedback: String,
+      autoEvaluated: Boolean
     }],
     feedback: String
   }],
@@ -334,9 +409,9 @@ taskAssignmentSchema.statics.getOverdueTasks = function() {
     .populate('course', 'name code');
 };
 
-// Pre-save middleware to calculate total marks for MCQ tasks
+// Pre-save middleware to calculate total marks for all task types
 taskAssignmentSchema.pre('save', function(next) {
-  if (this.taskType === 'MCQ' && this.questions && this.questions.length > 0) {
+  if (this.questions && this.questions.length > 0) {
     this.totalMarks = this.questions.reduce((sum, q) => sum + (q.marks || 1), 0);
     if (!this.passingMarks) {
       this.passingMarks = Math.ceil(this.totalMarks * 0.4); // 40% passing

@@ -4,10 +4,12 @@ import { useState, useEffect } from 'react'
 import { 
   FiBook, FiClock, FiTarget, FiCheckCircle, FiPlay,
   FiBarChart, FiTrendingUp, FiAlertTriangle, FiAward,
-  FiCalendar, FiRefreshCw, FiEye, FiArrowRight
+  FiCalendar, FiRefreshCw, FiEye, FiArrowRight, FiCode, FiEdit3
 } from 'react-icons/fi'
 import apiService from '../services/api'
 import StudentMCQTest from './StudentMCQTest'
+import StudentCodingTest from './StudentCodingTest'
+import StudentShortAnswerTest from './StudentShortAnswerTest'
 
 interface ImprovementTask {
   _id: string
@@ -77,6 +79,35 @@ interface ImprovementTask {
       timestamp: string
       totalQuestions: number
     }>
+    codingQuestions?: Array<{
+      id: string
+      questionText: string
+      programmingLanguage?: string
+      starterCode?: string
+      sampleInput?: string
+      sampleOutput?: string
+      testCases?: Array<{
+        input: string
+        expectedOutput: string
+        isHidden?: boolean
+        marks?: number
+      }>
+      constraints?: string[]
+      marks?: number
+      difficulty?: string
+      courseOutcome?: string
+      topics?: string[]
+    }>
+    codingSubmissions?: Array<{
+      questionId: string
+      code: string
+      language: string
+      timestamp: string
+      testCasesPassed: number
+      testCasesTotal: number
+      marksAwarded: number
+      allPassed: boolean
+    }>
   }
   requirements: string[]
   studyMaterials: Array<{
@@ -101,6 +132,8 @@ export default function StudentImprovementDashboard({ studentId }: StudentImprov
   const [activeTab, setActiveTab] = useState<'all' | 'active' | 'completed'>('active')
   const [taskTypeFilter, setTaskTypeFilter] = useState<'all' | 'CO_IMPROVEMENT' | 'CO_ASSESSMENT'>('all')
   const [takingTest, setTakingTest] = useState(false)
+  const [takingCodingTest, setTakingCodingTest] = useState(false)
+  const [takingShortAnswerTest, setTakingShortAnswerTest] = useState(false)
 
   useEffect(() => {
     loadImprovementTasks()
@@ -188,18 +221,9 @@ export default function StudentImprovementDashboard({ studentId }: StudentImprov
       console.log('📥 Progress update response:', response)
 
       if (response.success) {
-        // Update local task state
-        setTasks(prev => prev.map(task => 
-          task._id === taskId ? response.data : task
-        ))
-        
-        if (selectedTask && selectedTask._id === taskId) {
-          setSelectedTask(response.data)
-        }
-        
-        console.log('✅ Local state updated successfully')
-        
-        // Reload tasks to get fresh data
+        console.log('✅ Progress updated, reloading tasks...')
+        // Reload fresh data — DO NOT use response.data directly as it's un-transformed
+        // (multi-student tasks need the personalizedData / isMultiStudent transformation)
         await loadImprovementTasks()
       } else {
         console.error('❌ Progress update failed:', response)
@@ -386,24 +410,7 @@ export default function StudentImprovementDashboard({ studentId }: StudentImprov
         </div>
       </div>
 
-      {/* Debug Info (remove in production) */}
-      {tasks.length > 0 && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-          <div className="flex items-start gap-2">
-            <FiAlertTriangle className="text-yellow-600 mt-0.5" />
-            <div className="text-sm">
-              <p className="font-semibold text-yellow-900">Debug Info:</p>
-              <p className="text-yellow-800">
-                Loaded {tasks.length} task(s) |
-                Multi-Student: {tasks.filter(t => t.isMultiStudent).length} |
-                Assessment: {tasks.filter(t => t.taskType === 'CO_ASSESSMENT').length} |
-                With MCQs: {tasks.filter(t => t.metadata?.generatedMCQs?.questions?.length > 0).length}
-              </p>
-              <p className="text-yellow-700 mt-1">Check browser console for detailed logs</p>
-            </div>
-          </div>
-        </div>
-      )}
+
 
       {/* Tab Navigation */}
       <div className="bg-white rounded-xl shadow-lg p-6">
@@ -512,13 +519,13 @@ export default function StudentImprovementDashboard({ studentId }: StudentImprov
                           <div className="flex items-center gap-1 text-blue-700">
                             <FiTarget size={14} />
                             <span className="font-medium">
-                              Weak COs: {task.personalizedData.weakCOs.map(co => co.courseOutcome).join(', ')}
+                              Weak COs: {(task.personalizedData?.weakCOs || []).map((co: any) => co.courseOutcome).join(', ')}
                             </span>
                           </div>
                           <div className="flex items-center gap-1 text-blue-700">
                             <FiCheckCircle size={14} />
                             <span className="font-medium">
-                              {task.personalizedData.questions.length} Questions
+                              {task.personalizedData?.questions?.length || 0} Questions
                             </span>
                           </div>
                           <div className="flex items-center gap-1 text-blue-700">
@@ -536,10 +543,10 @@ export default function StudentImprovementDashboard({ studentId }: StudentImprov
                             </div>
                           )}
                         </div>
-                        {task.personalizedData.scores.length > 0 && (
+                        {(task.personalizedData?.scores?.length || 0) > 0 && (
                           <div className="mt-2 text-sm text-blue-800">
                             Latest Score: <span className="font-bold">
-                              {task.personalizedData.scores[task.personalizedData.scores.length - 1].percentage.toFixed(1)}%
+                              {(task.personalizedData?.scores?.[task.personalizedData.scores.length - 1]?.percentage ?? 0).toFixed(1)}%
                             </span>
                           </div>
                         )}
@@ -647,7 +654,7 @@ export default function StudentImprovementDashboard({ studentId }: StudentImprov
                   <div className="mb-4 p-4 bg-blue-50 rounded-lg">
                     <h4 className="text-sm font-semibold text-blue-900 mb-3 flex items-center gap-2">
                       <FiTarget size={16} />
-                      Previous Attempts ({task.isMultiStudent ? task.personalizedData?.attemptCount || 0 : task.metadata.mcqScores?.length || 0}/{task.maxAttempts || 3})
+                      Previous Attempts ({task.isMultiStudent ? task.personalizedData?.attemptCount || 0 : task.metadata.mcqScores?.length || 0}/{task.metadata?.teacherSettings?.maxAttempts || 3})
                     </h4>
                     <div className="space-y-2">
                       {task.isMultiStudent 
@@ -655,7 +662,7 @@ export default function StudentImprovementDashboard({ studentId }: StudentImprov
                             <div key={index} className="flex items-center justify-between p-2 bg-white rounded border">
                               <div className="flex items-center gap-3">
                                 <span className="text-sm font-medium text-gray-700">
-                                  Attempt {task.personalizedData.scores.length - index}
+                                  Attempt {(task.personalizedData?.attemptCount || 0) - index}
                                 </span>
                                 <span className="text-xs text-gray-500">
                                   {new Date(attempt.timestamp).toLocaleDateString()}
@@ -680,7 +687,7 @@ export default function StudentImprovementDashboard({ studentId }: StudentImprov
                             <div key={index} className="flex items-center justify-between p-2 bg-white rounded border">
                               <div className="flex items-center gap-3">
                                 <span className="text-sm font-medium text-gray-700">
-                                  Attempt {task.metadata.mcqScores.length - index}
+                                  Attempt {(task.metadata?.mcqScores?.length || 0) - index}
                                 </span>
                                 <span className="text-xs text-gray-500">
                                   {new Date(attempt.timestamp).toLocaleDateString()}
@@ -733,31 +740,47 @@ export default function StudentImprovementDashboard({ studentId }: StudentImprov
                     }
                     
                     if (currentStatus === 'In Progress') {
-                      console.log('✅ Rendering "In Progress" buttons')
+                      // Gather all questions (personalizedData takes priority for multi-student tasks)
+                      const _pdQs = task.personalizedData?.questions
+                      const allQs: any[] = (
+                        (_pdQs && _pdQs.length > 0)
+                          ? _pdQs
+                          : task.metadata?.generatedMCQs?.questions
+                      ) || []
+
+                      // Separate question types
+                      const mcqQs = allQs.filter((q: any) => !q.questionType || q.questionType === 'MCQ')
+                      const saQs = allQs.filter((q: any) => q.questionType === 'Short Answer')
+                      const codingQs = [
+                        ...(task.metadata?.codingQuestions || []),
+                        ...allQs.filter((q: any) => q.questionType === 'Coding')
+                      ]
+                      // Deduplicate coding questions by id
+                      const uniqueCodingQs = codingQs.filter(
+                        (q: any, i: number, arr: any[]) =>
+                          arr.findIndex((x: any) => x.id === q.id) === i
+                      )
+
+                      const attemptCount = task.isMultiStudent
+                        ? (task.personalizedData?.attemptCount || 0)
+                        : (task.metadata?.mcqScores?.length || 0)
+                      const maxAttempts = task.metadata?.teacherSettings?.maxAttempts || 3
+                      const canRetake = attemptCount < maxAttempts
+                      const hasAttempted = attemptCount > 0
+
                       return (
                         <>
-                          {task.metadata.generatedMCQs && task.metadata.generatedMCQs.questions && task.metadata.generatedMCQs.questions.length > 0 && (() => {
-                            const attemptCount = task.isMultiStudent 
-                              ? (task.personalizedData?.attemptCount || 0)
-                              : (task.metadata.mcqScores?.length || 0)
-                            const maxAttempts = task.maxAttempts || 3
-                            const canRetake = attemptCount < maxAttempts
-                            const hasAttempted = attemptCount > 0
-                            
-                            console.log('🎯 MCQ Button logic:', { attemptCount, maxAttempts, canRetake, hasAttempted })
-                            
-                            return canRetake ? (
+                          {/* MCQ button – only when there are real MCQ questions */}
+                          {mcqQs.length > 0 && (
+                            canRetake ? (
                               <button
-                                onClick={() => {
-                                  console.log('🖱️ Take MCQ Quiz button clicked!')
-                                  console.log('Selected task:', task._id, task.title)
-                                  setSelectedTask(task)
-                                  setTakingTest(true)
-                                }}
+                                onClick={() => { setSelectedTask(task); setTakingTest(true) }}
                                 className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
                               >
                                 <FiTarget size={16} />
-                                {hasAttempted ? `Retake Quiz (${attemptCount}/${maxAttempts})` : `Take MCQ Quiz (${task.metadata.generatedMCQs.questions.length} Questions)`}
+                                {hasAttempted
+                                  ? `Retake Quiz (${attemptCount}/${maxAttempts})`
+                                  : `Take MCQ Quiz (${mcqQs.length} Questions)`}
                               </button>
                             ) : (
                               <div className="flex items-center gap-2 px-4 py-2 bg-gray-300 text-gray-600 rounded-lg cursor-not-allowed">
@@ -765,7 +788,29 @@ export default function StudentImprovementDashboard({ studentId }: StudentImprov
                                 Max Attempts Reached ({maxAttempts}/{maxAttempts})
                               </div>
                             )
-                          })()}
+                          )}
+
+                          {/* Coding button – shows whenever any coding question exists */}
+                          {uniqueCodingQs.length > 0 && (
+                            <button
+                              onClick={() => { setSelectedTask(task); setTakingCodingTest(true) }}
+                              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                            >
+                              <FiCode size={16} />
+                              Solve Coding ({uniqueCodingQs.length} Problem{uniqueCodingQs.length !== 1 ? 's' : ''})
+                            </button>
+                          )}
+
+                          {/* Short Answer button */}
+                          {saQs.length > 0 && (
+                            <button
+                              onClick={() => { setSelectedTask(task); setTakingShortAnswerTest(true) }}
+                              className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors"
+                            >
+                              <FiEdit3 size={16} />
+                              Answer Short Questions ({saQs.length})
+                            </button>
+                          )}
                         </>
                       )
                     }
@@ -790,28 +835,47 @@ export default function StudentImprovementDashboard({ studentId }: StudentImprov
       {/* MCQ Test Modal */}
       {takingTest && selectedTask && (
         <>
-          {console.log('🎯 Rendering StudentMCQTest component', { 
-            takingTest, 
-            selectedTaskId: selectedTask._id,
-            selectedTaskTitle: selectedTask.title 
-          })}
           <StudentMCQTest
             task={selectedTask}
             onComplete={() => {
-              console.log('✅ MCQ Test completed')
               loadImprovementTasks()
               setTakingTest(false)
             }}
-            onClose={() => {
-              console.log('❌ MCQ Test closed')
-              setTakingTest(false)
-            }}
+            onClose={() => setTakingTest(false)}
           />
         </>
       )}
 
-      {/* Task Detail Modal - Only show when NOT taking test */}
-      {selectedTask && !takingTest && (
+      {/* Short Answer Test */}
+      {takingShortAnswerTest && selectedTask && (
+        <StudentShortAnswerTest
+          task={selectedTask}
+          onComplete={() => {
+            setTakingShortAnswerTest(false)
+            loadImprovementTasks()
+          }}
+          onClose={() => {
+            setTakingShortAnswerTest(false)
+          }}
+        />
+      )}
+
+      {/* Coding Test Environment */}
+      {takingCodingTest && selectedTask && (
+        <StudentCodingTest
+          task={selectedTask}
+          onComplete={() => {
+            loadImprovementTasks()
+          }}
+          onClose={() => {
+            setTakingCodingTest(false)
+            loadImprovementTasks()
+          }}
+        />
+      )}
+
+      {/* Task Detail Modal - Only show when NOT taking any test */}
+      {selectedTask && !takingTest && !takingShortAnswerTest && !takingCodingTest && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b">
@@ -844,84 +908,124 @@ export default function StudentImprovementDashboard({ studentId }: StudentImprov
                   </ul>
                 </div>
 
-                {/* Weak Areas */}
+                {/* Focus Areas — derived from personalizedData.weakCOs (multi-student) or metadata.weakAreas */}
                 <div>
                   <h3 className="text-lg font-semibold mb-3">Focus Areas</h3>
                   <div className="flex flex-wrap gap-2">
-                    {selectedTask.metadata.weakAreas.map((area, index) => (
-                      <span 
-                        key={index}
-                        className="px-3 py-1 bg-orange-100 text-orange-800 rounded-full text-sm"
-                      >
-                        {area}
-                      </span>
-                    ))}
+                    {(() => {
+                      // For multi-student tasks use the rich CO data
+                      if (selectedTask.isMultiStudent && selectedTask.personalizedData?.weakCOs?.length) {
+                        return selectedTask.personalizedData.weakCOs.flatMap((co: any) =>
+                          (co.topics?.length ? co.topics : [co.courseOutcome])
+                            .map((t: string, i: number) => (
+                              <span key={`${co.courseOutcome}-${i}`}
+                                className="px-3 py-1 bg-orange-100 text-orange-800 rounded-full text-sm">
+                                {t}
+                              </span>
+                            ))
+                        )
+                      }
+                      // Fallback: plain weakAreas, filter out generic placeholder
+                      const areas = (selectedTask.metadata.weakAreas || [])
+                        .filter((a: string) => a && a !== 'General Topics')
+                      if (areas.length === 0) {
+                        return <span className="text-sm text-gray-500 italic">Topics not specified</span>
+                      }
+                      return areas.map((area: string, index: number) => (
+                        <span key={index}
+                          className="px-3 py-1 bg-orange-100 text-orange-800 rounded-full text-sm">
+                          {area}
+                        </span>
+                      ))
+                    })()}
                   </div>
                 </div>
               </div>
 
               {/* MCQ Section */}
-              {selectedTask.metadata?.generatedMCQs && (
-                <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-                  <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                    <FiTarget className="text-blue-600" />
-                    Practice Questions Available
-                  </h3>
-                  <p className="text-gray-700 mb-4">
-                    {selectedTask.metadata.generatedMCQs.totalQuestions || 0} questions generated for your weak areas
-                    {selectedTask.metadata.generatedMCQs.difficultyLevel && (
-                      <span className="ml-2 px-2 py-1 text-sm bg-blue-200 text-blue-800 rounded font-medium">
-                        {selectedTask.metadata.generatedMCQs.difficultyLevel}
-                      </span>
+              {selectedTask.metadata?.generatedMCQs && (() => {
+                const allDetailQs: any[] = selectedTask.metadata.generatedMCQs.questions || []
+                const mcqDetailQs = allDetailQs.filter((q: any) => !q.questionType || q.questionType === 'MCQ')
+                const saDetailQs = allDetailQs.filter((q: any) => q.questionType === 'Short Answer')
+                const codingDetailQs = allDetailQs.filter((q: any) => q.questionType === 'Coding')
+
+                return (
+                  <>
+                    {/* MCQ quiz launcher */}
+                    {mcqDetailQs.length > 0 && (
+                      <div className="mt-6 p-4 bg-blue-50 rounded-lg">
+                        <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                          <FiTarget className="text-blue-600" />
+                          MCQ Practice ({mcqDetailQs.length} Questions)
+                        </h3>
+                        <p className="text-sm text-gray-600 mb-3">Target Score: 70% or higher</p>
+                        <button
+                          onClick={() => setTakingTest(true)}
+                          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                        >
+                          <FiPlay size={16} />
+                          Start MCQ Quiz ({mcqDetailQs.length} Questions)
+                        </button>
+                      </div>
                     )}
-                    {selectedTask.metadata.generatedMCQs.materialUsed && (
-                      <span className="ml-2 px-2 py-1 text-sm bg-purple-100 text-purple-800 rounded">
-                        📚 {selectedTask.metadata.generatedMCQs.materialUsed}
-                      </span>
-                    )}
-                  </p>
-                  {selectedTask.metadata.generatedMCQs.needsGeneration ? (
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2 p-3 bg-yellow-100 rounded-lg text-yellow-800">
-                        <FiRefreshCw size={20} className="animate-spin" />
-                        <div>
-                          <div className="font-medium">Questions are being generated</div>
-                          <div className="text-sm">{selectedTask.metadata.generatedMCQs.message || 'Please check back later.'}</div>
+
+                    {/* Short Answer — read-only question list */}
+                    {saDetailQs.length > 0 && (
+                      <div className="mt-6 p-4 bg-teal-50 rounded-lg border border-teal-200">
+                        <h3 className="text-lg font-semibold mb-3 flex items-center gap-2 text-teal-900">
+                          <FiEdit3 className="text-teal-600" />
+                          Short Answer Questions ({saDetailQs.length})
+                        </h3>
+                        <p className="text-xs text-teal-700 mb-4">Review these questions and prepare your written answers.</p>
+                        <div className="space-y-4">
+                          {saDetailQs.map((q: any, i: number) => (
+                            <div key={i} className="bg-white p-4 rounded-lg border border-teal-200">
+                              <p className="font-medium text-gray-900 mb-2">Q{i + 1}. {q.question || q.questionText}</p>
+                              {q.marks && <span className="text-xs px-2 py-0.5 bg-teal-100 text-teal-700 rounded">{q.marks} marks</span>}
+                              {q.expectedAnswer && (
+                                <details className="mt-3">
+                                  <summary className="text-xs font-semibold text-teal-700 cursor-pointer">Show Model Answer</summary>
+                                  <p className="mt-2 text-sm text-teal-800 p-2 bg-teal-50 rounded">{q.expectedAnswer}</p>
+                                  {q.keyPoints?.length > 0 && (
+                                    <ul className="mt-2 list-disc list-inside text-xs text-teal-700 space-y-0.5">
+                                      {q.keyPoints.map((pt: string, j: number) => <li key={j}>{pt}</li>)}
+                                    </ul>
+                                  )}
+                                </details>
+                              )}
+                            </div>
+                          ))}
                         </div>
                       </div>
-                    </div>
-                  ) : selectedTask.metadata.generatedMCQs.questions && selectedTask.metadata.generatedMCQs.questions.length > 0 ? (
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-gray-600">
-                          Focus Areas: {selectedTask.metadata.generatedMCQs.areas?.join(', ') || selectedTask.metadata.weakAreas.join(', ')}
-                        </span>
-                        <span className="text-sm font-medium text-blue-600">
-                          Target Score: 70% or higher
-                        </span>
+                    )}
+
+                    {/* Coding problems launcher from detail modal */}
+                    {codingDetailQs.length > 0 && (
+                      <div className="mt-6 p-4 bg-indigo-50 rounded-lg border border-indigo-200">
+                        <h3 className="text-lg font-semibold mb-3 flex items-center gap-2 text-indigo-900">
+                          <FiCode className="text-indigo-600" />
+                          Coding Problems ({codingDetailQs.length})
+                        </h3>
+                        <button
+                          onClick={() => { setTakingCodingTest(true) }}
+                          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                        >
+                          <FiCode size={16} />
+                          Open Coding Environment
+                        </button>
                       </div>
-                      <button
-                        onClick={() => {
-                          console.log('🖱️ Start Practice Quiz button clicked in modal!')
-                          console.log('Selected task:', selectedTask._id, selectedTask.title)
-                          console.log('Setting takingTest to true')
-                          setTakingTest(true)
-                          // Don't close selectedTask modal - it will be hidden by the MCQ test modal
-                        }}
-                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                      >
-                        <FiPlay size={16} />
-                        Start Practice Quiz ({selectedTask.metadata.generatedMCQs.questions.length} Questions)
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2 p-3 bg-gray-100 rounded-lg text-gray-600">
-                      <FiAlertTriangle size={20} />
-                      <span>No questions available yet. Please contact your instructor.</span>
-                    </div>
-                  )}
-                </div>
-              )}
+                    )}
+
+                    {/* Fallback if no specific question types */}
+                    {mcqDetailQs.length === 0 && saDetailQs.length === 0 && codingDetailQs.length === 0 && allDetailQs.length === 0 && (
+                      <div className="mt-6 flex items-center gap-2 p-3 bg-gray-100 rounded-lg text-gray-600">
+                        <FiAlertTriangle size={20} />
+                        <span>No questions available yet. Please contact your instructor.</span>
+                      </div>
+                    )}
+                  </>
+                )
+              })()}
 
               {/* Test Results Section */}
               {((selectedTask.isMultiStudent && selectedTask.personalizedData?.scores && selectedTask.personalizedData.scores.length > 0) ||

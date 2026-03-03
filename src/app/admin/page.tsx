@@ -24,7 +24,7 @@ export default function AdminPage() {
   const renderContent = () => {
     switch (activeSection) {
       case 'dashboard':
-        return <AdminDashboardOverview />;
+        return <AdminDashboardOverview onNavigate={setActiveSection} />;
       case 'departments':
         return <HierarchicalDepartmentManagement />;
       case 'users':

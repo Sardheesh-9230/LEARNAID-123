@@ -235,6 +235,96 @@ router.get('/students', protect, authorize('Faculty', 'Admin'), async (req, res)
 });
 
 /**
+ * @route   GET /api/users/my-students
+ * @desc    Get only students enrolled in the logged-in faculty's subjects
+ * @access  Private (Faculty)
+ */
+router.get('/my-students', protect, authorize('Faculty', 'Admin'), async (req, res) => {
+  try {
+    const User = require('../models/User');
+    const Subject = require('../models/Subject');
+
+    let studentIds = [];
+
+    if (req.user.role === 'Faculty') {
+      // Find all subjects where this faculty is assigned
+      const mySubjects = await Subject.find({
+        'faculty.user': req.user._id
+      }).select('enrolledStudents name year section department');
+
+      if (mySubjects.length === 0) {
+        return res.status(200).json({
+          success: true,
+          count: 0,
+          users: [],
+          message: 'No subjects assigned to you yet.'
+        });
+      }
+
+      // Collect unique student IDs from all enrolled students across all subjects
+      const idSet = new Set();
+      mySubjects.forEach(subject => {
+        (subject.enrolledStudents || []).forEach(id => idSet.add(String(id)));
+      });
+      studentIds = Array.from(idSet);
+
+      if (studentIds.length === 0) {
+        // Fallback: match by department + year + section of the subjects
+        const criteria = mySubjects.map(s => ({
+          department: s.department,
+          year: s.year,
+          section: s.section
+        }));
+
+        const orCriteria = criteria.map(c => ({
+          department: c.department,
+          year: c.year,
+          section: c.section,
+          role: 'Student'
+        }));
+
+        const students = await User.find({ $or: orCriteria })
+          .select('name email studentId department year section batch enrolledSubjects')
+          .populate('department', 'name code')
+          .sort({ name: 1 });
+
+        console.log(`✅ my-students (section fallback): ${students.length} students for faculty ${req.user._id}`);
+        return res.status(200).json({
+          success: true,
+          count: students.length,
+          users: students,
+          source: 'section-fallback'
+        });
+      }
+    }
+
+    // Admin gets all students; Faculty gets only their enrolled students
+    const query = req.user.role === 'Admin'
+      ? { role: 'Student' }
+      : { _id: { $in: studentIds }, role: 'Student' };
+
+    const students = await User.find(query)
+      .select('name email studentId department year section batch enrolledSubjects')
+      .populate('department', 'name code')
+      .sort({ name: 1 });
+
+    console.log(`✅ my-students: ${students.length} students returned for faculty ${req.user._id}`);
+    res.status(200).json({
+      success: true,
+      count: students.length,
+      users: students,
+      source: 'enrolled-students'
+    });
+  } catch (error) {
+    console.error('Error fetching my-students:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while fetching students'
+    });
+  }
+});
+
+/**
  * @swagger
  * /api/users:
  *   post:
@@ -307,6 +397,17 @@ router.get('/students', protect, authorize('Faculty', 'Admin'), async (req, res)
  *         description: User already exists
  */
 router.post('/', protect, authorize('Admin'), createUserValidation, userController.createUser);
+
+// NOTE: Static routes MUST be declared before dynamic /:id routes to avoid conflicts
+
+// GET /api/users/stats — must be before GET /:id
+router.get('/stats', protect, authorize('Admin'), userController.getUserStats);
+
+// POST /api/users/refresh-academic-data — recalculate year+semester for all students
+router.post('/refresh-academic-data', protect, authorize('Admin'), userController.refreshAllStudentAcademicData);
+
+// POST /api/users/bulk/create — must be before POST /:id/*
+router.post('/bulk/create', protect, authorize('Admin'), userController.bulkCreateUsers);
 
 /**
  * @swagger
@@ -469,6 +570,7 @@ router.delete('/:id', protect, authorize('Admin'), userController.deleteUser);
  *         description: Student not found
  */
 router.post('/:id/allocate-subjects', protect, authorize('Admin', 'Faculty'), allocateSubjectsValidation, userController.allocateSubjects);
+router.delete('/:id/allocate-subjects', protect, authorize('Admin'), allocateSubjectsValidation, userController.deallocateSubjects);
 
 /**
  * @swagger
@@ -547,64 +649,5 @@ router.post('/:id/assign-subjects', protect, authorize('Admin'), allocateSubject
  *         description: Faculty not found
  */
 router.delete('/:id/unassign-subjects', protect, authorize('Admin'), allocateSubjectsValidation, userController.unassignSubjects);
-
-/**
- * @swagger
- * /api/users/bulk/create:
- *   post:
- *     summary: Bulk create users from CSV
- *     tags: [Users]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         multipart/form-data:
- *           schema:
- *             type: object
- *             properties:
- *               file:
- *                 type: string
- *                 format: binary
- *                 description: CSV file with user data
- *     responses:
- *       200:
- *         description: Users created successfully
- *       400:
- *         description: Invalid file format
- */
-router.post('/bulk/create', protect, authorize('Admin'), userController.bulkCreateUsers);
-
-/**
- * @swagger
- * /api/users/stats:
- *   get:
- *     summary: Get user statistics
- *     tags: [Users]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: User statistics
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 data:
- *                   type: object
- *                   properties:
- *                     totalUsers:
- *                       type: number
- *                     activeUsers:
- *                       type: number
- *                     usersByRole:
- *                       type: object
- *                     usersByDepartment:
- *                       type: object
- */
-router.get('/stats', protect, authorize('Admin'), userController.getUserStats);
 
 module.exports = router;

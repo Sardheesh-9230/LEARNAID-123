@@ -483,15 +483,15 @@ CRITICAL:
     
     // Validate and normalize questions
     const validQuestions = questions.filter(q => {
-      return q.question && 
+      return (q.question || q.questionText) && 
              Array.isArray(q.options) && 
              q.options.length === 4 &&
              typeof q.correctAnswer === 'number' &&
              q.correctAnswer >= 0 &&
              q.correctAnswer <= 3;
     }).map(q => ({
-      question: q.question,
-      options: q.options,
+      question: q.question || q.questionText,
+      options: q.options.map(o => (typeof o === 'string' ? o : (o.optionText || o.text || String(o)))),
       correctAnswer: q.correctAnswer,
       explanation: q.explanation || 'No explanation provided',
       difficulty: q.difficulty || difficulty,
@@ -809,24 +809,31 @@ Generate exactly ${numberOfQuestions} questions now:`;
 
     // Validate questions
     const validQuestions = questions.filter(q => {
-      return q.question && 
+      return (q.question || q.questionText) && 
              q.options && 
              Array.isArray(q.options) && 
-             q.options.length === 4 &&
-             q.correctAnswer &&
-             q.options.includes(q.correctAnswer);
-    }).map(q => ({
-      question: q.question,
-      options: q.options,
-      correctAnswer: q.correctAnswer,
-      explanation: q.explanation || 'No explanation provided',
-      difficulty: q.difficulty || difficulty,
-      bloomsLevel: q.bloomsLevel || 'understand',
-      marks: marksPerQuestion,
-      topics: q.topics || topics[0],
-      courseOutcome,
-      coNumber
-    }));
+             q.options.length === 4;
+    }).map(q => {
+      const normalizedOptions = q.options.map(o => (typeof o === 'string' ? o : (o.optionText || o.text || String(o))));
+      // Resolve correctAnswer — could be index or string value
+      let correctAnswer = q.correctAnswer;
+      if (typeof correctAnswer !== 'number') {
+        correctAnswer = normalizedOptions.findIndex(o => o === correctAnswer);
+        if (correctAnswer === -1) correctAnswer = 0;
+      }
+      return {
+        question: q.question || q.questionText,
+        options: normalizedOptions,
+        correctAnswer,
+        explanation: q.explanation || 'No explanation provided',
+        difficulty: q.difficulty || difficulty,
+        bloomsLevel: q.bloomsLevel || 'understand',
+        marks: marksPerQuestion,
+        topics: q.topics || topics[0],
+        courseOutcome,
+        coNumber
+      };
+    });
 
     if (validQuestions.length === 0) {
       return res.status(500).json({
@@ -923,25 +930,145 @@ exports.createAssessmentTask = async (req, res) => {
         performanceGap: co.performanceGap || 0,
         topics: co.topics || []
       })),
-      personalizedQuestions: assignment.questions.map((q, index) => ({
-        id: `q_${assignment.studentId}_${index + 1}`,
-        question: q.question,
-        options: q.options,
-        correctAnswer: q.correctAnswer,
-        explanation: q.explanation,
-        courseOutcome: q.courseOutcome,
-        coNumber: q.coNumber,
-        topics: q.topics || [],
-        marks: q.marks,
-        difficulty: q.difficulty,
-        bloomsLevel: q.bloomsLevel,
-        estimatedTime: q.estimatedTime || 2
-      })),
+      personalizedQuestions: assignment.questions.map((q, index) => {
+        const qId = `q_${assignment.studentId}_${index + 1}`;
+
+        // ── Coding question: preserve all coding-specific fields ──
+        if (q.questionType === 'Coding' || (q.testCases && q.testCases.length > 0)) {
+          return {
+            id: qId,
+            questionType: 'Coding',
+            question: q.questionText || q.question || '',
+            questionText: q.questionText || q.question || '',
+            programmingLanguage: q.programmingLanguage || 'Python',
+            starterCode: q.starterCode || '',
+            sampleInput: q.sampleInput || '',
+            sampleOutput: q.sampleOutput || '',
+            testCases: (q.testCases || []).map(tc => ({
+              input: String(tc.input ?? ''),
+              expectedOutput: String(tc.expectedOutput ?? ''),
+              isHidden: tc.isHidden || false,
+              marks: tc.marks || 2
+            })),
+            constraints: q.constraints || [],
+            explanation: q.explanation || '',
+            marks: q.marks || 10,
+            difficulty: q.difficulty || 'Medium',
+            courseOutcome: q.courseOutcome || '',
+            coNumber: q.coNumber,
+            topics: q.topics || []
+          };
+        }
+
+        // ── Short Answer question: preserve SA-specific fields ──
+        if (q.questionType === 'Short Answer') {
+          return {
+            id: qId,
+            questionType: 'Short Answer',
+            question: q.questionText || q.question || '',
+            questionText: q.questionText || q.question || '',
+            expectedAnswer: q.expectedAnswer || '',
+            keyPoints: q.keyPoints || [],
+            maxWords: q.maxWords || 200,
+            explanation: q.explanation || '',
+            marks: q.marks || 5,
+            difficulty: q.difficulty || 'Medium',
+            courseOutcome: q.courseOutcome || '',
+            coNumber: q.coNumber,
+            topics: q.topics || []
+          };
+        }
+
+        // ── MCQ (default): normalize options + correctAnswer ──
+        let rawOptions = q.options;
+        if (typeof rawOptions === 'string') {
+          try {
+            rawOptions = JSON.parse(rawOptions);
+          } catch (_) {
+            const optionTexts = [];
+            const regex = /optionText\s*:\s*['"]((?:[^'"\\]|\\.)*)['"]/g;
+            let match;
+            while ((match = regex.exec(q.options)) !== null) optionTexts.push(match[1]);
+            if (optionTexts.length > 0) {
+              const isCorrectFlags = [];
+              const isCorrectRegex = /isCorrect\s*:\s*(true|false)/g;
+              let icMatch;
+              while ((icMatch = isCorrectRegex.exec(q.options)) !== null)
+                isCorrectFlags.push(icMatch[1] === 'true');
+              rawOptions = optionTexts.map((text, i) => ({ optionText: text, isCorrect: isCorrectFlags[i] || false }));
+            } else {
+              rawOptions = [];
+            }
+          }
+        }
+        if (!Array.isArray(rawOptions)) rawOptions = [];
+        const normalizedOptions = rawOptions.map(o =>
+          typeof o === 'string' ? o : (o.optionText || o.text || String(o))
+        );
+        let correctAnswer = q.correctAnswer;
+        if (typeof correctAnswer !== 'number') {
+          correctAnswer = rawOptions.findIndex(o => typeof o === 'object' && o.isCorrect === true);
+          if (correctAnswer === -1 && typeof q.correctAnswer === 'string')
+            correctAnswer = normalizedOptions.findIndex(o => o === q.correctAnswer);
+          if (correctAnswer === -1) correctAnswer = 0;
+        }
+        return {
+          id: qId,
+          questionType: q.questionType || 'MCQ',
+          question: q.question || q.questionText || '',
+          options: normalizedOptions,
+          correctAnswer,
+          explanation: q.explanation || '',
+          courseOutcome: q.courseOutcome,
+          coNumber: q.coNumber,
+          topics: q.topics || [],
+          marks: q.marks || 1,
+          difficulty: q.difficulty || 'Medium',
+          bloomsLevel: q.bloomsLevel || '',
+          estimatedTime: q.estimatedTime || 2
+        };
+      }),
       totalMarks: assignment.totalMarks,
       status: 'Assigned',
       scores: [],
       attemptCount: 0
     }));
+
+    // ── Collect unique coding questions for metadata.codingQuestions ──
+    // Coding questions are per-CO (same for all students in the same CO),
+    // so we deduplicate by questionText and store at task level.
+    const codingQMap = new Map();
+    studentAssignments.forEach(assignment => {
+      (assignment.questions || []).forEach(q => {
+        if (q.questionType === 'Coding' || (q.testCases && q.testCases.length > 0)) {
+          const key = (q.questionText || q.question || '').substring(0, 120);
+          if (!codingQMap.has(key)) {
+            codingQMap.set(key, {
+              id: `cq_${Date.now()}_${codingQMap.size}`,
+              questionText: q.questionText || q.question || '',
+              programmingLanguage: q.programmingLanguage || 'Python',
+              starterCode: q.starterCode || '',
+              sampleInput: q.sampleInput || '',
+              sampleOutput: q.sampleOutput || '',
+              testCases: (q.testCases || []).map(tc => ({
+                input: String(tc.input ?? ''),
+                expectedOutput: String(tc.expectedOutput ?? ''),
+                isHidden: tc.isHidden || false,
+                marks: tc.marks || 2
+              })),
+              constraints: q.constraints || [],
+              marks: q.marks || 10,
+              explanation: q.explanation || '',
+              difficulty: q.difficulty || 'Medium',
+              courseOutcome: q.courseOutcome || '',
+              topics: q.topics || []
+            });
+          }
+        }
+      });
+    });
+    const codingQuestionsForMetadata = [...codingQMap.values()];
+    console.log(`💻 Extracted ${codingQuestionsForMetadata.length} unique coding question(s) for metadata`);
     
     // Create ONE task with multiple student assignments
     const task = await ImprovementTask.create({
@@ -964,6 +1091,7 @@ exports.createAssessmentTask = async (req, res) => {
         targetPerformance: 70,
         studyTimeMinutes: totalTime,
         weakAreas: studentAssignments.flatMap(a => a.weakCOs.flatMap(co => co.topics)),
+        codingQuestions: codingQuestionsForMetadata,
         teacherSettings: {
           examType: examType,
           difficultyLevel: 'Mixed',

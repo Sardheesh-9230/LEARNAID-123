@@ -5,6 +5,7 @@ import {
   FiUsers, FiGrid, FiBook, FiUserCheck, 
   FiTrendingUp, FiActivity, FiAward, FiAlertCircle
 } from 'react-icons/fi';
+import apiService from '@/services/api';
 
 interface StatCardProps {
   title: string;
@@ -36,7 +37,7 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, icon: Icon, color, tr
   </div>
 );
 
-const AdminDashboardOverview: React.FC = () => {
+const AdminDashboardOverview: React.FC<{ onNavigate?: (section: string) => void }> = ({ onNavigate }) => {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
     totalStudents: 0,
@@ -54,25 +55,59 @@ const AdminDashboardOverview: React.FC = () => {
   const fetchDashboardData = async () => {
     setLoading(true);
     try {
-      // Mock data - replace with actual API calls
-      setStats({
-        totalStudents: 1250,
-        totalFaculty: 85,
-        totalDepartments: 12,
-        activeSubjects: 156,
-        recentActivities: [
-          { action: 'New student enrolled', details: 'Computer Science Department', time: '5 minutes ago', type: 'user' },
-          { action: 'Faculty assigned', details: 'Data Structures - Prof. Smith', time: '1 hour ago', type: 'assignment' },
-          { action: 'Department created', details: 'Artificial Intelligence', time: '2 hours ago', type: 'department' },
-          { action: 'Subject updated', details: 'Advanced Algorithms', time: '3 hours ago', type: 'subject' },
-        ],
-        departmentStats: [
-          { name: 'Computer Science', students: 450, faculty: 25, subjects: 45 },
-          { name: 'Electrical Engineering', students: 380, faculty: 20, subjects: 38 },
-          { name: 'Mechanical Engineering', students: 320, faculty: 18, subjects: 32 },
-          { name: 'Civil Engineering', students: 100, faculty: 12, subjects: 25 },
-        ]
-      });
+      const [dashboardRes, usersRes] = await Promise.all([
+        apiService.getDashboardStats(),
+        apiService.getUsers({ limit: 1000 })
+      ]);
+
+      if (dashboardRes.success && dashboardRes.data) {
+        const d = dashboardRes.data;
+        const userStats = d.userStats || {};
+
+        const recentActivities = (d.recentActivities || []).map((a: any) => ({
+          action: a.action || 'System event',
+          details: (() => {
+            const raw = a.details;
+            if (!raw) return a.user ? `${a.user.name} (${a.user.role})` : '';
+            if (typeof raw === 'string') return raw;
+            // Object details from login events e.g. { loginTime: "..." }
+            if (typeof raw === 'object') {
+              if (raw.loginTime) return `Login at ${new Date(raw.loginTime).toLocaleString()}`;
+              return Object.entries(raw).map(([k, v]) => `${k}: ${v}`).join(', ');
+            }
+            return String(raw);
+          })(),
+          time: a.createdAt
+            ? new Date(a.createdAt).toLocaleString()
+            : 'Recently',
+          type: a.resourceType === 'User' ? 'user'
+              : a.resourceType === 'Department' ? 'department'
+              : a.resourceType === 'Subject' ? 'subject'
+              : 'assignment'
+        }));
+
+        setStats({
+          totalStudents: userStats.Student?.total ?? 0,
+          totalFaculty: userStats.Faculty?.total ?? 0,
+          totalDepartments: d.overview?.totalDepartments ?? 0,
+          activeSubjects: d.overview?.totalSubjects ?? 0,
+          recentActivities,
+          departmentStats: (d.departmentStats || []).map((dept: any) => ({
+            name: dept.name,
+            students: dept.students ?? 0,
+            faculty: dept.faculty ?? 0,
+            subjects: dept.totalSubjects ?? 0
+          }))
+        });
+      } else if (usersRes.success && usersRes.data) {
+        // Fallback: compute stats from user list if analytics API fails
+        const allUsers: any[] = usersRes.data;
+        setStats(prev => ({
+          ...prev,
+          totalStudents: allUsers.filter((u: any) => u.role === 'Student').length,
+          totalFaculty: allUsers.filter((u: any) => u.role === 'Faculty').length,
+        }));
+      }
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     }
@@ -82,7 +117,7 @@ const AdminDashboardOverview: React.FC = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
       </div>
     );
   }
@@ -90,9 +125,9 @@ const AdminDashboardOverview: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Welcome Banner */}
-      <div className="bg-gradient-to-r from-red-600 to-pink-600 rounded-xl shadow-lg p-8 text-white">
+      <div className="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-xl shadow-lg p-8 text-white">
         <h2 className="text-3xl font-bold mb-2">Welcome to Admin Dashboard!</h2>
-        <p className="text-red-100">Manage your institution with complete control and insights.</p>
+        <p className="text-purple-100">Manage your institution with complete control and insights.</p>
       </div>
 
       {/* Stats Grid */}
@@ -132,10 +167,10 @@ const AdminDashboardOverview: React.FC = () => {
         <div className="lg:col-span-2 bg-white rounded-xl shadow-lg p-6">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-xl font-bold text-gray-800 flex items-center">
-              <FiGrid className="mr-2 text-red-600" />
+              <FiGrid className="mr-2 text-purple-600" />
               Department Overview
             </h3>
-            <button className="text-red-600 hover:text-red-700 text-sm font-medium">
+            <button className="text-purple-600 hover:text-purple-700 text-sm font-medium">
               View All
             </button>
           </div>
@@ -170,7 +205,7 @@ const AdminDashboardOverview: React.FC = () => {
                       </span>
                     </td>
                     <td className="py-3 px-4">
-                      <button className="bg-red-500 text-white px-3 py-1 rounded-lg text-sm hover:bg-red-600 transition-colors">
+                      <button className="bg-purple-500 text-white px-3 py-1 rounded-lg text-sm hover:bg-purple-600 transition-colors">
                         Manage
                       </button>
                     </td>
@@ -280,7 +315,10 @@ const AdminDashboardOverview: React.FC = () => {
 
       {/* Quick Actions */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-6 border border-blue-200 hover:shadow-lg transition-shadow cursor-pointer">
+        <div
+          onClick={() => onNavigate?.('users')}
+          className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-6 border border-blue-200 hover:shadow-lg transition-shadow cursor-pointer"
+        >
           <div className="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center mb-4">
             <FiUsers className="text-white" size={24} />
           </div>
@@ -288,7 +326,10 @@ const AdminDashboardOverview: React.FC = () => {
           <p className="text-gray-600 text-sm">Register a new student to the system</p>
         </div>
 
-        <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-6 border border-purple-200 hover:shadow-lg transition-shadow cursor-pointer">
+        <div
+          onClick={() => onNavigate?.('users')}
+          className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-6 border border-purple-200 hover:shadow-lg transition-shadow cursor-pointer"
+        >
           <div className="w-12 h-12 bg-purple-500 rounded-lg flex items-center justify-center mb-4">
             <FiUserCheck className="text-white" size={24} />
           </div>
@@ -296,7 +337,10 @@ const AdminDashboardOverview: React.FC = () => {
           <p className="text-gray-600 text-sm">Onboard new faculty members</p>
         </div>
 
-        <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-6 border border-green-200 hover:shadow-lg transition-shadow cursor-pointer">
+        <div
+          onClick={() => onNavigate?.('departments')}
+          className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-6 border border-green-200 hover:shadow-lg transition-shadow cursor-pointer"
+        >
           <div className="w-12 h-12 bg-green-500 rounded-lg flex items-center justify-center mb-4">
             <FiGrid className="text-white" size={24} />
           </div>

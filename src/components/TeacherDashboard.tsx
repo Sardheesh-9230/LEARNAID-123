@@ -9,6 +9,7 @@ import COPerformanceAnalytics from './COPerformanceAnalytics'
 import FacultyTaskManagement from './FacultyTaskManagement'
 import COBasedStudentIdentification from './COBasedStudentIdentification'
 import FacultyMCQTaskIntegration from './FacultyMCQTaskIntegration'
+import DiscussionPanel from './DiscussionPanel'
 
 interface User {
   id: string
@@ -496,171 +497,74 @@ export default function TeacherDashboard({ activeTab: propActiveTab, onTabChange
 
   const loadStudentsForSubjects = async (subjects: Subject[]) => {
     try {
-      console.log('👥 Loading students for subjects:', subjects.map(s => s.name))
-      
-      if (!Array.isArray(subjects)) {
-        console.error('❌ Subjects parameter is not an array:', subjects)
-        return
-      }
-      
-      // Get all users - try with and without filters
+      console.log('👥 Loading students for faculty via /my-students endpoint')
+
+      // Call the dedicated endpoint — returns only students from the faculty's subjects
+      const response = await apiService.getMyStudents()
+
       let users: User[] = []
-      try {
-        // First try to get only students
-        const studentUsersResponse = await apiService.getUsers({ role: 'Student', status: 'Active', limit: 1000 })
-        console.log('🔍 Students API response:', studentUsersResponse)
-        
-        // Extract data from response - backend returns { success: true, data: [...] }
-        if (studentUsersResponse && studentUsersResponse.data && Array.isArray(studentUsersResponse.data)) {
-          users = studentUsersResponse.data
-        } else if (Array.isArray(studentUsersResponse)) {
-          // Fallback if response is directly an array
-          users = studentUsersResponse
-        } else {
-          console.warn('⚠️ Unexpected response format:', studentUsersResponse)
-          users = []
-        }
-        console.log('👤 Active student users loaded:', users.length)
-      } catch (filteredError) {
-        console.warn('⚠️ Filtered user query failed, trying all users:', filteredError)
-        try {
-          // Fallback: get all users and filter client-side
-          const allUsersResponse = await apiService.getUsers({ limit: 1000 })
-          console.log('🔍 All users API response:', allUsersResponse)
-          
-          let allUsers: User[] = []
-          // Extract data from response
-          if (allUsersResponse && allUsersResponse.data && Array.isArray(allUsersResponse.data)) {
-            allUsers = allUsersResponse.data
-          } else if (Array.isArray(allUsersResponse)) {
-            allUsers = allUsersResponse
-          } else {
-            console.warn('⚠️ Unexpected all users response format:', allUsersResponse)
-            allUsers = []
-          }
-          
-          users = allUsers.filter((user: User) => user.role === 'Student' && user.status === 'Active')
-          console.log('👤 Filtered student users from all users:', users.length)
-        } catch (allUsersError) {
-          console.error('❌ Failed to load any users:', allUsersError)
-          users = []
-        }
+      if (response && response.users && Array.isArray(response.users)) {
+        users = response.users
+      } else if (Array.isArray(response)) {
+        users = response
       }
-      
-      // Ensure users is always an array
-      if (!Array.isArray(users)) {
-        console.error('❌ Users response is not an array:', typeof users, users)
-        users = []
-      }
-      
+
+      console.log(`👤 my-students API returned: ${users.length} students (source: ${response?.source || 'unknown'})`)
+
       if (users.length === 0) {
-        console.warn('⚠️ No students found in the system')
+        console.warn('⚠️ No students found for this faculty\'s subjects')
         setMyStudents([])
-        showNotification('No students found in the system.', 'info')
-        return
-      }
-      
-      // Debug subject data structure
-      console.log('📚 Available subjects for matching:')
-      subjects.forEach(subject => {
-        console.log(`  - ${subject.name}: ${getDepartmentName(subject.department)} ${subject.year} Section ${subject.section}`)
-      })
-      
-      // Debug student data structure (first few students)
-      console.log('👤 Sample students:')
-      if (Array.isArray(users) && users.length > 0) {
-        users.slice(0, 5).forEach((user: User) => {
-          if (user && user.name) {
-            console.log(`  - ${user.name}: ${getDepartmentName(user.department)} ${getAcademicYear(user.batch || '')} Section ${user.section}`)
-          }
-        })
-      } else {
-        console.warn('⚠️ Users array is empty or invalid for debugging')
-      }
-      
-      // Get all students in the departments and years of teacher's subjects
-      const relevantStudents = users.filter((user: User) => {
-        if (user.role !== 'Student' || user.status !== 'Active') return false
-        
-        const userDeptName = getDepartmentName(user.department)
-        const academicYear = getAcademicYear(user.batch || '')
-        
-        // Check if this student matches any of our subjects
-        const matchingSubject = subjects.some(subject => {
-          const subjectDeptName = getDepartmentName(subject.department)
-          
-          // First check enrolledSubjects array (this is what the backend sync updates)
-          if (user.enrolledSubjects && Array.isArray(user.enrolledSubjects)) {
-            const enrolledMatch = user.enrolledSubjects.some((enrolledSubjectId: any) => {
-              // Handle both ObjectId objects and string IDs
-              const enrolledId = enrolledSubjectId._id || enrolledSubjectId
-              return enrolledId === subject._id || String(enrolledId) === String(subject._id)
-            })
-            
-            if (enrolledMatch) {
-              console.log(`✅ EnrolledSubjects match - Student: ${user.name} ↔ Subject: ${subject.name}`)
-              return true
-            }
-          }
-          
-          // Also check enrolledSections if it exists (for backward compatibility)
-          if (user.enrolledSections && Array.isArray(user.enrolledSections)) {
-            const sectionMatch = user.enrolledSections.some((section: any) => {
-              const sectionSubjectId = section.subject?._id || section.subject || section.subjectId
-              return sectionSubjectId === subject._id || String(sectionSubjectId) === String(subject._id)
-            })
-            
-            if (sectionMatch) {
-              console.log(`✅ EnrolledSections match - Student: ${user.name} ↔ Subject: ${subject.name}`)
-              return true
-            }
-          }
-          
-          // Fallback to department/year/section matching
-          const deptMatch = userDeptName.toLowerCase() === subjectDeptName.toLowerCase()
-          const yearMatch = academicYear === subject.year
-          const sectionMatch = user.section === subject.section
-          
-          const isMatch = deptMatch && yearMatch && sectionMatch
-          
-          if (isMatch) {
-            console.log(`✅ Criteria match - Student: ${user.name} (Dept: ${userDeptName}, Year: ${academicYear}, Section: ${user.section}) ↔ Subject: ${subject.name} (Dept: ${subjectDeptName}, Year: ${subject.year}, Section: ${subject.section})`)
-          }
-          
-          return isMatch
-        })
-        
-        return matchingSubject
-      })
-      
-      console.log('🎯 Filtered relevant students:', relevantStudents.length)
-      
-      if (relevantStudents.length > 0) {
-        console.log('📋 Students list:')
-        relevantStudents.forEach((student: User) => {
-          console.log(`  - ${student.name} (ID: ${student.studentId}) - ${getDepartmentName(student.department)} ${getAcademicYear(student.batch || '')} Section ${student.section}`)
-        })
-      }
-      
-      setMyStudents(relevantStudents)
-      
-      if (relevantStudents.length === 0) {
-        console.warn('⚠️ No matching students found. This could mean:')
-        console.warn('   1. No students are assigned to your subjects\' sections')
-        console.warn('   2. Department/year/section data doesn\'t match between students and subjects')
-        console.warn('   3. Students may need to be enrolled in subjects')
-        
         showNotification(
-          'No students found matching your subjects. This may be normal if students haven\'t been assigned to sections yet.',
+          'No students are currently enrolled in your subjects. Ask the administrator to allocate students.',
           'info'
         )
-      } else {
-        showNotification(`Found ${relevantStudents.length} students in your subjects`, 'success')
+        return
       }
+
+      setMyStudents(users)
+      showNotification(`Found ${users.length} student(s) in your class(es)`, 'success')
     } catch (error) {
       console.error('❌ Error loading students:', error)
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      showNotification(`Error loading students: ${errorMessage}`, 'error')
+      // Fallback: client-side matching from all students
+      try {
+        console.warn('⚠️ Falling back to client-side student filtering')
+        const fallbackResponse = await apiService.getUsers({ role: 'Student', status: 'Active', limit: 1000 })
+        let allUsers: User[] = []
+        if (fallbackResponse?.data && Array.isArray(fallbackResponse.data)) {
+          allUsers = fallbackResponse.data
+        } else if (Array.isArray(fallbackResponse)) {
+          allUsers = fallbackResponse
+        }
+
+        const relevantStudents = allUsers.filter((user: User) => {
+          if (user.role !== 'Student') return false
+          const userDeptName = getDepartmentName(user.department)
+          const academicYear = getAcademicYear(user.batch || '')
+          return subjects.some(subject => {
+            const subjectDeptName = getDepartmentName(subject.department)
+            if (user.enrolledSubjects && Array.isArray(user.enrolledSubjects)) {
+              const enrolled = user.enrolledSubjects.some((id: any) => {
+                const sid = id._id || id
+                return String(sid) === String(subject._id)
+              })
+              if (enrolled) return true
+            }
+            return userDeptName.toLowerCase() === subjectDeptName.toLowerCase() &&
+              academicYear === subject.year &&
+              user.section === subject.section
+          })
+        })
+
+        setMyStudents(relevantStudents)
+        if (relevantStudents.length > 0) {
+          showNotification(`Found ${relevantStudents.length} student(s) in your class(es)`, 'success')
+        } else {
+          showNotification('No students found matching your subjects.', 'info')
+        }
+      } catch (fallbackError) {
+        const msg = error instanceof Error ? error.message : 'Unknown error'
+        showNotification(`Error loading students: ${msg}`, 'error')
+      }
     }
   }
 
@@ -1173,17 +1077,27 @@ export default function TeacherDashboard({ activeTab: propActiveTab, onTabChange
   }
 
   const getStudentsForSubject = (subject: Subject) => {
+    // Priority 1: use the subject's enrolledStudents list if populated
+    if (subject.enrolledStudents && subject.enrolledStudents.length > 0) {
+      const enrolledIds = new Set(subject.enrolledStudents.map((id: any) => String(id._id || id)));
+      const studentsForSubject = myStudents.filter((s: User) => enrolledIds.has(String(s._id)));
+      console.log(`👥 Students for subject ${subject.name} (enrolled list):`, studentsForSubject.length);
+      return studentsForSubject;
+    }
+
+    // Fallback: match by department, year, and section
     const studentsForSubject = myStudents.filter((student: User) => {
       const userDeptName = getDepartmentName(student.department)
       const subjectDeptName = getDepartmentName(subject.department)
-      const userYear = getAcademicYear(student.batch || '')
+      // Use student.year directly (same string format as subject.year), not getAcademicYear(batch)
+      const studentYear = (student as any).year || getAcademicYear(student.batch || '')
       
       return userDeptName === subjectDeptName && 
-             userYear === subject.year &&
+             studentYear === subject.year &&
              student.section === subject.section
     })
     
-    console.log(`👥 Students for subject ${subject.name}:`, studentsForSubject.length)
+    console.log(`👥 Students for subject ${subject.name} (fallback filter):`, studentsForSubject.length)
     return studentsForSubject
   }
 
@@ -1802,6 +1716,16 @@ export default function TeacherDashboard({ activeTab: propActiveTab, onTabChange
                 <p className="text-sm">Schedule features coming soon. This will show your class timetable and upcoming sessions.</p>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Discussions Tab */}
+        {activeTab === 'discussions' && (
+          <div className="h-[calc(100vh-8rem)] min-h-[500px]">
+            <DiscussionPanel
+              subjects={mySubjects.map((s: any) => ({ _id: s._id, name: s.name, code: s.code }))}
+              userRole="Faculty"
+            />
           </div>
         )}
 

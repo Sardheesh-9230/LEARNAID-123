@@ -112,6 +112,11 @@ const taskSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
+  taskType: {
+    type: String,
+    enum: ['regular', 'CO_ASSESSMENT', 'CO_IMPROVEMENT'],
+    default: 'regular'
+  },
   settings: {
     allowChatbot: {
       type: Boolean,
@@ -130,16 +135,6 @@ const taskSchema = new mongoose.Schema({
       default: 60
     }
   },
-  // CO Performance tracking for lagging CO assignments
-  coPerformanceData: [{
-    courseOutcome: {
-      type: String,
-      enum: ['CO1', 'CO2', 'CO3', 'CO4', 'CO5']
-    },
-    currentPerformance: Number, // percentage
-    targetPerformance: Number, // percentage
-    performanceGap: Number // percentage
-  }],
   metadata: {
     assignmentType: {
       type: String,

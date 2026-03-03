@@ -241,7 +241,7 @@ router.post('/create', auth, async (req, res) => {
     } = req.body;
 
     // Verify faculty permission
-    if (req.user.role !== 'faculty') {
+    if (!['Faculty', 'Admin'].includes(req.user.role)) {
       return res.status(403).json({ message: 'Only faculty can create tasks' });
     }
 
@@ -293,7 +293,7 @@ router.post('/create', auth, async (req, res) => {
         studyStartTime: new Date(new Date(taskSchedule.startTime).getTime() - (taskSchedule.studyDuration * 60000))
       },
       settings: settings || {},
-      createdBy: req.user.userId
+      createdBy: req.user._id
     });
 
     // Assign to students
@@ -550,9 +550,9 @@ router.get('/faculty/tasks', auth, async (req, res) => {
     
     console.log(`📋 Fetching tasks for faculty: ${req.user.id}`);
     
-    const tasks = await Task.find({ createdBy: req.user.id })
+    const tasks = await Task.find({ createdBy: req.user._id })
       .populate('subject', 'name code')
-      .populate('assignedTo', 'name email studentId')
+      .populate('assignedStudents.student', 'name email rollNumber')
       .sort({ createdAt: -1 });
     
     console.log(`✅ Found ${tasks.length} tasks`);
@@ -832,6 +832,9 @@ router.post('/generate-co-mcqs', auth, async (req, res) => {
 
 // Bulk assign CO-based tasks to students
 router.post('/bulk-assign-co-tasks', auth, async (req, res) => {
+  if (!['Faculty', 'Admin'].includes(req.user.role)) {
+    return res.status(403).json({ success: false, message: 'Only faculty can assign tasks' });
+  }
   try {
     const { 
       subjectId, 
@@ -861,7 +864,7 @@ router.post('/bulk-assign-co-tasks', auth, async (req, res) => {
     }
 
     // Verify students exist
-    const students = await User.find({ _id: { $in: studentIds }, role: 'student' });
+    const students = await User.find({ _id: { $in: studentIds }, role: 'Student' });
     if (students.length !== studentIds.length) {
       return res.status(400).json({
         success: false,
@@ -914,6 +917,7 @@ router.post('/bulk-assign-co-tasks', auth, async (req, res) => {
         showResourcesDuringTask: false
       },
       createdBy: req.user.id,
+      taskType: 'CO_ASSESSMENT',
       metadata: {
         assignmentType: 'faculty_bulk_assignment',
         targetCourseOutcomes: courseOutcomes,

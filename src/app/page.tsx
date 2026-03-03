@@ -3,9 +3,10 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
+import Logo from '@/components/Logo'
 
 // Lazy load Three.js component (only loads when visible)
-const ParticleText = dynamic(() => import('@/components/ParticleText'), {
+const ParticleText = dynamic(() => import('@/components/ParticleText').then(mod => mod.default), {
   ssr: false,
   loading: () => (
     <div className="fixed inset-0 bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 flex items-center justify-center">
@@ -16,11 +17,11 @@ const ParticleText = dynamic(() => import('@/components/ParticleText'), {
           <div className="absolute inset-0 w-20 h-20 border-4 border-purple-400/30 border-t-purple-400 rounded-full animate-spin animation-delay-150"></div>
         </div>
         
-        {/* Loading text with gradient */}
-        <div className="space-y-2">
-          <h2 className="text-3xl font-bold bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent animate-pulse">
-            LearnAID
-          </h2>
+        {/* Loading text with logo */}
+        <div className="space-y-4">
+          <div className="flex justify-center">
+            <Logo size="lg" showText={true} variant="light" />
+          </div>
           <p className="text-blue-200 text-sm font-medium">
             Initializing Experience...
           </p>
@@ -117,13 +118,8 @@ export default function Home() {
       }`}>
         <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
-            <Link href="/" className="flex items-center space-x-3 group">
-              <div className="w-11 h-11 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-all">
-                <span className="text-white font-bold text-xl">L</span>
-              </div>
-              <span className="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
-                LearnAID
-              </span>
+            <Link href="/" className="group">
+              <Logo size="md" showText={true} variant="light" className="transform group-hover:scale-105 transition-transform duration-300" />
             </Link>
             
             <div className="hidden md:flex items-center space-x-8">

@@ -53,6 +53,7 @@ export default function UserManagement({ preSelectedUserId }: UserManagementProp
   const [userToDelete, setUserToDelete] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
   // State for real data
   const [users, setUsers] = useState<User[]>([])
@@ -87,6 +88,61 @@ export default function UserManagement({ preSelectedUserId }: UserManagementProp
     "B.Sc",
     "Other"
   ]
+
+  // ---- Academic year helpers -----------------------------------------------
+  // Academic year starts July. Jan-Jun = still in previous academic year.
+  const getEffectiveYear = () => {
+    const now = new Date();
+    const m = now.getMonth() + 1;
+    const y = now.getFullYear();
+    return m < 7 ? y - 1 : y;
+  }
+
+  const getYearLabelForBatch = (batchYear: number): string => {
+    const yos = getEffectiveYear() - batchYear + 1;
+    switch (Math.min(Math.max(yos, 1), 4)) {
+      case 1: return '1st Year';
+      case 2: return '2nd Year';
+      case 3: return '3rd Year';
+      case 4: return '4th Year';
+      default: return '1st Year';
+    }
+  }
+
+  const getSemesterForBatch = (batchYear: number): number => {
+    const yos = Math.min(Math.max(getEffectiveYear() - batchYear + 1, 1), 4);
+    const m = new Date().getMonth() + 1;
+    return m >= 7 ? (yos * 2) - 1 : yos * 2;
+  }
+
+  // Valid batches: current–3  to current effective year (4-year programme)
+  const getValidBatchYears = (): number[] => {
+    const eff = getEffectiveYear();
+    return [eff - 3, eff - 2, eff - 1, eff];
+  }
+  // --------------------------------------------------------------------------
+
+  const [refreshingAcademic, setRefreshingAcademic] = useState(false)
+
+  const handleRefreshAcademicData = async () => {
+    if (!confirm('Recalculate year and semester for all students based on their batch year and today\'s date?')) return;
+    try {
+      setRefreshingAcademic(true);
+      const res = await apiService.makeRequest('/users/refresh-academic-data', { method: 'POST' });
+      if (res.success) {
+        setError(null);
+        setSuccessMessage(res.message || 'Academic data refreshed successfully');
+        setTimeout(() => setSuccessMessage(null), 7000);
+        await loadAllData();
+      } else {
+        setError(res.message || 'Refresh failed');
+      }
+    } catch (e: any) {
+      setError(e.message || 'Refresh failed');
+    } finally {
+      setRefreshingAcademic(false);
+    }
+  }
 
   // Generate ID based on department and role
   const generateUserId = (departmentId: string, role: string) => {
@@ -237,17 +293,13 @@ export default function UserManagement({ preSelectedUserId }: UserManagementProp
     try {
       setLoading(true)
       
-      // Check if trying to create admin when one already exists
-      if (newUser.role === 'Admin') {
-        const existingAdmins = users.filter(u => u.role === 'Admin')
-        if (existingAdmins.length > 0) {
-          setError('Admin already exists! Only one admin is allowed in the system.')
-          setLoading(false)
-          return
-        }
+      // Enforce single-admin constraint (matches UI restriction)
+      if (newUser.role === 'Admin' && users.filter(u => u.role === 'Admin').length > 0) {
+        setError('An admin already exists. Only one admin is allowed in the system.')
+        setLoading(false)
+        return
       }
-
-      // Basic validation for required fields
+      
       if (!newUser.name || !newUser.name.trim()) {
         setError('Name is required')
         setLoading(false)
@@ -335,17 +387,13 @@ export default function UserManagement({ preSelectedUserId }: UserManagementProp
         // Force data reload
         await loadAllData()
         
-        // Force component re-render by updating a dummy state
-        setLoading(false)
-        setLoading(true)
-        setTimeout(() => setLoading(false), 100)
-        
         resetForm()
         setShowAddForm(false)
         
         // Show success message with generated ID
-        setError(`✅ User created successfully! Generated ID: ${generatedId}. Total users now: ${users.length + 1}`)
-        setTimeout(() => setError(null), 7000) // Longer display time
+        setError(null)
+        setSuccessMessage(`User created successfully! Generated ID: ${generatedId}`)
+        setTimeout(() => setSuccessMessage(null), 7000)
         
         console.log('📊 Current users count after add:', users.length)
       } else {
@@ -547,28 +595,11 @@ export default function UserManagement({ preSelectedUserId }: UserManagementProp
     return stats
   }
 
-  if (loading) {
+  if (loading && users.length === 0) {
     return (
       <div className="p-6">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto"></div>
         <p className="text-center mt-4 text-gray-600">Loading users...</p>
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="p-6">
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-          <strong className="font-bold">Error: </strong>
-          <span>{error}</span>
-        </div>
-        <button 
-          onClick={loadAllData}
-          className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-        >
-          Retry
-        </button>
       </div>
     )
   }
@@ -579,6 +610,20 @@ export default function UserManagement({ preSelectedUserId }: UserManagementProp
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
       <div className="max-w-7xl mx-auto">
+        {/* Inline error banner */}
+        {error && !loading && (
+          <div className="mb-4 bg-red-50 border border-red-300 text-red-700 px-4 py-3 rounded-lg flex items-center justify-between">
+            <span><strong>Error: </strong>{error}</span>
+            <button onClick={() => setError(null)} className="ml-4 text-red-500 hover:text-red-700 font-bold">✕</button>
+          </div>
+        )}
+        {/* Success banner */}
+        {successMessage && (
+          <div className="mb-4 bg-green-50 border border-green-300 text-green-700 px-4 py-3 rounded-lg flex items-center justify-between">
+            <span>✅ {successMessage}</span>
+            <button onClick={() => setSuccessMessage(null)} className="ml-4 text-green-500 hover:text-green-700 font-bold">✕</button>
+          </div>
+        )}
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-800 mb-2">User Management</h1>
@@ -668,6 +713,15 @@ export default function UserManagement({ preSelectedUserId }: UserManagementProp
               </button>
             </div>
             <div className="flex space-x-2">
+              <button
+                onClick={handleRefreshAcademicData}
+                disabled={refreshingAcademic || loading}
+                title="Recalculate year &amp; semester for all students based on batch and today's date"
+                className="bg-orange-500 text-white px-4 py-2 rounded-lg font-medium hover:bg-orange-600 transition-colors flex items-center space-x-2 disabled:opacity-50"
+              >
+                <span>🎓</span>
+                <span>{refreshingAcademic ? 'Syncing...' : 'Sync Academic Year'}</span>
+              </button>
               <button
                 onClick={() => {
                   console.log('🔄 Manual refresh triggered')
@@ -889,10 +943,11 @@ export default function UserManagement({ preSelectedUserId }: UserManagementProp
                           required
                         >
                           <option value="">Select Batch Year</option>
-                          <option value="2022">2022 (4th Year)</option>
-                          <option value="2023">2023 (3rd Year)</option>
-                          <option value="2024">2024 (2nd Year)</option>
-                          <option value="2025">2025 (1st Year)</option>
+                          {getValidBatchYears().map(yr => (
+                            <option key={yr} value={String(yr)}>
+                              {yr} — {getYearLabelForBatch(yr)}, Sem {getSemesterForBatch(yr)}
+                            </option>
+                          ))}
                         </select>
                       </div>
                       

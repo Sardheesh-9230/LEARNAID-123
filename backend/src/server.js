@@ -42,6 +42,9 @@ const publicAnalyticsRoutes = require('./routes/publicAnalytics'); // Public Ana
 const coAnalyticsRoutes = require('./routes/coAnalytics'); // CO-wise Analytics for Faculty
 const taskAssessmentRoutes = require('./routes/taskAssessment'); // Task Assessment Wizard with CO-specific Question Generation
 
+// Discussion Routes
+const discussionRoutes = require('./routes/discussions');
+
 // Student Module Routes
 const chatbotRoutes = require('./routes/chatbot');
 
@@ -157,6 +160,7 @@ app.use('/api', taskAssessmentRoutes); // Task Assessment Wizard Routes (include
 
 // Student Module Routes
 app.use('/api/chatbot', chatbotRoutes);
+app.use('/api/discussions', discussionRoutes);
 
 // Error handling middleware
 app.use(notFound);

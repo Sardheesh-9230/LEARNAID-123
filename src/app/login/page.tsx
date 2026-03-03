@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import apiService from '../../services/api'
+import Logo from '@/components/Logo'
 
 export default function LoginPage() {
   const [formData, setFormData] = useState({
@@ -108,96 +109,27 @@ export default function LoginPage() {
     }
   }
 
-  const fillDemoCredentials = (role: 'admin' | 'faculty' | 'student') => {
-    setSelectedRole(role)
-    switch (role) {
-      case 'admin':
-        setFormData({
-          email: 'admin@learnaid.edu',
-          password: 'admin123'
-        })
-        break
-      case 'faculty':
-        setFormData({
-          email: 'priya.sharma@learnaid.edu',
-          password: 'faculty123'
-        })
-        break
-      case 'student':
-        setFormData({
-          email: 'arjun.patel@student.learnaid.edu',
-          password: 'student123'
-        })
-        break
-    }
-  }
-
   return (
-    <div className="min-h-screen flex bg-gradient-to-br from-gray-50 via-blue-50 to-indigo-50">
+    <div className="min-h-screen flex bg-gradient-to-br from-gray-50 via-blue-50 to-slate-100">
       {/* Left Side - Platform Info */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 p-12 relative overflow-hidden">
-        {/* Animated Background */}
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute top-20 left-20 w-72 h-72 bg-white rounded-full blur-3xl animate-pulse"></div>
-          <div className="absolute bottom-20 right-20 w-96 h-96 bg-white rounded-full blur-3xl animate-pulse" style={{animationDelay: '1s'}}></div>
-        </div>
-        
-        <div className="relative z-10 flex flex-col justify-center max-w-xl mx-auto w-full">
-          {/* Logo & Title */}
-          <div className="mb-12">
-            <div className="flex items-center space-x-4 mb-6">
-              <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-2xl">
-                <span className="text-blue-600 font-bold text-3xl">L</span>
-              </div>
-              <div>
-                <h1 className="text-5xl font-bold text-white">LearnAID</h1>
-                <p className="text-blue-100 text-sm">Intelligent Learning Platform</p>
-              </div>
-            </div>
-            <p className="text-xl text-white/90 leading-relaxed">
-              Admin-centric educational platform with AI-powered performance tracking and personalized learning support.
-            </p>
-          </div>
+      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden rounded-r-[2.5rem] shadow-[8px_0_40px_0_rgba(0,0,0,0.35)]" style={{zIndex: 1}}>
+        {/* Full-bleed background video */}
+        <video
+          autoPlay
+          loop
+          muted
+          playsInline
+          className="absolute inset-0 w-full h-full object-cover"
+        >
+          <source src="/Learn_AID_Video.mp4" type="video/mp4" />
+        </video>
 
-          {/* Feature Cards */}
-          <div className="space-y-4">
-            {[
-              { icon: '👑', title: 'Admin Control', desc: 'Hierarchical management system', delay: '0s' },
-              { icon: '📝', title: 'CIA Exam System', desc: 'Chapter-wise performance tracking', delay: '0.2s' },
-              { icon: '🤖', title: 'AI Task Generator', desc: 'Personalized MCQ generation', delay: '0.4s' },
-              { icon: '💬', title: 'RAG Chatbot', desc: 'Smart learning assistant', delay: '0.6s' }
-            ].map((feature, index) => (
-              <div
-                key={index}
-                className="bg-white/10 backdrop-blur-md rounded-xl p-5 border border-white/20 hover:bg-white/20 transition-all cursor-pointer"
-                style={{
-                  animation: `slideIn 0.5s ease-out ${feature.delay} both`
-                }}
-              >
-                <div className="flex items-center space-x-4">
-                  <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center text-2xl">
-                    {feature.icon}
-                  </div>
-                  <div>
-                    <div className="text-white font-semibold text-lg">{feature.title}</div>
-                    <div className="text-blue-100 text-sm">{feature.desc}</div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+        {/* Gradient overlay: dark at bottom for text, subtle at top */}
+        <div className="absolute inset-0 bg-gradient-to-b from-blue-950/80 via-transparent to-transparent" />
 
-          {/* Tech Stack */}
-          <div className="mt-12 pt-8 border-t border-white/20">
-            <p className="text-blue-100 text-sm mb-4">Powered by:</p>
-            <div className="flex flex-wrap gap-3">
-              {['React', 'Next.js', 'Node.js', 'MySQL', 'AI/LLM'].map((tech) => (
-                <span key={tech} className="px-4 py-2 bg-white/10 rounded-lg text-white text-sm font-medium border border-white/20">
-                  {tech}
-                </span>
-              ))}
-            </div>
-          </div>
+        {/* Content pinned to bottom */}
+        <div className="relative z-10 flex flex-col justify-start w-full p-10 pt-10">
+          <Logo size="xl" showText={true} variant="light" className="justify-start" />
         </div>
       </div>
 
@@ -206,12 +138,9 @@ export default function LoginPage() {
         <div className="max-w-md w-full">
           {/* Mobile Logo */}
           <div className="lg:hidden text-center mb-8">
-            <div className="w-16 h-16 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
-              <span className="text-white font-bold text-2xl">L</span>
+            <div className="flex justify-center">
+              <Logo size="lg" showText={true} variant="default" />
             </div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-              LearnAID
-            </h1>
           </div>
 
           {/* Login Card */}
@@ -227,7 +156,7 @@ export default function LoginPage() {
               <div className="grid grid-cols-3 gap-3">
                 {[
                   { role: 'admin' as const, icon: '👑', label: 'Admin', color: 'blue' },
-                  { role: 'faculty' as const, icon: '👨‍🏫', label: 'Faculty', color: 'purple' },
+                  { role: 'faculty' as const, icon: '👨‍🏫', label: 'Faculty', color: 'indigo' },
                   { role: 'student' as const, icon: '👨‍🎓', label: 'Student', color: 'green' }
                 ].map((item) => (
                   <button
@@ -292,7 +221,7 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white py-4 px-6 rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+                className="w-full bg-gradient-to-r from-blue-700 to-blue-900 hover:from-blue-800 hover:to-blue-900 text-white py-4 px-6 rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
               >
                 {isLoading ? (
                   <div className="flex items-center justify-center">
@@ -307,79 +236,6 @@ export default function LoginPage() {
                 )}
               </button>
             </form>
-
-            {/* Development Credentials */}
-            <div className="mt-6 p-4 bg-gradient-to-br from-amber-50 to-orange-50 border-2 border-amber-200 rounded-xl">
-              <div className="flex items-center justify-center mb-3">
-                <span className="text-xs font-bold text-amber-800 bg-amber-200 px-3 py-1 rounded-full">
-                  🔧 Development Mode
-                </span>
-              </div>
-              <p className="text-xs text-amber-700 text-center font-semibold mb-3">
-                Quick Login Credentials (Remove in Production)
-              </p>
-              <div className="space-y-2">
-                <div className="bg-white rounded-lg p-3 border border-amber-200">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
-                      <span className="text-lg">👑</span>
-                      <span className="font-bold text-xs text-gray-700">Admin</span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => fillDemoCredentials('admin')}
-                      className="text-xs bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded-md font-semibold transition-colors"
-                    >
-                      Use
-                    </button>
-                  </div>
-                  <div className="mt-2 space-y-1">
-                    <p className="text-[10px] font-mono text-gray-600">📧 admin@learnaid.edu</p>
-                    <p className="text-[10px] font-mono text-gray-600">🔒 admin123</p>
-                  </div>
-                </div>
-
-                <div className="bg-white rounded-lg p-3 border border-amber-200">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
-                      <span className="text-lg">👨‍🏫</span>
-                      <span className="font-bold text-xs text-gray-700">Faculty</span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => fillDemoCredentials('faculty')}
-                      className="text-xs bg-purple-500 hover:bg-purple-600 text-white px-3 py-1 rounded-md font-semibold transition-colors"
-                    >
-                      Use
-                    </button>
-                  </div>
-                  <div className="mt-2 space-y-1">
-                    <p className="text-[10px] font-mono text-gray-600">📧 priya.sharma@learnaid.edu</p>
-                    <p className="text-[10px] font-mono text-gray-600">🔒 faculty123</p>
-                  </div>
-                </div>
-
-                <div className="bg-white rounded-lg p-3 border border-amber-200">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
-                      <span className="text-lg">👨‍🎓</span>
-                      <span className="font-bold text-xs text-gray-700">Student</span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => fillDemoCredentials('student')}
-                      className="text-xs bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded-md font-semibold transition-colors"
-                    >
-                      Use
-                    </button>
-                  </div>
-                  <div className="mt-2 space-y-1">
-                    <p className="text-[10px] font-mono text-gray-600">📧 arjun.patel@student.learnaid.edu</p>
-                    <p className="text-[10px] font-mono text-gray-600">🔒 student123</p>
-                  </div>
-                </div>
-              </div>
-            </div>
 
             {/* Back to Home */}
             <div className="mt-6 text-center">

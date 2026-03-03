@@ -114,15 +114,17 @@ const HierarchicalDepartmentManagement: React.FC = () => {
   // Subject form states
   const [showSubjectForm, setShowSubjectForm] = useState(false);
   const [editingSubject, setEditingSubject] = useState<Subject | null>(null);
+  const [subjectFormError, setSubjectFormError] = useState<string | null>(null);
   const [subjectForm, setSubjectForm] = useState({
     name: '',
     code: '',
     type: 'Theory' as 'Theory' | 'TCPR' | 'TCPL' | 'Elective' | 'Core',
     year: '1st Year' as '1st Year' | '2nd Year' | '3rd Year' | '4th Year',
-    section: 'A' as 'A' | 'B' | 'C',
+    section: 'A' as string,
     credits: 3,
     semester: 1,
-    description: ''
+    description: '',
+    academicYear: new Date().getFullYear() + '-' + (new Date().getFullYear() + 1)
   });
 
   // Available sections and faculty for subject creation
@@ -587,16 +589,21 @@ const HierarchicalDepartmentManagement: React.FC = () => {
   // Subject CRUD
   const handleCreateSubject = async () => {
     await loadSubjectCreationData();
+    // availableSections is set synchronously inside loadSubjectCreationData via setAvailableSections,
+    // but React state update isn't flushed yet — read directly from selectedDepartment instead.
+    const sections = selectedDepartment?.sections?.length ? selectedDepartment.sections : ['A'];
     setSubjectForm({ 
       name: '', 
       code: '', 
       type: 'Theory',
       year: '1st Year',
-      section: availableSections[0] as any,
+      section: sections[0],
       credits: 3, 
       semester: 1, 
-      description: ''
+      description: '',
+      academicYear: new Date().getFullYear() + '-' + (new Date().getFullYear() + 1)
     });
+    setSubjectFormError(null);
     setEditingSubject(null);
     setShowSubjectForm(true);
   };
@@ -612,9 +619,11 @@ const HierarchicalDepartmentManagement: React.FC = () => {
       section: subject.section,
       credits: subject.credits,
       semester: subject.semester,
-      description: subject.description || ''
+      description: subject.description || '',
+      academicYear: (subject as any).academicYear || (new Date().getFullYear() + '-' + (new Date().getFullYear() + 1))
     });
     
+    setSubjectFormError(null);
     setEditingSubject(subject);
     setShowSubjectForm(true);
   };
@@ -622,9 +631,30 @@ const HierarchicalDepartmentManagement: React.FC = () => {
   const handleSaveSubject = async () => {
     if (!selectedDepartment) return;
 
+    // Front-end validation
+    if (!subjectForm.name.trim()) {
+      setSubjectFormError('Subject name is required.');
+      return;
+    }
+    if (!subjectForm.code.trim()) {
+      setSubjectFormError('Subject code is required.');
+      return;
+    }
+    if (subjectForm.code.trim().length < 2) {
+      setSubjectFormError('Subject code must be at least 2 characters.');
+      return;
+    }
+    if (!subjectForm.section) {
+      setSubjectFormError('Section is required.');
+      return;
+    }
+    setSubjectFormError(null);
+
     try {
       const subjectData = {
         ...subjectForm,
+        code: subjectForm.code.trim().toUpperCase(),
+        name: subjectForm.name.trim(),
         department: selectedDepartment._id
       };
 
@@ -638,14 +668,16 @@ const HierarchicalDepartmentManagement: React.FC = () => {
       if (response.success) {
         fetchSubjects(selectedDepartment._id);
         setShowSubjectForm(false);
+        setSubjectFormError(null);
         setError(null);
         setSuccess(editingSubject ? 'Subject updated successfully!' : 'Subject created successfully!');
         setTimeout(() => setSuccess(null), 3000);
       } else {
-        setError(response.message || 'Failed to save subject');
+        // Show error inside the modal so user can see it without closing
+        setSubjectFormError(response.message || 'Failed to save subject');
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to save subject');
+      setSubjectFormError(err.message || 'Failed to save subject');
     }
   };
 
@@ -1632,8 +1664,10 @@ const HierarchicalDepartmentManagement: React.FC = () => {
                 section: selectedClass.section as any,
                 credits: 3,
                 semester: 1,
-                description: ''
+                description: '',
+                academicYear: new Date().getFullYear() + '-' + (new Date().getFullYear() + 1)
               });
+              setSubjectFormError(null);
               setEditingSubject(null);
               setShowSubjectForm(true);
             }}
@@ -1746,8 +1780,10 @@ const HierarchicalDepartmentManagement: React.FC = () => {
                             section: subject.section,
                             credits: subject.credits,
                             semester: subject.semester,
-                            description: subject.description || ''
+                            description: subject.description || '',
+                            academicYear: (subject as any).academicYear || (new Date().getFullYear() + '-' + (new Date().getFullYear() + 1))
                           });
+                          setSubjectFormError(null);
                           setShowSubjectForm(true);
                         }}
                         className="text-blue-600 hover:text-blue-800"
@@ -2323,6 +2359,11 @@ const HierarchicalDepartmentManagement: React.FC = () => {
             <h3 className="text-xl font-bold mb-4">
               {editingSubject ? 'Edit Subject' : 'Create Subject'}
             </h3>
+            {subjectFormError && (
+              <div className="bg-red-50 border border-red-300 text-red-700 px-4 py-3 rounded-lg text-sm mb-2">
+                {subjectFormError}
+              </div>
+            )}
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -2392,9 +2433,9 @@ const HierarchicalDepartmentManagement: React.FC = () => {
                     onChange={(e) => setSubjectForm({ ...subjectForm, section: e.target.value as any })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   >
-                    <option value="A">A</option>
-                    <option value="B">B</option>
-                    <option value="C">C</option>
+                    {(availableSections.length > 0 ? availableSections : ['A', 'B', 'C']).map(sec => (
+                      <option key={sec} value={sec}>{sec}</option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -2430,6 +2471,18 @@ const HierarchicalDepartmentManagement: React.FC = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Academic Year *
+                </label>
+                <input
+                  type="text"
+                  value={subjectForm.academicYear}
+                  onChange={(e) => setSubjectForm({ ...subjectForm, academicYear: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder="e.g., 2025-2026"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
                   Description
                 </label>
                 <textarea
@@ -2446,6 +2499,7 @@ const HierarchicalDepartmentManagement: React.FC = () => {
                 onClick={() => {
                   setShowSubjectForm(false);
                   setEditingSubject(null);
+                  setSubjectFormError(null);
                 }}
                 className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
               >
@@ -2552,8 +2606,10 @@ const HierarchicalDepartmentManagement: React.FC = () => {
                     section: classForm.section as any,
                     credits: 3,
                     semester: classForm.semester,
-                    description: ''
+                    description: '',
+                    academicYear: new Date().getFullYear() + '-' + (new Date().getFullYear() + 1)
                   });
+                  setSubjectFormError(null);
                   
                   // Show subject form
                   setTimeout(() => {

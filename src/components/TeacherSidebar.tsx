@@ -75,6 +75,13 @@ export default function TeacherSidebar({ activeTab, onTabChange, isExpanded = tr
       icon: '✅',
       description: 'Student Tasks',
       color: 'from-yellow-500 to-yellow-600'
+    },
+    {
+      id: 'discussions',
+      title: 'Discussions',
+      icon: '💬',
+      description: 'Student Q&A',
+      color: 'from-indigo-500 to-indigo-600'
     }
   ]
 

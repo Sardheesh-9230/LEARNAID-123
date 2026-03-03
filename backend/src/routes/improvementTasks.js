@@ -197,7 +197,7 @@ router.get('/student/:studentId', protect, async (req, res) => {
     const { studentId } = req.params
     
     // Verify access (student can only view their own tasks, faculty/admin can view any)
-    if (req.user.id !== studentId && !['faculty', 'admin'].includes(req.user.role)) {
+    if (req.user.id !== studentId && !['Faculty', 'Admin'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
         message: 'Access denied'
@@ -234,7 +234,7 @@ router.get('/student/:studentId/improvement', protect, async (req, res) => {
     const { studentId } = req.params
     
     // Verify access (student can only view their own tasks, faculty/admin can view any)
-    if (req.user.id !== studentId && !['faculty', 'admin'].includes(req.user.role)) {
+    if (req.user.id !== studentId && !['Faculty', 'Admin'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
         message: 'Access denied'
@@ -256,6 +256,18 @@ router.get('/student/:studentId/improvement', protect, async (req, res) => {
     .populate('studentAssignments.student', 'name email rollNumber')
     .sort({ createdAt: -1 })
 
+    // ── Helper: normalize a question so it always has a non-empty 'question' field ──
+    // Questions may be stored under different field names depending on which
+    // generator created them (question, questionText, text, title, content, etc.)
+    const normalizeQuestionText = (q) => {
+      if (!q) return q
+      const text = q.question || q.questionText || q.text || q.title || q.content || ''
+      return { ...q, question: text, questionText: text }
+    }
+
+    const normalizeQuestions = (qs) =>
+      Array.isArray(qs) ? qs.map(normalizeQuestionText) : qs
+
     // Transform tasks to show only THIS student's personalized content
     const personalizedTasks = tasks.map(task => {
       const taskObj = task.toObject()
@@ -263,10 +275,12 @@ router.get('/student/:studentId/improvement', protect, async (req, res) => {
       // For multi-student tasks, extract only this student's assignment
       if (taskObj.studentAssignments && taskObj.studentAssignments.length > 0) {
         const studentAssignment = taskObj.studentAssignments.find(
-          a => a.student._id.toString() === studentId
+          // Handle both populated (a.student is an object) and unpopulated (a.student is an ObjectId)
+          a => (a.student?._id?.toString() || a.student?.toString()) === studentId
         )
         
         if (studentAssignment) {
+          const normalizedPersonalizedQs = normalizeQuestions(studentAssignment.personalizedQuestions)
           // Return task with ONLY this student's questions and data
           return {
             ...taskObj,
@@ -274,7 +288,7 @@ router.get('/student/:studentId/improvement', protect, async (req, res) => {
             student: studentAssignment.student,
             personalizedData: {
               weakCOs: studentAssignment.weakCOs,
-              questions: studentAssignment.personalizedQuestions,
+              questions: normalizedPersonalizedQs,
               totalMarks: studentAssignment.totalMarks,
               status: studentAssignment.status,
               attemptCount: studentAssignment.attemptCount,
@@ -285,8 +299,8 @@ router.get('/student/:studentId/improvement', protect, async (req, res) => {
               ...taskObj.metadata,
               generatedMCQs: {
                 ...taskObj.metadata?.generatedMCQs,
-                totalQuestions: studentAssignment.personalizedQuestions.length,
-                questions: studentAssignment.personalizedQuestions
+                totalQuestions: normalizedPersonalizedQs.length,
+                questions: normalizedPersonalizedQs
               },
               teacherSettings: {
                 ...taskObj.metadata?.teacherSettings,
@@ -296,11 +310,21 @@ router.get('/student/:studentId/improvement', protect, async (req, res) => {
           }
         }
       }
-      
-      // For single-student tasks, return as is
+
+      // For single-student tasks, normalize the metadata.generatedMCQs.questions too
+      const singleGenMCQs = taskObj.metadata?.generatedMCQs
       return {
         ...taskObj,
-        isMultiStudent: false
+        isMultiStudent: false,
+        metadata: {
+          ...taskObj.metadata,
+          ...(singleGenMCQs && {
+            generatedMCQs: {
+              ...singleGenMCQs,
+              questions: normalizeQuestions(singleGenMCQs.questions)
+            }
+          })
+        }
       }
     })
 
@@ -337,7 +361,7 @@ router.put('/:taskId/progress', protect, async (req, res) => {
     // Verify access (student can update their own task, faculty can update any)
     let hasAccess = false
     
-    if (['faculty', 'admin'].includes(req.user.role)) {
+    if (['Faculty', 'Admin'].includes(req.user.role)) {
       hasAccess = true
     } else {
       // For single-student tasks
@@ -409,6 +433,7 @@ router.put('/:taskId/progress', protect, async (req, res) => {
 
     const updatedTask = await ImprovementTask.findById(taskId)
       .populate('student', 'name email rollNumber')
+      .populate('studentAssignments.student', 'name email rollNumber')
       .populate('subject', 'name code credits')
       .populate('assignedBy', 'name email')
 
@@ -899,7 +924,7 @@ router.post('/:taskId/submit-mcq', protect, async (req, res) => {
       questions = studentAssignment.personalizedQuestions || []
     } else {
       // Single-student task
-      if (req.user.id !== task.student.toString() && !['faculty', 'admin'].includes(req.user.role)) {
+      if (req.user.id !== task.student.toString() && !['Faculty', 'Admin'].includes(req.user.role)) {
         return res.status(403).json({ success: false, message: 'Access denied' })
       }
       
@@ -910,6 +935,17 @@ router.post('/:taskId/submit-mcq', protect, async (req, res) => {
       return res.status(400).json({ success: false, message: 'No questions found' })
     }
 
+    // Filter to MCQ-only questions for scoring.
+    // Coding and Short Answer questions are graded via their own dedicated routes
+    // and must not be counted against the student's MCQ score.
+    const mcqQuestions = questions.filter(q => !q.questionType || q.questionType === 'MCQ')
+    if (mcqQuestions.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'This task has no MCQ questions. Use the coding/short-answer submission instead.'
+      })
+    }
+
     // Calculate results
     let correctAnswers = 0
     let totalMarks = 0
@@ -917,7 +953,7 @@ router.post('/:taskId/submit-mcq', protect, async (req, res) => {
     const detailedResults = []
     const coWiseResults = {}
 
-    questions.forEach((q, index) => {
+    mcqQuestions.forEach((q, index) => {
       const questionId = q.id || 'q_' + (index + 1)
       const studentAnswer = answers[questionId]
       const correctAnswer = q.correctAnswer
@@ -973,7 +1009,7 @@ router.post('/:taskId/submit-mcq', protect, async (req, res) => {
       score: percentage,
       percentage,
       timestamp: new Date(),
-      totalQuestions: questions.length,
+      totalQuestions: mcqQuestions.length,
       correctAnswers,
       totalMarks,
       obtainedMarks,
@@ -1045,7 +1081,7 @@ router.post('/:taskId/submit-mcq', protect, async (req, res) => {
       data: updatedTask,
       results: {
         attemptNumber: scoreEntry.attemptNumber,
-        totalQuestions: questions.length,
+        totalQuestions: mcqQuestions.length,
         correctAnswers,
         totalMarks,
         obtainedMarks,
@@ -1154,6 +1190,109 @@ router.get('/faculty/my-tasks', protect, async (req, res) => {
       message: 'Failed to fetch faculty tasks',
       error: error.message
     })
+  }
+})
+
+// ─── Coding Question: Submit code and run test cases ──────────────────────────
+const { spawnSync } = require('child_process')
+const fs = require('fs')
+const path = require('path')
+const os = require('os')
+
+function executeCode(code, language, input) {
+  const tmpDir = os.tmpdir()
+  const ext = { Python: 'py', JavaScript: 'js', Java: 'java', 'C++': 'cpp', C: 'c' }[language] || 'py'
+  const fileName = `learnaid_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`
+  const filePath = path.join(tmpDir, fileName)
+  try {
+    fs.writeFileSync(filePath, code, 'utf8')
+    let result
+    const opts = { input: input || '', timeout: 5000, encoding: 'utf8' }
+    if (language === 'Python') {
+      result = spawnSync('python', [filePath], opts)
+      if (result.error?.code === 'ENOENT') result = spawnSync('python3', [filePath], opts)
+    } else if (language === 'JavaScript') {
+      result = spawnSync('node', [filePath], opts)
+    } else if (language === 'Java') {
+      const javaFile = path.join(tmpDir, 'Solution.java')
+      fs.writeFileSync(javaFile, code, 'utf8')
+      const comp = spawnSync('javac', [javaFile], { timeout: 10000, encoding: 'utf8', cwd: tmpDir })
+      if (comp.status !== 0) return { stdout: '', stderr: comp.stderr || 'Compilation error', timedOut: false }
+      result = spawnSync('java', ['-cp', tmpDir, 'Solution'], opts)
+    } else {
+      return { stdout: '', stderr: `Language '${language}' not supported yet`, timedOut: false }
+    }
+    return { stdout: (result.stdout || '').trim(), stderr: (result.stderr || '').trim(), timedOut: result.status === null }
+  } catch (err) {
+    return { stdout: '', stderr: err.message, timedOut: false }
+  } finally {
+    try { fs.unlinkSync(filePath) } catch (_) {}
+  }
+}
+
+router.post('/:taskId/submit-coding', protect, async (req, res) => {
+  try {
+    const { taskId } = req.params
+    const { questionId, code, language = 'Python' } = req.body
+    if (!code || !questionId) return res.status(400).json({ success: false, message: 'code and questionId are required' })
+
+    const task = await ImprovementTask.findById(taskId)
+    if (!task) return res.status(404).json({ success: false, message: 'Task not found' })
+
+    const isOwner = task.student?.toString() === req.user.id ||
+      (task.studentAssignments || []).some(a => a.student?.toString() === req.user.id)
+    if (!isOwner && !['Faculty', 'Admin'].includes(req.user.role)) {
+      return res.status(403).json({ success: false, message: 'Access denied' })
+    }
+
+    const codingQ = (task.metadata?.codingQuestions || []).find(q => q.id === questionId)
+    if (!codingQ) return res.status(404).json({ success: false, message: 'Coding question not found' })
+
+    const testCases = codingQ.testCases || []
+    const results = testCases.map((tc, idx) => {
+      const { stdout, stderr, timedOut } = executeCode(code, language, tc.input || '')
+      const expected = (tc.expectedOutput || '').trim()
+      const actual = (stdout || '').trim()
+      const passed = !timedOut && !stderr && actual === expected
+      return {
+        testCase: idx + 1,
+        passed,
+        input: tc.isHidden ? '(hidden)' : (tc.input || ''),
+        expectedOutput: tc.isHidden ? '(hidden)' : expected,
+        yourOutput: tc.isHidden ? (passed ? '✓ Correct' : '✗ Wrong') : actual,
+        marks: passed ? (tc.marks || 2) : 0,
+        error: timedOut ? 'Time limit exceeded (5s)' : (stderr || null),
+        isHidden: !!tc.isHidden
+      }
+    })
+
+    const passedCount = results.filter(r => r.passed).length
+    const totalCount = results.length
+    const marksAwarded = results.reduce((s, r) => s + r.marks, 0)
+    const allPassed = passedCount === totalCount
+
+    if (!task.metadata.codingSubmissions) task.metadata.codingSubmissions = []
+    // Remove previous submission for same question (keep latest only)
+    task.metadata.codingSubmissions = task.metadata.codingSubmissions.filter(s => s.questionId !== questionId)
+    task.metadata.codingSubmissions.push({ questionId, code, language, timestamp: new Date(), testCasesPassed: passedCount, testCasesTotal: totalCount, marksAwarded, allPassed })
+
+    if (allPassed) {
+      task.progressPercentage = Math.min((task.progressPercentage || 0) + 50, 100)
+      if (task.progressPercentage >= 100) { task.status = 'Completed'; task.completedAt = new Date() }
+    }
+
+    task.markModified('metadata')
+    await task.save()
+
+    return res.json({
+      success: true, allPassed, passedCount, totalCount, marksAwarded,
+      totalMarks: codingQ.marks,
+      results,
+      message: allPassed ? `🎉 All ${totalCount} test cases passed! ${marksAwarded} marks awarded.` : `${passedCount}/${totalCount} test cases passed. Keep trying!`
+    })
+  } catch (error) {
+    console.error('Error in submit-coding:', error)
+    res.status(500).json({ success: false, message: 'Code execution failed', error: error.message })
   }
 })
 

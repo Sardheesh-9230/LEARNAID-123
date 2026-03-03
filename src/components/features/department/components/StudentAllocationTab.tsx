@@ -33,18 +33,22 @@ export default function StudentAllocationTab({
     const [showAssignPopup, setShowAssignPopup] = useState(false)
     const [selectedStudentForAction, setSelectedStudentForAction] = useState<User | null>(null)
 
-    // Helper function to get academic year from batch
+    // Academic year starts in July. Before July = still in previous academic year.
+    // e.g. Feb 2026 → effectiveYear = 2025 → batch 2025 = 1st Year (not 2nd)
     const getAcademicYear = (batch: string): string => {
-        const currentYear = 2025;
+        const now = new Date();
+        const currentMonth = now.getMonth() + 1; // 1-12
+        const currentYear = now.getFullYear();
+        const effectiveYear = currentMonth < 7 ? currentYear - 1 : currentYear;
         const batchYear = parseInt(batch);
-        const yearOfStudy = currentYear - batchYear + 1;
+        const yearOfStudy = effectiveYear - batchYear + 1;
 
         switch (yearOfStudy) {
             case 1: return '1st Year';
             case 2: return '2nd Year';
             case 3: return '3rd Year';
             case 4: return '4th Year';
-            default: return `${yearOfStudy}th Year`;
+            default: return yearOfStudy > 4 ? '4th Year' : '1st Year';
         }
     };
 

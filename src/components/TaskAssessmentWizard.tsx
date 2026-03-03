@@ -11,7 +11,15 @@ import apiService from '../services/api'
 interface COConfig {
   courseOutcome: string
   coNumber: number
-  numberOfQuestions: number
+  
+  // Question type configuration
+  questionType: 'MCQ' | 'Short Answer' | 'Coding' | 'Mixed'
+  mcqCount: number
+  shortAnswerCount: number
+  codingCount: number
+  programmingLanguage: 'Python' | 'Java' | 'JavaScript' | 'C++' | 'C'
+ 
+  numberOfQuestions: number // total
   marksPerQuestion: number
   totalMarks: number
   difficulty: 'Easy' | 'Medium' | 'Hard' | 'Mixed'
@@ -110,6 +118,14 @@ export default function TaskAssessmentWizard({
     const configs: COConfig[] = cos.map((co, index) => ({
       courseOutcome: co,
       coNumber: index + 1,
+      
+      // Question type defaults
+      questionType: 'MCQ',
+      mcqCount: 5,
+      shortAnswerCount: 0,
+      codingCount: 0,
+      programmingLanguage: 'Python',
+      
       numberOfQuestions: 5,
       marksPerQuestion: 2,
       totalMarks: 10,
@@ -133,12 +149,43 @@ export default function TaskAssessmentWizard({
   const updateCOConfig = (index: number, updates: Partial<COConfig>) => {
     setCOConfigs(prev => {
       const newConfigs = [...prev]
+      const config = newConfigs[index]
+      
+      // Handle question type changes
+      if (updates.questionType) {
+        if (updates.questionType === 'MCQ') {
+          updates.mcqCount = config.numberOfQuestions
+          updates.shortAnswerCount = 0
+          updates.codingCount = 0
+        } else if (updates.questionType === 'Short Answer') {
+          updates.mcqCount = 0
+          updates.shortAnswerCount = config.numberOfQuestions
+          updates.codingCount = 0
+        } else if (updates.questionType === 'Coding') {
+          updates.mcqCount = 0
+          updates.shortAnswerCount = 0
+          updates.codingCount = config.numberOfQuestions
+        } else if (updates.questionType === 'Mixed') {
+          // Default mixed distribution
+          const total = config.numberOfQuestions
+          updates.mcqCount = Math.ceil(total * 0.5)
+          updates.shortAnswerCount = Math.ceil(total * 0.3)
+          updates.codingCount = Math.max(1, total - updates.mcqCount - updates.shortAnswerCount)
+        }
+      }
+      
+      // Update total questions if individual counts change
+      if (updates.mcqCount !== undefined || updates.shortAnswerCount !== undefined || updates.codingCount !== undefined) {
+        const mcq = updates.mcqCount ?? config.mcqCount
+        const shortAnswer = updates.shortAnswerCount ?? config.shortAnswerCount
+        const coding = updates.codingCount ?? config.codingCount
+        updates.numberOfQuestions = mcq + shortAnswer + coding
+      }
+      
       newConfigs[index] = {
-        ...newConfigs[index],
+        ...config,
         ...updates,
-        totalMarks: updates.numberOfQuestions && updates.marksPerQuestion 
-          ? updates.numberOfQuestions * updates.marksPerQuestion
-          : newConfigs[index].totalMarks
+        totalMarks: (updates.numberOfQuestions ?? config.numberOfQuestions) * (updates.marksPerQuestion ?? config.marksPerQuestion)
       }
       return newConfigs
     })
@@ -208,37 +255,73 @@ export default function TaskAssessmentWizard({
     updateCOConfig(index, { generating: true })
 
     try {
-      // Choose endpoint based on generation mode
-      const endpoint = config.generateWithoutMaterials 
-        ? '/mcq-generator/generate-without-materials'
-        : '/mcq-generator/generate-co-specific'
+      let response: any
+      const materialId = config.selectedMaterialIds.length > 0 ? config.selectedMaterialIds[0] : null
       
-      const requestBody: any = {
-        subjectId,
-        subjectName,
-        courseOutcome: config.courseOutcome,
-        coNumber: config.coNumber,
-        topics: config.topics,
-        numberOfQuestions: config.numberOfQuestions,
-        difficulty: config.difficulty,
-        marksPerQuestion: config.marksPerQuestion
+      // Generate based on question type
+      if (config.questionType === 'MCQ') {
+        const endpoint = config.generateWithoutMaterials 
+          ? '/mcq-generator/generate-without-materials'
+          : '/mcq-generator/generate-co-specific'
+        
+        const requestBody: any = {
+          subjectId,
+          subjectName,
+          courseOutcome: config.courseOutcome,
+          coNumber: config.coNumber,
+          topics: config.topics,
+          numberOfQuestions: config.numberOfQuestions,
+          difficulty: config.difficulty,
+          marksPerQuestion: config.marksPerQuestion
+        }
+        
+        if (!config.generateWithoutMaterials) {
+          requestBody.materialIds = config.selectedMaterialIds
+        }
+        
+        response = await apiService.makeRequest(endpoint, {
+          method: 'POST',
+          body: JSON.stringify(requestBody)
+        })
+      } else if (config.questionType === 'Short Answer') {
+        response = await apiService.makeRequest('/question-generator/generate-short-answer', {
+          method: 'POST',
+          body: JSON.stringify({
+            topics: config.topics.join(', '),
+            courseOutcome: config.courseOutcome,
+            difficulty: config.difficulty,
+            numberOfQuestions: config.numberOfQuestions,
+            maxWords: 200,
+            materialId: config.generateWithoutMaterials ? null : materialId
+          })
+        })
+      } else if (config.questionType === 'Coding') {
+        response = await apiService.makeRequest('/question-generator/generate-coding', {
+          method: 'POST',
+          body: JSON.stringify({
+            topics: config.topics.join(', '),
+            courseOutcome: config.courseOutcome,
+            difficulty: config.difficulty,
+            numberOfQuestions: config.numberOfQuestions,
+            programmingLanguage: config.programmingLanguage,
+            materialId: config.generateWithoutMaterials ? null : materialId
+          })
+        })
+      } else if (config.questionType === 'Mixed') {
+        response = await apiService.makeRequest('/question-generator/generate-mixed', {
+          method: 'POST',
+          body: JSON.stringify({
+            topics: config.topics.join(', '),
+            courseOutcome: config.courseOutcome,
+            difficulty: config.difficulty,
+            mcqCount: config.mcqCount,
+            shortAnswerCount: config.shortAnswerCount,
+            codingCount: config.codingCount,
+            programmingLanguage: config.programmingLanguage,
+            materialId: config.generateWithoutMaterials ? null : materialId
+          })
+        })
       }
-      
-      // Add materialIds only if using materials
-      if (!config.generateWithoutMaterials) {
-        requestBody.materialIds = config.selectedMaterialIds
-      }
-      
-      console.log(`🎯 Generating questions for ${config.courseOutcome}:`, {
-        mode: config.generateWithoutMaterials ? 'LLM Only' : 'RAG + LLM',
-        topics: config.topics,
-        questions: config.numberOfQuestions
-      })
-
-      const response = await apiService.makeRequest(endpoint, {
-        method: 'POST',
-        body: JSON.stringify(requestBody)
-      })
 
       if (response.success && response.questions) {
         updateCOConfig(index, { 
@@ -246,7 +329,7 @@ export default function TaskAssessmentWizard({
           generating: false
         })
         showNotification(
-          `Generated ${response.questions.length} questions for ${config.courseOutcome} using ${config.generateWithoutMaterials ? 'LLM only' : 'materials + LLM'}`, 
+          `Generated ${response.questions.length} ${config.questionType} questions for ${config.courseOutcome}`, 
           'success'
         )
       } else {
@@ -338,13 +421,38 @@ export default function TaskAssessmentWizard({
         const studentQuestions = coConfigs
           .filter(config => studentWeakCONumbers.includes(config.coNumber))
           .flatMap(config => 
-            config.generatedQuestions.map(q => ({
-              ...q,
-              courseOutcome: config.courseOutcome,
-              coNumber: config.coNumber,
-              marks: config.marksPerQuestion,
-              topics: q.topics || config.topics || []
-            }))
+            config.generatedQuestions.map(q => {
+              // Normalize options to string[] before sending to backend
+              let options: any = q.options;
+              if (typeof options === 'string') {
+                try {
+                  options = JSON.parse(options);
+                } catch (_) {
+                  // Extract optionText values via regex for JS-notation strings
+                  const matches = Array.from((options as string).matchAll(/optionText\s*:\s*['"]((?:[^'"\\]|\\.)*)['"]\s*,\s*isCorrect\s*:\s*(true|false)/g));
+                  if (matches.length > 0) {
+                    options = matches.map((m: any) => ({ optionText: m[1], isCorrect: m[2] === 'true' }));
+                  } else {
+                    options = [];
+                  }
+                }
+              }
+              if (Array.isArray(options)) {
+                options = options.map((o: any) =>
+                  typeof o === 'string' ? o : (o.optionText || o.text || String(o))
+                );
+              } else {
+                options = [];
+              }
+              return {
+                ...q,
+                options,
+                courseOutcome: config.courseOutcome,
+                coNumber: config.coNumber,
+                marks: config.marksPerQuestion,
+                topics: q.topics || config.topics || []
+              };
+            })
           )
         
         // Calculate total marks for this student
@@ -468,7 +576,88 @@ export default function TaskAssessmentWizard({
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="space-y-4">
+              {/* Question Type Selection */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Question Type
+                </label>
+                <select
+                  value={config.questionType}
+                  onChange={(e) => updateCOConfig(index, { questionType: e.target.value as any })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="MCQ">Multiple Choice Questions (MCQ)</option>
+                  <option value="Short Answer">Short Answer Questions</option>
+                  <option value="Coding">Coding Problems</option>
+                  <option value="Mixed">Mixed (MCQ + Short Answer + Coding)</option>
+                </select>
+              </div>
+
+              {/* Conditional inputs based on question type */}
+              {config.questionType === 'Mixed' && (
+                <div className="grid grid-cols-3 gap-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                  <div>
+                    <label className="block text-sm font-medium text-blue-900 mb-2">
+                      MCQ Count
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={config.mcqCount}
+                      onChange={(e) => updateCOConfig(index, { mcqCount: parseInt(e.target.value) || 0 })}
+                      className="w-full px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-blue-900 mb-2">
+                      Short Answer Count
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={config.shortAnswerCount}
+                      onChange={(e) => updateCOConfig(index, { shortAnswerCount: parseInt(e.target.value) || 0 })}
+                      className="w-full px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-blue-900 mb-2">
+                      Coding Count
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={config.codingCount}
+                      onChange={(e) => updateCOConfig(index, { codingCount: parseInt(e.target.value) || 0 })}
+                      className="w-full px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Programming Language for Coding questions */}
+              {(config.questionType === 'Coding' || config.questionType === 'Mixed') && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Programming Language
+                  </label>
+                  <select
+                    value={config.programmingLanguage}
+                    onChange={(e) => updateCOConfig(index, { programmingLanguage: e.target.value as any })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="Python">Python</option>
+                    <option value="Java">Java</option>
+                    <option value="JavaScript">JavaScript</option>
+                    <option value="C++">C++</option>
+                    <option value="C">C</option>
+                  </select>
+                </div>
+              )}
+            </div>
+
+            <div className="grid grid-cols-3 gap-4 mt-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Number of Questions
@@ -478,10 +667,14 @@ export default function TaskAssessmentWizard({
                   min="1"
                   max="50"
                   value={config.numberOfQuestions}
-                  onChange={(e) => updateCOConfig(index, { 
-                    numberOfQuestions: parseInt(e.target.value) || 1,
-                    totalMarks: (parseInt(e.target.value) || 1) * config.marksPerQuestion
-                  })}
+                  onChange={(e) => {
+                    const n = parseInt(e.target.value) || 1
+                    const typeSync: Record<string, any> = {}
+                    if (config.questionType === 'MCQ') typeSync.mcqCount = n
+                    else if (config.questionType === 'Short Answer') typeSync.shortAnswerCount = n
+                    else if (config.questionType === 'Coding') typeSync.codingCount = n
+                    updateCOConfig(index, { numberOfQuestions: n, totalMarks: n * config.marksPerQuestion, ...typeSync })
+                  }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 />
               </div>
@@ -844,9 +1037,25 @@ export default function TaskAssessmentWizard({
               {config.generatedQuestions.map((question, qIndex) => (
                 <div key={qIndex} className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
                   <div className="flex items-start justify-between mb-2">
-                    <p className="font-medium text-gray-900 flex-1">
-                      Q{qIndex + 1}. {question.question}
-                    </p>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded">
+                          {question.questionType || 'MCQ'}
+                        </span>
+                        {question.difficulty && (
+                          <span className={`px-2 py-1 text-xs font-medium rounded ${
+                            question.difficulty === 'Easy' ? 'bg-green-100 text-green-700' :
+                            question.difficulty === 'Hard' ? 'bg-red-100 text-red-700' :
+                            'bg-yellow-100 text-yellow-700'
+                          }`}>
+                            {question.difficulty}
+                          </span>
+                        )}
+                      </div>
+                      <p className="font-medium text-gray-900">
+                        Q{qIndex + 1}. {question.questionText || question.question}
+                      </p>
+                    </div>
                     <div className="flex gap-2 ml-4">
                       <button
                         onClick={() => regenerateQuestion(index, qIndex)}
@@ -864,25 +1073,95 @@ export default function TaskAssessmentWizard({
                       </button>
                     </div>
                   </div>
-                  <div className="space-y-1">
-                    {question.options.map((option: string, oIndex: number) => (
-                      <div
-                        key={oIndex}
-                        className={`text-sm p-2 rounded ${
-                          oIndex === question.correctAnswer
-                            ? 'bg-green-50 text-green-900 font-medium'
-                            : 'text-gray-700'
-                        }`}
-                      >
-                        {String.fromCharCode(65 + oIndex)}. {option}
-                      </div>
-                    ))}
-                  </div>
-                  <div className="mt-2 pt-2 border-t border-gray-200">
-                    <p className="text-xs text-gray-600">
-                      <strong>Explanation:</strong> {question.explanation}
-                    </p>
-                  </div>
+                  
+                  {/* MCQ Options — only show for MCQ type questions with actual options */}
+                  {(question.questionType === 'MCQ' || (!question.questionType && Array.isArray(question.options) && question.options.length > 0)) && (
+                    <div className="space-y-1 mt-3">
+                      {(question.options || []).map((option: any, oIndex: number) => {
+                        const optionText = typeof option === 'string' ? option : option.optionText
+                        const isCorrect = typeof option === 'object' ? option.isCorrect : oIndex === question.correctAnswer
+                        return (
+                          <div
+                            key={oIndex}
+                            className={`text-sm p-2 rounded ${
+                              isCorrect
+                                ? 'bg-green-50 text-green-900 font-medium'
+                                : 'text-gray-700'
+                            }`}
+                          >
+                            {String.fromCharCode(65 + oIndex)}. {optionText}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                  
+                  {/* Short Answer Expected Answer */}
+                  {question.questionType === 'Short Answer' && question.expectedAnswer && (
+                    <div className="mt-3 p-3 bg-blue-50 rounded border border-blue-200">
+                      <p className="text-xs font-medium text-blue-900 mb-1">Expected Answer:</p>
+                      <p className="text-sm text-blue-800">{question.expectedAnswer}</p>
+                      {question.keyPoints && question.keyPoints.length > 0 && (
+                        <div className="mt-2">
+                          <p className="text-xs font-medium text-blue-900 mb-1">Key Points:</p>
+                          <ul className="list-disc list-inside text-xs text-blue-800 space-y-0.5">
+                            {question.keyPoints.map((point: string, i: number) => (
+                              <li key={i}>{point}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* Coding Problem Details */}
+                  {question.questionType === 'Coding' && (
+                    <div className="mt-3 space-y-2">
+                      {question.programmingLanguage && (
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-medium text-gray-600">Language:</span>
+                          <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs font-medium rounded">
+                            {question.programmingLanguage}
+                          </span>
+                        </div>
+                      )}
+                      {question.sampleInput && (
+                        <div className="p-2 bg-gray-100 rounded">
+                          <p className="text-xs font-medium text-gray-700">Sample Input:</p>
+                          <pre className="text-xs text-gray-800 mt-1">{question.sampleInput}</pre>
+                        </div>
+                      )}
+                      {question.sampleOutput && (
+                        <div className="p-2 bg-gray-100 rounded">
+                          <p className="text-xs font-medium text-gray-700">Sample Output:</p>
+                          <pre className="text-xs text-gray-800 mt-1">{question.sampleOutput}</pre>
+                        </div>
+                      )}
+                      {question.testCases && question.testCases.length > 0 && (
+                        <div className="p-2 bg-green-50 rounded border border-green-200">
+                          <p className="text-xs font-medium text-green-900">Test Cases: {question.testCases.length}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* Explanation */}
+                  {question.explanation && (
+                    <div className="mt-2 pt-2 border-t border-gray-200">
+                      <p className="text-xs text-gray-600">
+                        <strong>Explanation:</strong> {question.explanation}
+                      </p>
+                    </div>
+                  )}
+                  
+                  {/* Marks */}
+                  {question.marks && (
+                    <div className="mt-2 pt-2 border-t border-gray-200">
+                      <p className="text-xs text-gray-600">
+                        <strong>Marks:</strong> {question.marks}
+                      </p>
+                    </div>
+                  )}
                 </div>
               ))}
 
@@ -958,6 +1237,9 @@ export default function TaskAssessmentWizard({
                   <span className="text-sm text-gray-700">
                     {config.generatedQuestions.length} questions
                   </span>
+                  <span className="text-xs text-gray-500">
+                    ({config.questionType})
+                  </span>
                 </div>
                 <span className="text-sm font-medium text-gray-900">
                   {config.totalMarks} marks
@@ -967,6 +1249,153 @@ export default function TaskAssessmentWizard({
           </div>
         </div>
       </div>
+
+      {/* ── Full question preview per CO ── */}
+      {coConfigs.map(config => (
+        <div key={config.courseOutcome} className="bg-white border border-gray-200 rounded-lg p-6">
+          <h3 className="font-semibold text-gray-900 mb-4">
+            {config.courseOutcome} — Question Preview
+            <span className="ml-2 text-sm font-normal text-gray-500">
+              ({config.generatedQuestions.length} {config.questionType} question{config.generatedQuestions.length !== 1 ? 's' : ''})
+            </span>
+          </h3>
+          <div className="space-y-4">
+            {config.generatedQuestions.map((question, qIndex) => (
+              <div key={qIndex} className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                {/* Header badges */}
+                <div className="flex items-center gap-2 mb-2">
+                  <span className={`px-2 py-0.5 text-xs font-semibold rounded ${
+                    question.questionType === 'Coding'
+                      ? 'bg-purple-100 text-purple-700'
+                      : question.questionType === 'Short Answer'
+                      ? 'bg-teal-100 text-teal-700'
+                      : 'bg-blue-100 text-blue-700'
+                  }`}>
+                    {question.questionType || 'MCQ'}
+                  </span>
+                  {question.difficulty && (
+                    <span className={`px-2 py-0.5 text-xs font-medium rounded ${
+                      question.difficulty === 'Easy' ? 'bg-green-100 text-green-700' :
+                      question.difficulty === 'Hard' ? 'bg-red-100 text-red-700' :
+                      'bg-yellow-100 text-yellow-700'
+                    }`}>
+                      {question.difficulty}
+                    </span>
+                  )}
+                  {question.marks && (
+                    <span className="px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-600 rounded">
+                      {question.marks} mark{question.marks !== 1 ? 's' : ''}
+                    </span>
+                  )}
+                </div>
+
+                {/* Question text */}
+                <p className="font-medium text-gray-900 mb-3">
+                  Q{qIndex + 1}. {question.questionText || question.question}
+                </p>
+
+                {/* MCQ Options */}
+                {(question.questionType === 'MCQ' || question.options) && Array.isArray(question.options) && question.options.length > 0 && (
+                  <div className="space-y-1 mt-2">
+                    {question.options.map((option: any, oIndex: number) => {
+                      const optionText = typeof option === 'string' ? option : option.optionText
+                      const isCorrect = typeof option === 'object' ? option.isCorrect : oIndex === question.correctAnswer
+                      return (
+                        <div key={oIndex} className={`text-sm p-2 rounded ${
+                          isCorrect ? 'bg-green-50 text-green-900 font-medium border border-green-200' : 'text-gray-700'
+                        }`}>
+                          {String.fromCharCode(65 + oIndex)}. {optionText}
+                          {isCorrect && <span className="ml-2 text-green-600 text-xs font-semibold">✓ Correct</span>}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {/* Short Answer — Expected Answer + Key Points */}
+                {question.questionType === 'Short Answer' && (
+                  <div className="mt-3 p-3 bg-teal-50 rounded border border-teal-200">
+                    <p className="text-xs font-semibold text-teal-900 mb-1">Expected Answer:</p>
+                    <p className="text-sm text-teal-800 mb-2">
+                      {question.expectedAnswer || <span className="italic text-teal-500">No expected answer provided</span>}
+                    </p>
+                    {Array.isArray(question.keyPoints) && question.keyPoints.length > 0 && (
+                      <>
+                        <p className="text-xs font-semibold text-teal-900 mb-1">Key Points:</p>
+                        <ul className="list-disc list-inside text-xs text-teal-800 space-y-0.5">
+                          {question.keyPoints.map((point: string, i: number) => (
+                            <li key={i}>{point}</li>
+                          ))}
+                        </ul>
+                      </>
+                    )}
+                    {question.maxWords && (
+                      <p className="text-xs text-teal-600 mt-1">Max words: {question.maxWords}</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Coding — Language, Sample I/O, Test Cases count */}
+                {question.questionType === 'Coding' && (
+                  <div className="mt-3 space-y-2">
+                    {question.programmingLanguage && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-medium text-gray-600">Language:</span>
+                        <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs font-semibold rounded">
+                          {question.programmingLanguage}
+                        </span>
+                      </div>
+                    )}
+                    {question.sampleInput && (
+                      <div className="p-2 bg-gray-100 rounded">
+                        <p className="text-xs font-medium text-gray-700 mb-1">Sample Input:</p>
+                        <pre className="text-xs text-gray-800 whitespace-pre-wrap">{question.sampleInput}</pre>
+                      </div>
+                    )}
+                    {question.sampleOutput && (
+                      <div className="p-2 bg-gray-100 rounded">
+                        <p className="text-xs font-medium text-gray-700 mb-1">Sample Output:</p>
+                        <pre className="text-xs text-gray-800 whitespace-pre-wrap">{question.sampleOutput}</pre>
+                      </div>
+                    )}
+                    {Array.isArray(question.testCases) && question.testCases.length > 0 && (
+                      <div className="p-2 bg-green-50 rounded border border-green-200">
+                        <p className="text-xs font-medium text-green-900">
+                          {question.testCases.length} test case{question.testCases.length !== 1 ? 's' : ''} 
+                          ({question.testCases.filter((tc: any) => tc.isHidden).length} hidden)
+                        </p>
+                      </div>
+                    )}
+                    {Array.isArray(question.constraints) && question.constraints.length > 0 && (
+                      <div className="p-2 bg-gray-50 rounded border border-gray-200">
+                        <p className="text-xs font-medium text-gray-700 mb-1">Constraints:</p>
+                        <ul className="list-disc list-inside text-xs text-gray-600 space-y-0.5">
+                          {question.constraints.map((c: string, i: number) => <li key={i}>{c}</li>)}
+                        </ul>
+                      </div>
+                    )}
+                    {question.starterCode && (
+                      <div className="p-2 bg-gray-800 rounded">
+                        <p className="text-xs font-medium text-gray-300 mb-1">Starter Code:</p>
+                        <pre className="text-xs text-green-300 whitespace-pre-wrap overflow-x-auto">{question.starterCode}</pre>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Explanation (all types) */}
+                {question.explanation && (
+                  <div className="mt-2 pt-2 border-t border-gray-200">
+                    <p className="text-xs text-gray-600">
+                      <strong>Explanation:</strong> {question.explanation}
+                    </p>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
 
       <div className="bg-white border border-gray-200 rounded-lg p-6">
         <h3 className="font-semibold text-gray-900 mb-4">Selected Students</h3>

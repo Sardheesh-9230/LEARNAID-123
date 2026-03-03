@@ -2,9 +2,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { 
-  FiHome, FiBook, FiUsers, FiClipboard, FiCheckSquare, 
-  FiBarChart2, FiCalendar, FiMenu, FiX, FiLogOut, FiSettings, FiUser 
+  FiHome, FiBook, FiUsers, FiCheckSquare, 
+  FiBarChart2, FiCalendar, FiMenu, FiX, FiLogOut, FiSettings, FiUser, FiMessageCircle
 } from 'react-icons/fi';
+import Logo from './Logo';
 
 interface FacultyLayoutProps {
   children: React.ReactNode;
@@ -31,10 +32,10 @@ const FacultyLayout: React.FC<FacultyLayoutProps> = ({ children, activeSection, 
     { id: 'overview', label: 'Overview', icon: FiHome },
     { id: 'subjects', label: 'My Subjects', icon: FiBook },
     { id: 'students', label: 'My Students', icon: FiUsers },
-    { id: 'assignments', label: 'Assignments', icon: FiClipboard },
     { id: 'mcq', label: 'MCQ Generator', icon: FiCheckSquare },
     { id: 'tasks', label: 'Task Manager', icon: FiCheckSquare },
     { id: 'analytics', label: 'Analytics', icon: FiBarChart2 },
+    { id: 'discussions', label: 'Discussions', icon: FiMessageCircle },
     { id: 'schedule', label: 'Schedule', icon: FiCalendar },
   ];
 
@@ -44,24 +45,16 @@ const FacultyLayout: React.FC<FacultyLayoutProps> = ({ children, activeSection, 
       <aside
         className={`${
           sidebarOpen ? 'w-64' : 'w-20'
-        } bg-gradient-to-b from-purple-600 to-indigo-700 text-white transition-all duration-300 ease-in-out flex flex-col shadow-2xl`}
+        } bg-gradient-to-b from-blue-900 via-blue-800 to-blue-900 text-white transition-all duration-300 ease-in-out flex flex-col shadow-2xl`}
       >
         {/* Logo & Toggle */}
-        <div className="p-4 flex items-center justify-between border-b border-purple-500">
+        <div className="p-4 flex items-center justify-between border-b border-blue-700">
           {sidebarOpen && (
-            <div className="flex items-center space-x-2">
-              <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center">
-                <span className="text-purple-600 font-bold text-xl">L</span>
-              </div>
-              <div>
-                <h2 className="font-bold text-lg">LearnAID</h2>
-                <p className="text-xs text-purple-200">Faculty Portal</p>
-              </div>
-            </div>
+            <Logo size="md" showText={true} variant="light" />
           )}
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-2 rounded-lg hover:bg-purple-500 transition-colors"
+            className="p-2 rounded-lg hover:bg-blue-700 transition-colors"
           >
             {sidebarOpen ? <FiX size={20} /> : <FiMenu size={20} />}
           </button>
@@ -69,14 +62,14 @@ const FacultyLayout: React.FC<FacultyLayoutProps> = ({ children, activeSection, 
 
         {/* User Info */}
         {sidebarOpen && (
-          <div className="p-4 border-b border-purple-500">
+          <div className="p-4 border-b border-blue-700">
             <div className="flex items-center space-x-3">
-              <div className="w-12 h-12 bg-purple-400 rounded-full flex items-center justify-center">
+              <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center">
                 <FiUser size={24} className="text-white" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">{userName || 'Faculty'}</p>
-                <p className="text-xs text-purple-200 truncate">{userDepartment || 'Department'}</p>
+                <p className="text-xs text-blue-200 truncate">{userDepartment || 'Department'}</p>
               </div>
             </div>
           </div>
@@ -93,8 +86,8 @@ const FacultyLayout: React.FC<FacultyLayoutProps> = ({ children, activeSection, 
                 onClick={() => onSectionChange(item.id)}
                 className={`w-full flex items-center space-x-3 px-4 py-3 transition-all duration-200 ${
                   isActive
-                    ? 'bg-white text-purple-600 border-r-4 border-purple-600 shadow-lg'
-                    : 'text-white hover:bg-purple-500 hover:bg-opacity-30'
+                    ? 'bg-white text-blue-700 border-r-4 border-blue-400 shadow-lg'
+                    : 'text-white hover:bg-blue-700 hover:bg-opacity-50'
                 }`}
               >
                 <Icon size={20} className="flex-shrink-0" />
@@ -105,10 +98,10 @@ const FacultyLayout: React.FC<FacultyLayoutProps> = ({ children, activeSection, 
         </nav>
 
         {/* Bottom Actions */}
-        <div className="border-t border-purple-500 p-4 space-y-2">
+        <div className="border-t border-blue-700 p-4 space-y-2">
           {sidebarOpen ? (
             <>
-              <button className="w-full flex items-center space-x-3 px-4 py-2 text-white hover:bg-purple-500 rounded-lg transition-colors">
+              <button className="w-full flex items-center space-x-3 px-4 py-2 text-white hover:bg-blue-700 rounded-lg transition-colors">
                 <FiSettings size={18} />
                 <span>Settings</span>
               </button>
@@ -117,7 +110,7 @@ const FacultyLayout: React.FC<FacultyLayoutProps> = ({ children, activeSection, 
                   localStorage.clear();
                   window.location.href = '/login';
                 }}
-                className="w-full flex items-center space-x-3 px-4 py-2 text-white hover:bg-indigo-800 rounded-lg transition-colors"
+                className="w-full flex items-center space-x-3 px-4 py-2 text-white hover:bg-red-600 rounded-lg transition-colors"
               >
                 <FiLogOut size={18} />
                 <span>Logout</span>
@@ -125,7 +118,7 @@ const FacultyLayout: React.FC<FacultyLayoutProps> = ({ children, activeSection, 
             </>
           ) : (
             <>
-              <button className="w-full flex justify-center p-2 text-white hover:bg-purple-500 rounded-lg transition-colors">
+              <button className="w-full flex justify-center p-2 text-white hover:bg-blue-700 rounded-lg transition-colors">
                 <FiSettings size={18} />
               </button>
               <button
@@ -133,7 +126,7 @@ const FacultyLayout: React.FC<FacultyLayoutProps> = ({ children, activeSection, 
                   localStorage.clear();
                   window.location.href = '/login';
                 }}
-                className="w-full flex justify-center p-2 text-white hover:bg-indigo-800 rounded-lg transition-colors"
+                className="w-full flex justify-center p-2 text-white hover:bg-red-600 rounded-lg transition-colors"
               >
                 <FiLogOut size={18} />
               </button>

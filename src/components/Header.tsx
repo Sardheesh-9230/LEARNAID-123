@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Logo from './Logo'
 
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
@@ -9,13 +10,10 @@ export default function Header() {
     <header className="bg-white shadow-lg sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center py-4">
-          {/* Logo and App Name */}
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-xl">L</span>
-            </div>
-            <h1 className="text-2xl font-bold gradient-text">LEARNAID</h1>
-          </div>
+          {/* Logo */}
+          <a href="/" className="group">
+            <Logo size="md" showText={true} variant="dark" />
+          </a>
 
           {/* Navigation Menu */}
           <nav className="hidden md:flex items-center space-x-8">

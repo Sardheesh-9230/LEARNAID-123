@@ -7,6 +7,7 @@ import apiService from '../services/api'
 interface Question {
   id: string
   question: string
+  questionText?: string  // alternate field name from some data sources
   options: string[]
   correctAnswer: number | string
   explanation: string
@@ -30,11 +31,35 @@ export default function StudentMCQTest({ task, onComplete, onClose }: MCQTestPro
   const [showResults, setShowResults] = useState(false)
   const [results, setResults] = useState<any>(null)
   const [startTime] = useState(Date.now())
+  const [showExitConfirm, setShowExitConfirm] = useState(false)
 
-  const questions: Question[] = task.metadata?.generatedMCQs?.questions || []
+  // Support both single-student (metadata.generatedMCQs) and multi-student (personalizedData.questions)
+  const allRawQuestions = (
+    task.metadata?.generatedMCQs?.questions?.length > 0
+      ? task.metadata.generatedMCQs.questions
+      : task.personalizedData?.questions
+  ) || []
+
+  // Filter to ONLY MCQ questions – Coding and Short Answer questions are handled by
+  // their own dedicated components and must NOT appear in the MCQ test
+  const rawQuestions = allRawQuestions.filter((q: any) =>
+    !q.questionType || q.questionType === 'MCQ'
+  )
+
+  const questions: Question[] = rawQuestions.map((q: any, idx: number) => ({
+    ...q,
+    // Ensure each question has a stable id; fall back to index-based key
+    id: q.id || q._id?.toString() || `q_${idx}`,
+    // Ensure options are plain strings, not objects
+    options: Array.isArray(q.options)
+      ? q.options.map((o: any) => typeof o === 'string' ? o : (o.optionText || o.text || String(o)))
+      : []
+  }))
   const totalTime = task.metadata?.studyTimeMinutes || task.metadata?.generatedMCQs?.estimatedTime || 30
   const maxAttempts = task.metadata?.teacherSettings?.maxAttempts || 3
-  const attemptNumber = (task.metadata?.mcqScores?.length || 0) + 1
+  const attemptNumber = (task.isMultiStudent
+    ? (task.personalizedData?.scores?.length || 0)
+    : (task.metadata?.mcqScores?.length || 0)) + 1
 
   useEffect(() => {
     setTimeRemaining(totalTime * 60) // Convert to seconds
@@ -275,6 +300,36 @@ export default function StudentMCQTest({ task, onComplete, onClose }: MCQTestPro
   }
 
   return (
+    <>
+    {showExitConfirm && (
+      <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[60] p-4">
+        <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
+          <h3 className="text-xl font-bold text-gray-900 mb-2">Submit & Finish?</h3>
+          <p className="text-gray-600 mb-1">
+            Your answers so far will be submitted immediately.
+            Unanswered questions will be marked as incorrect.
+          </p>
+          <p className="text-gray-800 font-medium mb-5">
+            This counts as <strong>Attempt {attemptNumber} of {maxAttempts}</strong>.
+          </p>
+          <div className="flex gap-3 justify-end">
+            <button
+              onClick={() => setShowExitConfirm(false)}
+              className="px-5 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100"
+            >
+              Keep Going
+            </button>
+            <button
+              onClick={() => { setShowExitConfirm(false); handleSubmit() }}
+              disabled={submitting}
+              className="px-5 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 font-medium"
+            >
+              {submitting ? 'Submitting...' : 'Submit & Finish'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col">
         {/* Header */}
@@ -282,6 +337,23 @@ export default function StudentMCQTest({ task, onComplete, onClose }: MCQTestPro
           <div>
             <h2 className="text-2xl font-bold">{task.title}</h2>
             <p className="text-blue-100">Attempt {attemptNumber} of {maxAttempts}</p>
+            <div className="flex flex-wrap items-center gap-3 mt-2">
+              {(task.student?.name || task.personalizedData?.studentName) && (
+                <span className="flex items-center gap-1 text-sm bg-white/20 px-2 py-0.5 rounded-full">
+                  👤 {task.student?.name || task.personalizedData?.studentName}
+                </span>
+              )}
+              {(task.student?.rollNumber || task.personalizedData?.rollNumber) && (
+                <span className="text-sm bg-white/20 px-2 py-0.5 rounded-full">
+                  🎓 {task.student?.rollNumber || task.personalizedData?.rollNumber}
+                </span>
+              )}
+              {(task.subject?.department?.name || task.metadata?.departmentName) && (
+                <span className="flex items-center gap-1 text-sm bg-white/20 px-2 py-0.5 rounded-full">
+                  🏛 {task.subject?.department?.name || task.metadata?.departmentName}
+                </span>
+              )}
+            </div>
           </div>
           <div className="text-right">
             <div className="flex items-center gap-2 text-2xl font-bold">
@@ -292,6 +364,13 @@ export default function StudentMCQTest({ task, onComplete, onClose }: MCQTestPro
             </div>
             <p className="text-sm text-blue-100">Time Remaining</p>
           </div>
+          <button
+            onClick={() => setShowExitConfirm(true)}
+            className="ml-4 p-2 rounded-lg bg-white/20 hover:bg-white/30 text-white transition-colors"
+            title="Exit test"
+          >
+            <FiX size={20} />
+          </button>
         </div>
 
         {/* Progress */}
@@ -323,7 +402,7 @@ export default function StudentMCQTest({ task, onComplete, onClose }: MCQTestPro
               </span>
             </div>
             <h3 className="text-xl font-semibold text-gray-900 mb-6">
-              {currentQuestion.question}
+              {currentQuestion.question || currentQuestion.questionText || '⚠ Question text could not be loaded.'}
             </h3>
           </div>
 
@@ -392,5 +471,6 @@ export default function StudentMCQTest({ task, onComplete, onClose }: MCQTestPro
         </div>
       </div>
     </div>
+    </>
   )
 }

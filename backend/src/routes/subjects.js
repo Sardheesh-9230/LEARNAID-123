@@ -62,11 +62,15 @@ const router = express.Router();
 // Validation middleware
 const createSubjectValidation = [
   body('name').trim().isLength({ min: 2, max: 100 }).withMessage('Name must be between 2 and 100 characters'),
-  body('code').trim().isLength({ min: 2, max: 10 }).withMessage('Code must be between 2 and 10 characters'),
+  body('code').trim().isLength({ min: 2, max: 20 }).withMessage('Code must be between 2 and 20 characters'),
   body('department').isMongoId().withMessage('Valid department ID is required'),
   body('credits').isInt({ min: 1, max: 10 }).withMessage('Credits must be between 1 and 10'),
   body('semester').isInt({ min: 1, max: 8 }).withMessage('Semester must be between 1 and 8'),
   body('description').optional().trim().isLength({ max: 500 }).withMessage('Description must be less than 500 characters'),
+  body('section').optional().isIn(['A', 'B', 'C']).withMessage('Section must be A, B, or C'),
+  body('year').optional().isIn(['1st Year', '2nd Year', '3rd Year', '4th Year']).withMessage('Invalid year'),
+  body('academicYear').optional().matches(/^\d{4}-\d{4}$/).withMessage('Academic year must be in YYYY-YYYY format'),
+  body('type').optional().isIn(['Theory', 'TCPR', 'TCPL', 'Elective', 'Core']).withMessage('Invalid subject type'),
   body('faculty').optional().isMongoId().withMessage('Valid faculty ID is required'),
   body('prerequisites').optional().isArray().withMessage('Prerequisites must be an array'),
   body('prerequisites.*').optional().isMongoId().withMessage('Valid prerequisite subject IDs are required')
@@ -74,12 +78,15 @@ const createSubjectValidation = [
 
 const updateSubjectValidation = [
   body('name').optional().trim().isLength({ min: 2, max: 100 }).withMessage('Name must be between 2 and 100 characters'),
-  body('code').optional().trim().isLength({ min: 2, max: 10 }).withMessage('Code must be between 2 and 10 characters'),
+  body('code').optional().trim().isLength({ min: 2, max: 20 }).withMessage('Code must be between 2 and 20 characters'),
   body('credits').optional().isInt({ min: 1, max: 10 }).withMessage('Credits must be between 1 and 10'),
   body('semester').optional().isInt({ min: 1, max: 8 }).withMessage('Semester must be between 1 and 8'),
-  body('description').optional().trim().isLength({ max: 500 }).withMessage('Description must be less than 500 characters'),
-  body('faculty').optional().isMongoId().withMessage('Valid faculty ID is required'),
-  body('isActive').optional().isBoolean().withMessage('isActive must be a boolean'),
+  body('description').optional().trim().isLength({ max: 1000 }).withMessage('Description must be less than 1000 characters'),
+  body('status').optional().isIn(['Active', 'Inactive', 'Draft']).withMessage('Status must be Active, Inactive, or Draft'),
+  body('section').optional().isIn(['A', 'B', 'C']).withMessage('Section must be A, B, or C'),
+  body('year').optional().isIn(['1st Year', '2nd Year', '3rd Year', '4th Year']).withMessage('Invalid year'),
+  body('academicYear').optional().matches(/^\d{4}-\d{4}$/).withMessage('Academic year must be in YYYY-YYYY format'),
+  body('maxStudents').optional().isInt({ min: 1, max: 100 }).withMessage('Max students must be between 1 and 100'),
   body('prerequisites').optional().isArray().withMessage('Prerequisites must be an array'),
   body('prerequisites.*').optional().isMongoId().withMessage('Valid prerequisite subject IDs are required')
 ];
@@ -197,6 +204,11 @@ router.get('/faculty/my-subjects', protect, authorize('Faculty', 'Admin'), subje
  */
 router.post('/', protect, authorize('Admin'), createSubjectValidation, subjectController.createSubject);
 
+// NOTE: /sync-enrollments must be declared BEFORE /:id to avoid being matched as an ID
+router.post('/sync-enrollments', protect, authorize('Admin', 'Faculty'), subjectController.syncStudentEnrollments);
+
+// NOTE: /student/my-subjects and /faculty/my-subjects are already before /:id - correct
+
 /**
  * @swagger
  * /api/subjects/{id}:
@@ -217,6 +229,13 @@ router.post('/', protect, authorize('Admin'), createSubjectValidation, subjectCo
  *         description: Subject details
  */
 router.get('/:id', protect, subjectController.getSubjectById);
+
+/**
+ * @route   GET /api/subjects/:id/students
+ * @desc    Get all students enrolled in a specific subject (faculty/admin access)
+ * @access  Private (Faculty, Admin)
+ */
+router.get('/:id/students', protect, authorize('Faculty', 'Admin'), subjectController.getSubjectStudents);
 
 /**
  * @swagger
@@ -325,9 +344,6 @@ router.post('/:id/faculty', protect, authorize('Admin'), subjectController.assig
  *         description: Faculty removed successfully
  */
 router.delete('/:id/faculty/:facultyId', protect, authorize('Admin'), subjectController.removeFacultyFromSubject);
-
-// Sync student enrollments - Auto-enroll students based on matching criteria
-router.post('/sync-enrollments', protect, authorize('Admin', 'Faculty'), subjectController.syncStudentEnrollments);
 
 // ========================================
 // CHAPTER ROUTES (Nested under subjects)

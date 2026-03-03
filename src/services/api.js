@@ -281,9 +281,14 @@ class ApiService {
     });
   }
 
-  // Get users by role
+  // Get students by role
   async getUsersByRole(role) {
     return this.getUsers({ role });
+  }
+
+  // Get only students enrolled in the logged-in faculty's subjects
+  async getMyStudents() {
+    return this.makeRequest('/users/my-students');
   }
 
   // Get students by department
@@ -907,6 +912,7 @@ export const {
   updateUser,
   deleteUser,
   getUsersByRole,
+  getMyStudents,
   getStudentsByDepartment,
   getFacultyByDepartment,
   

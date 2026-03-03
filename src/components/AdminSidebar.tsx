@@ -116,15 +116,15 @@ export default function AdminSidebar({ activeTab, onTabChange, isExpanded = true
   }
 
   return (
-    <div className={`${isExpanded ? 'w-80' : 'w-16'} bg-gradient-to-b from-red-500 via-orange-500 to-red-600 text-white transition-all duration-300 ease-in-out shadow-2xl`}>
+    <div className={`${isExpanded ? 'w-80' : 'w-16'} bg-gradient-to-b from-purple-600 via-indigo-600 to-purple-700 text-white transition-all duration-300 ease-in-out shadow-2xl`}>
       {/* Header */}
-      <div className="p-6 border-b border-red-400/30">
+      <div className="p-6 border-b border-purple-400/30">
         <div className="flex items-center justify-between">
           <div className={`${isExpanded ? 'block' : 'hidden'} transition-all duration-300`}>
-            <h2 className="text-xl font-bold bg-gradient-to-r from-white to-orange-100 bg-clip-text text-transparent">
+            <h2 className="text-xl font-bold bg-gradient-to-r from-white to-purple-100 bg-clip-text text-transparent">
               Admin Control
             </h2>
-            <p className="text-red-100 text-sm mt-1">System Administration</p>
+            <p className="text-purple-100 text-sm mt-1">System Administration</p>
           </div>
           <button
             onClick={onToggle}
@@ -143,7 +143,7 @@ export default function AdminSidebar({ activeTab, onTabChange, isExpanded = true
       </div>
 
       {/* System Status Indicator */}
-      <div className={`${isExpanded ? 'px-6 py-4' : 'px-3 py-4'} border-b border-red-400/30`}>
+      <div className={`${isExpanded ? 'px-6 py-4' : 'px-3 py-4'} border-b border-purple-400/30`}>
         <div className="flex items-center space-x-3">
           <div className={`w-3 h-3 rounded-full ${systemSettings.applicationEnabled ? 'bg-green-400' : 'bg-red-400'} animate-pulse`}></div>
           {isExpanded && (
@@ -172,7 +172,7 @@ export default function AdminSidebar({ activeTab, onTabChange, isExpanded = true
             {isExpanded && (
               <div className="flex-1 text-left">
                 <div className="font-medium">{item.title}</div>
-                <div className="text-xs text-red-100 opacity-75">{item.description}</div>
+                <div className="text-xs text-purple-100 opacity-75">{item.description}</div>
               </div>
             )}
           </button>
@@ -181,7 +181,7 @@ export default function AdminSidebar({ activeTab, onTabChange, isExpanded = true
 
       {/* System Settings Panel (when system-settings is active) */}
       {activeTab === 'system-settings' && isExpanded && (
-        <div className="p-4 border-t border-red-400/30">
+        <div className="p-4 border-t border-purple-400/30">
           <h3 className="text-lg font-semibold mb-4">Quick Controls</h3>
           <div className="space-y-3">
             {Object.entries(systemSettings).map(([key, value]) => (
@@ -209,7 +209,7 @@ export default function AdminSidebar({ activeTab, onTabChange, isExpanded = true
 
       {/* System Logs Preview (when system-logs is active) */}
       {activeTab === 'system-logs' && isExpanded && (
-        <div className="p-4 border-t border-red-400/30">
+        <div className="p-4 border-t border-purple-400/30">
           <h3 className="text-lg font-semibold mb-4">Recent Logs</h3>
           <div className="space-y-2 max-h-48 overflow-y-auto">
             {logs.slice(0, 5).map((log) => (
@@ -220,8 +220,8 @@ export default function AdminSidebar({ activeTab, onTabChange, isExpanded = true
                     {log.level.toUpperCase()}
                   </span>
                 </div>
-                <p className="text-xs text-red-100">{log.message}</p>
-                <p className="text-xs text-red-200 opacity-75 mt-1">
+                <p className="text-xs text-purple-100">{log.message}</p>
+                <p className="text-xs text-purple-200 opacity-75 mt-1">
                   {new Date(log.timestamp).toLocaleTimeString()}
                 </p>
               </div>
@@ -231,13 +231,13 @@ export default function AdminSidebar({ activeTab, onTabChange, isExpanded = true
       )}
 
       {/* Footer */}
-      <div className={`${isExpanded ? 'p-6' : 'p-3'} border-t border-red-400/30`}>
+      <div className={`${isExpanded ? 'p-6' : 'p-3'} border-t border-purple-400/30`}>
         {isExpanded ? (
           <div className="text-center">
-            <p className="text-xs text-red-100 opacity-75">
+            <p className="text-xs text-purple-100 opacity-75">
               LearnAID Admin Panel v2.0
             </p>
-            <p className="text-xs text-red-200 opacity-50 mt-1">
+            <p className="text-xs text-purple-200 opacity-50 mt-1">
               © 2024 All Rights Reserved
             </p>
           </div>

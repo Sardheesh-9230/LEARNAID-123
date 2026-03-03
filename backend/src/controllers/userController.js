@@ -102,16 +102,7 @@ const createUser = async (req, res) => {
       });
     }
 
-    // Check if trying to create Admin when one already exists
-    if (role === 'Admin') {
-      const existingAdmin = await User.findOne({ role: 'Admin' });
-      if (existingAdmin) {
-        return res.status(400).json({
-          success: false,
-          message: 'Admin already exists. Only one admin is allowed in the system.'
-        });
-      }
-    }
+    // Multiple admins are allowed for institution-wide management
 
     // Verify department exists
     const departmentDoc = await Department.findById(department);
@@ -146,20 +137,25 @@ const createUser = async (req, res) => {
         userData.section = section;
       }
       userData.batch = batch;
-      userData.semester = 1; // Default to first semester
-      
-      // Calculate year based on batch
-      const currentYear = new Date().getFullYear();
-      const batchYear = parseInt(batch);
-      const yearOfStudy = currentYear - batchYear + 1;
-      
-      switch (yearOfStudy) {
+
+      // ---- Academic year-aware year + semester calculation ----
+      // Academic year starts July. Jan-Jun = still previous academic year.
+      const _now       = new Date();
+      const _month     = _now.getMonth() + 1; // 1-12
+      const _curYear   = _now.getFullYear();
+      const _effYear   = _month < 7 ? _curYear - 1 : _curYear;
+      const _batchYear = parseInt(batch);
+      const _yos       = _effYear - _batchYear + 1;
+      const _clampYOS  = Math.min(Math.max(_yos, 1), 4);
+
+      switch (_clampYOS) {
         case 1: userData.year = '1st Year'; break;
         case 2: userData.year = '2nd Year'; break;
         case 3: userData.year = '3rd Year'; break;
         case 4: userData.year = '4th Year'; break;
-        default: userData.year = '1st Year'; // Default to 1st year if calculation is off
       }
+      // Odd semester = Jul-Dec, even = Jan-Jun
+      userData.semester = _month >= 7 ? (_clampYOS * 2) - 1 : _clampYOS * 2;
       
       if (guardianName && guardianPhone) {
         userData.guardianName = guardianName;
@@ -390,19 +386,23 @@ const updateUser = async (req, res) => {
       }
     }
 
-    // If batch is being updated for a student, recalculate year
+    // If batch is being updated for a student, recalculate year AND semester
     if (currentUser.role === 'Student' && updates.batch) {
-      const currentYear = new Date().getFullYear();
-      const batchYear = parseInt(updates.batch);
-      const yearOfStudy = currentYear - batchYear + 1;
-      
-      switch (yearOfStudy) {
+      const _now       = new Date();
+      const _month     = _now.getMonth() + 1;
+      const _curYear   = _now.getFullYear();
+      const _effYear   = _month < 7 ? _curYear - 1 : _curYear;
+      const _batchYear = parseInt(updates.batch);
+      const _yos       = _effYear - _batchYear + 1;
+      const _clampYOS  = Math.min(Math.max(_yos, 1), 4);
+
+      switch (_clampYOS) {
         case 1: updates.year = '1st Year'; break;
         case 2: updates.year = '2nd Year'; break;
         case 3: updates.year = '3rd Year'; break;
         case 4: updates.year = '4th Year'; break;
-        default: updates.year = '1st Year'; // Default to 1st year if calculation is off
       }
+      updates.semester = _month >= 7 ? (_clampYOS * 2) - 1 : _clampYOS * 2;
     }
 
     const user = await User.findByIdAndUpdate(
@@ -517,6 +517,21 @@ const deleteUser = async (req, res) => {
       });
     }
 
+    // Clean up Subject references before deleting the user
+    if (user.role === 'Student') {
+      // Remove student from all Subject.enrolledStudents arrays
+      await Subject.updateMany(
+        { enrolledStudents: user._id },
+        { $pull: { enrolledStudents: user._id } }
+      );
+    } else if (['Faculty', 'Staff'].includes(user.role)) {
+      // Remove faculty from all Subject.faculty arrays
+      await Subject.updateMany(
+        { 'faculty.user': user._id },
+        { $pull: { faculty: { user: user._id } } }
+      );
+    }
+
     await User.findByIdAndDelete(req.params.id);
 
     // Log activity
@@ -590,9 +605,25 @@ const allocateSubjects = async (req, res) => {
       });
     }
 
-    // Update student's enrolled subjects
-    student.enrolledSubjects = [...new Set([...student.enrolledSubjects, ...subjectIds])];
+    // Set student section from the allocated subjects (if not already assigned)
+    if (!student.section && subjects.length > 0) {
+      const uniqueSections = [...new Set(subjects.map(s => s.section).filter(Boolean))];
+      if (uniqueSections.length === 1) {
+        student.section = uniqueSections[0];
+      }
+    }
+
+    // Update student's enrolled subjects (User side)
+    const existingSubjectIds = student.enrolledSubjects.map(id => id.toString());
+    const mergedSubjectIds = [...new Set([...existingSubjectIds, ...subjectIds.map(String)])];
+    student.enrolledSubjects = mergedSubjectIds;
     await student.save();
+
+    // Sync Subject.enrolledStudents — bidirectional enrollment tracking
+    await Subject.updateMany(
+      { _id: { $in: subjectIds } },
+      { $addToSet: { enrolledStudents: student._id } }
+    );
 
     // Populate the updated student
     await student.populate('enrolledSubjects', 'name code credits');
@@ -605,7 +636,8 @@ const allocateSubjects = async (req, res) => {
       resourceId: student._id,
       details: { 
         action: 'subject_allocation',
-        allocatedSubjects: subjects.map(s => s.name)
+        allocatedSubjects: subjects.map(s => s.name),
+        sectionAssigned: student.section
       },
       ipAddress: req.ip,
       userAgent: req.get('User-Agent')
@@ -1010,6 +1042,151 @@ const getUserStats = async (req, res) => {
   }
 };
 
+// @desc    Remove allocated subjects from a student
+// @route   DELETE /api/users/:id/allocate-subjects
+// @access  Private (Admin)
+const deallocateSubjects = async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ success: false, message: 'Validation failed', errors: errors.array() });
+    }
+
+    const { subjectIds } = req.body;
+    if (!subjectIds || !Array.isArray(subjectIds) || subjectIds.length === 0) {
+      return res.status(400).json({ success: false, message: 'subjectIds array is required' });
+    }
+
+    const student = await User.findById(req.params.id);
+    if (!student) {
+      return res.status(404).json({ success: false, message: 'Student not found' });
+    }
+    if (student.role !== 'Student') {
+      return res.status(400).json({ success: false, message: 'User is not a student' });
+    }
+
+    // Remove from User.enrolledSubjects
+    student.enrolledSubjects = student.enrolledSubjects.filter(
+      id => !subjectIds.map(String).includes(id.toString())
+    );
+
+    // Clear section if student has no subjects left
+    if (student.enrolledSubjects.length === 0) {
+      student.section = null;
+    }
+
+    await student.save();
+
+    // Remove from Subject.enrolledStudents — bidirectional sync
+    await Subject.updateMany(
+      { _id: { $in: subjectIds } },
+      { $pull: { enrolledStudents: student._id } }
+    );
+
+    await ActivityLog.logActivity({
+      user: req.user.id,
+      action: 'UPDATE',
+      resourceType: 'User',
+      resourceId: student._id,
+      details: { action: 'subject_deallocation', removedSubjects: subjectIds },
+      ipAddress: req.ip,
+      userAgent: req.get('User-Agent')
+    });
+
+    await student.populate('enrolledSubjects', 'name code credits');
+
+    res.status(200).json({
+      success: true,
+      message: 'Subjects removed from student successfully',
+      data: student
+    });
+  } catch (error) {
+    console.error('Deallocate subjects error:', error);
+    res.status(500).json({ success: false, message: 'Server error while removing subjects from student' });
+  }
+};
+
+// @desc    Refresh year + semester for ALL active students (academic calendar advance)
+// @route   POST /api/users/refresh-academic-data
+// @access  Private (Admin)
+const refreshAllStudentAcademicData = async (req, res) => {
+  try {
+    const now          = new Date();
+    const currentMonth = now.getMonth() + 1;
+    const currentYear  = now.getFullYear();
+    const effectiveYear = currentMonth < 7 ? currentYear - 1 : currentYear;
+
+    const students = await User.find({
+      role: 'Student',
+      status: 'Active',
+      batch: { $exists: true, $ne: null }
+    }).select('_id name studentId batch year semester');
+
+    let updated = 0;
+    const changes = [];
+    const bulkOps = [];
+
+    for (const student of students) {
+      if (!student.batch) continue;
+
+      const batchYear  = parseInt(student.batch);
+      const yos        = effectiveYear - batchYear + 1;
+      const clampedYOS = Math.min(Math.max(yos, 1), 4);
+
+      let newYear;
+      switch (clampedYOS) {
+        case 1: newYear = '1st Year'; break;
+        case 2: newYear = '2nd Year'; break;
+        case 3: newYear = '3rd Year'; break;
+        case 4: newYear = '4th Year'; break;
+      }
+
+      const newSemester = currentMonth >= 7
+        ? (clampedYOS * 2) - 1
+        : clampedYOS * 2;
+
+      if (student.year !== newYear || student.semester !== newSemester) {
+        changes.push({
+          name: student.name,
+          studentId: student.studentId,
+          batch: student.batch,
+          year:     { from: student.year,     to: newYear },
+          semester: { from: student.semester, to: newSemester }
+        });
+        bulkOps.push({
+          updateOne: {
+            filter: { _id: student._id },
+            update: { $set: { year: newYear, semester: newSemester } }
+          }
+        });
+        updated++;
+      }
+    }
+
+    if (bulkOps.length > 0) {
+      await User.bulkWrite(bulkOps);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Academic data refreshed. ${updated} of ${students.length} students updated.`,
+      data: {
+        total: students.length,
+        updated,
+        unchanged: students.length - updated,
+        currentPeriod: {
+          effectiveAcademicYear: `${effectiveYear}-${effectiveYear + 1}`,
+          semester: currentMonth >= 7 ? 'Odd (Jul–Dec)' : 'Even (Jan–Jun)'
+        },
+        changes
+      }
+    });
+  } catch (error) {
+    console.error('Refresh academic data error:', error);
+    res.status(500).json({ success: false, message: 'Server error while refreshing academic data' });
+  }
+};
+
 module.exports = {
   getUsers,
   createUser,
@@ -1018,8 +1195,10 @@ module.exports = {
   changeUserPassword,
   deleteUser,
   allocateSubjects,
+  deallocateSubjects,
   assignSubjects,
   unassignSubjects,
   bulkCreateUsers,
-  getUserStats
+  getUserStats,
+  refreshAllStudentAcademicData
 };

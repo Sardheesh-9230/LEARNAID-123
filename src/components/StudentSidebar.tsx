@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { FiPlay, FiPause, FiSquare, FiRefreshCw, FiLogOut, FiUser } from 'react-icons/fi'
+import Logo from './Logo'
 import apiService from '@/services/api'
 import { useRouter } from 'next/navigation'
 
@@ -182,7 +183,7 @@ export default function StudentSidebar({ activeTab, onTabChange, isExpanded = tr
       title: 'Tasks',
       icon: '📝',
       description: 'All Assignments & Tasks',
-      color: 'from-purple-500 to-indigo-600',
+      color: 'from-indigo-500 to-blue-700',
       badge: notifications > 0 ? notifications.toString() : null
     },
     {
@@ -231,8 +232,8 @@ export default function StudentSidebar({ activeTab, onTabChange, isExpanded = tr
       {/* Animated Background Elements */}
       <div className="absolute inset-0 opacity-5">
         <div className="absolute top-10 right-8 w-20 h-20 bg-blue-400 rounded-full animate-pulse"></div>
-        <div className="absolute top-1/3 -left-6 w-16 h-16 bg-emerald-400 rounded-full animate-bounce slow"></div>
-        <div className="absolute bottom-20 right-12 w-12 h-12 bg-purple-400 rounded-full animate-ping slow"></div>
+        <div className="absolute top-1/3 -left-6 w-16 h-16 bg-cyan-400 rounded-full animate-bounce slow"></div>
+        <div className="absolute bottom-20 right-12 w-12 h-12 bg-indigo-400 rounded-full animate-ping slow"></div>
         <div className="absolute top-2/3 left-1/2 w-8 h-8 bg-cyan-400 rounded-full animate-pulse"></div>
       </div>
 
@@ -240,10 +241,7 @@ export default function StudentSidebar({ activeTab, onTabChange, isExpanded = tr
       <div className="relative z-10 p-6 border-b border-white/10">
         <div className="flex items-center justify-between">
           <div className={`${isExpanded ? 'block' : 'hidden'} transition-all duration-300`}>
-            <h2 className="text-xl font-bold bg-gradient-to-r from-blue-300 via-cyan-300 to-emerald-300 bg-clip-text text-transparent">
-              StudentHub
-            </h2>
-            <p className="text-gray-300 text-sm mt-1">Learning Portal</p>
+            <Logo size="md" showText={true} variant="light" />
           </div>
           <button
             onClick={onToggle}
@@ -277,7 +275,7 @@ export default function StudentSidebar({ activeTab, onTabChange, isExpanded = tr
               <div className="text-sm font-bold text-white">
                 {loading ? '-.--' : studentStats.currentGPA.toFixed(2)}
               </div>
-              <div className="text-xs text-blue-300 opacity-90">
+              <div className="text-xs text-blue-200 opacity-90">
                 {loading ? '' : `${studentStats.overallPercentage.toFixed(1)}%`}
               </div>
             </div>
@@ -291,13 +289,13 @@ export default function StudentSidebar({ activeTab, onTabChange, isExpanded = tr
                 {loading ? '' : `${studentStats.completedAssignments} completed`}
               </div>
             </div>
-            <div className="bg-purple-500/20 backdrop-blur-sm rounded-xl p-3 border border-purple-400/30 transform hover:scale-105 transition-all duration-200 hover:bg-purple-500/30">
+            <div className="bg-indigo-500/20 backdrop-blur-sm rounded-xl p-3 border border-indigo-400/30 transform hover:scale-105 transition-all duration-200 hover:bg-indigo-500/30">
               <div className="text-xl mb-1">⏰</div>
-              <div className="text-xs text-purple-200">Tasks</div>
+              <div className="text-xs text-indigo-200">Tasks</div>
               <div className="text-sm font-bold text-white">
                 {loading ? '-' : studentStats.pendingTasks}
               </div>
-              <div className="text-xs text-purple-300 opacity-90">
+              <div className="text-xs text-indigo-200 opacity-90">
                 pending
               </div>
             </div>

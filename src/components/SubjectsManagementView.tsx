@@ -582,7 +582,7 @@ export default function SubjectsManagementView({
       <div className="space-y-6">
         <div className="flex justify-between items-center">
           <div>
-            <h2 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+            <h2 className="text-3xl font-bold bg-gradient-to-r from-blue-900 via-blue-800 to-blue-900 bg-clip-text text-transparent">
               My Subjects
             </h2>
             <p className="text-gray-600 mt-2">Manage your courses, chapters, and learning materials</p>
@@ -599,7 +599,7 @@ export default function SubjectsManagementView({
               <div
                 key={subject._id}
                 onClick={() => handleSubjectClick(subject)}
-                className="bg-white rounded-xl shadow-lg p-6 hover:shadow-2xl transition-all cursor-pointer border-l-4 border-purple-500 hover:scale-105 transform duration-300"
+                className="bg-white rounded-xl shadow-lg p-6 hover:shadow-2xl transition-all cursor-pointer border-l-4 border-blue-600 hover:scale-105 transform duration-300"
               >
                 <div className="mb-4">
                   <h3 className="text-xl font-bold text-gray-800 mb-2">{subject.name}</h3>
@@ -623,7 +623,7 @@ export default function SubjectsManagementView({
 
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-gray-600">Students:</span>
-                    <span className="text-sm font-bold text-purple-600">{students.length}</span>
+                    <span className="text-sm font-bold text-blue-700">{students.length}</span>
                   </div>
 
                   <div className="flex items-center justify-between">
@@ -644,7 +644,7 @@ export default function SubjectsManagementView({
                         e.stopPropagation();
                         handleSubjectClick(subject);
                       }}
-                      className="bg-gradient-to-r from-purple-500 to-pink-500 text-white py-2 px-3 rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all font-medium text-sm"
+                      className="bg-gradient-to-r from-blue-700 to-blue-600 text-white py-2 px-3 rounded-lg hover:from-blue-800 hover:to-blue-700 transition-all font-medium text-sm"
                     >
                       📚 Chapters
                     </button>
@@ -683,17 +683,17 @@ export default function SubjectsManagementView({
       <div className="space-y-6">
         {/* Breadcrumb */}
         <div className="flex items-center space-x-2 text-sm">
-          <button onClick={handleBackToSubjects} className="text-purple-600 hover:text-purple-800 font-medium">
+          <button onClick={handleBackToSubjects} className="text-blue-700 hover:text-blue-900 font-medium">
             ← Back to Subjects
           </button>
         </div>
 
         {/* Subject Info Card */}
-        <div className="bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl shadow-lg p-6">
+        <div className="bg-gradient-to-r from-blue-900 via-blue-800 to-blue-900 text-white rounded-xl shadow-lg p-6">
           <div className="flex justify-between items-start">
             <div>
               <h2 className="text-3xl font-bold mb-2">{selectedSubject.name}</h2>
-              <p className="text-purple-100 mb-4">{selectedSubject.code}</p>
+              <p className="text-blue-200 mb-4">{selectedSubject.code}</p>
               <div className="flex flex-wrap gap-3">
                 <span className="bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full text-sm">
                   {getDepartmentName(selectedSubject.department)}
@@ -711,7 +711,7 @@ export default function SubjectsManagementView({
             </div>
             <button
               onClick={handleCreateChapter}
-              className="bg-white text-purple-600 px-6 py-3 rounded-lg hover:bg-purple-50 transition-all font-medium shadow-lg"
+              className="bg-white text-blue-700 px-6 py-3 rounded-lg hover:bg-blue-50 transition-all font-medium shadow-lg"
             >
               + Add Chapter
             </button>
@@ -725,7 +725,7 @@ export default function SubjectsManagementView({
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
               {students.slice(0, 6).map((student) => (
                 <div key={student.id || student._id} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-                  <div className="w-10 h-10 bg-purple-500 rounded-full flex items-center justify-center text-white font-bold">
+                  <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold">
                     {student.name.charAt(0)}
                   </div>
                   <div>
@@ -739,7 +739,7 @@ export default function SubjectsManagementView({
             <p className="text-gray-500">No students enrolled</p>
           )}
           {students.length > 6 && (
-            <p className="text-sm text-purple-600 mt-4">+{students.length - 6} more students</p>
+            <p className="text-sm text-blue-700 mt-4">+{students.length - 6} more students</p>
           )}
         </div>
 
@@ -749,19 +749,19 @@ export default function SubjectsManagementView({
           
           {loading ? (
             <div className="text-center py-8">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto"></div>
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-700 mx-auto"></div>
             </div>
           ) : chapters.length > 0 ? (
             <div className="space-y-4">
               {chapters.map((chapter) => (
                 <div
                   key={chapter._id}
-                  className="bg-white rounded-xl shadow-lg p-6 hover:shadow-2xl transition-all border-l-4 border-purple-500"
+                  className="bg-white rounded-xl shadow-lg p-6 hover:shadow-2xl transition-all border-l-4 border-blue-600"
                 >
                   <div className="flex justify-between items-start">
                     <div className="flex-1 cursor-pointer" onClick={() => handleChapterClick(chapter)}>
                       <div className="flex items-center space-x-3 mb-2">
-                        <span className="bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-sm font-bold">
+                        <span className="bg-blue-100 text-blue-900 px-3 py-1 rounded-full text-sm font-bold">
                           Chapter {chapter.chapterNumber}
                         </span>
                         <span className={`px-3 py-1 rounded-full text-xs font-medium ${
@@ -818,7 +818,7 @@ export default function SubjectsManagementView({
               <p className="text-gray-500 text-lg mb-4">No chapters created yet</p>
               <button
                 onClick={handleCreateChapter}
-                className="bg-gradient-to-r from-purple-500 to-pink-500 text-white px-6 py-3 rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all font-medium"
+                className="bg-gradient-to-r from-blue-700 to-blue-600 text-white px-6 py-3 rounded-lg hover:from-blue-800 hover:to-blue-700 transition-all font-medium"
               >
                 Create Your First Chapter
               </button>
@@ -854,17 +854,17 @@ export default function SubjectsManagementView({
       <div className="space-y-6">
         {/* Breadcrumb */}
         <div className="flex items-center space-x-2 text-sm">
-          <button onClick={handleBackToSubjects} className="text-purple-600 hover:text-purple-800">
+          <button onClick={handleBackToSubjects} className="text-blue-700 hover:text-blue-900">
             Subjects
           </button>
           <span className="text-gray-400">/</span>
-          <button onClick={handleBackToChapters} className="text-purple-600 hover:text-purple-800 font-medium">
+          <button onClick={handleBackToChapters} className="text-blue-700 hover:text-blue-900 font-medium">
             ← {selectedSubject.name}
           </button>
         </div>
 
         {/* Chapter Header */}
-        <div className="bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl shadow-lg p-6">
+        <div className="bg-gradient-to-r from-blue-900 via-blue-800 to-blue-900 text-white rounded-xl shadow-lg p-6">
           <div className="flex justify-between items-start">
             <div>
               <span className="bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full text-sm mb-3 inline-block">
@@ -872,7 +872,7 @@ export default function SubjectsManagementView({
               </span>
               <h2 className="text-3xl font-bold mb-2">{selectedChapter.title}</h2>
               {selectedChapter.description && (
-                <p className="text-purple-100 mb-4">{selectedChapter.description}</p>
+                <p className="text-blue-200 mb-4">{selectedChapter.description}</p>
               )}
               <div className="flex items-center space-x-3">
                 <span className="bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full text-sm">
@@ -887,7 +887,7 @@ export default function SubjectsManagementView({
             </div>
             <button
               onClick={handleCreateMaterial}
-              className="bg-white text-purple-600 px-6 py-3 rounded-lg hover:bg-purple-50 transition-all font-medium shadow-lg"
+              className="bg-white text-blue-700 px-6 py-3 rounded-lg hover:bg-blue-50 transition-all font-medium shadow-lg"
             >
               + Upload Material
             </button>
@@ -900,7 +900,7 @@ export default function SubjectsManagementView({
           
           {loading ? (
             <div className="text-center py-8">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto"></div>
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-700 mx-auto"></div>
             </div>
           ) : (
             <MaterialsGrid
@@ -918,7 +918,7 @@ export default function SubjectsManagementView({
         {showMaterialModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-              <div className="sticky top-0 bg-gradient-to-r from-purple-600 to-pink-600 text-white p-6 rounded-t-2xl">
+              <div className="sticky top-0 bg-gradient-to-r from-blue-900 via-blue-800 to-blue-900 text-white p-6 rounded-t-2xl">
                 <h3 className="text-2xl font-bold">Upload Learning Material</h3>
               </div>
               
@@ -929,7 +929,7 @@ export default function SubjectsManagementView({
                     type="text"
                     value={materialForm.title}
                     onChange={(e) => setMaterialForm({...materialForm, title: e.target.value})}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="Enter material title"
                     required
                   />
@@ -940,7 +940,7 @@ export default function SubjectsManagementView({
                   <select
                     value={materialForm.type}
                     onChange={(e) => setMaterialForm({...materialForm, type: e.target.value as any})}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
                     <option value="PDF">PDF Document</option>
                   </select>
@@ -951,7 +951,7 @@ export default function SubjectsManagementView({
                   <input
                     type="file"
                     onChange={(e) => setMaterialForm({...materialForm, file: e.target.files?.[0] || null})}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     accept=".pdf"
                     required
                   />
@@ -970,7 +970,7 @@ export default function SubjectsManagementView({
                     type="text"
                     value={materialForm.tags}
                     onChange={(e) => setMaterialForm({...materialForm, tags: e.target.value})}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="important, exam, reference"
                   />
                 </div>
@@ -986,7 +986,7 @@ export default function SubjectsManagementView({
                 </button>
                 <button
                   onClick={handleSaveMaterial}
-                  className="bg-gradient-to-r from-purple-500 to-pink-500 text-white px-6 py-2 rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all disabled:opacity-50"
+                  className="bg-gradient-to-r from-blue-700 to-blue-600 text-white px-6 py-2 rounded-lg hover:from-blue-800 hover:to-blue-700 transition-all disabled:opacity-50"
                   disabled={loading || !materialForm.title || !materialForm.file}
                 >
                   {loading ? 'Uploading...' : 'Upload Material'}
@@ -1000,9 +1000,9 @@ export default function SubjectsManagementView({
         {showMCQModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full">
-              <div className="bg-gradient-to-r from-purple-600 to-pink-600 text-white p-6 rounded-t-2xl">
+              <div className="bg-gradient-to-r from-blue-900 via-blue-800 to-blue-900 text-white p-6 rounded-t-2xl">
                 <h3 className="text-2xl font-bold">⚡ Generate MCQs with AI</h3>
-                <p className="text-purple-100 mt-2">Using Groq AI with RAG (Retrieval Augmented Generation)</p>
+                <p className="text-blue-200 mt-2">Using Groq AI with RAG (Retrieval Augmented Generation)</p>
               </div>
               
               <div className="p-6 space-y-6">
@@ -1015,7 +1015,7 @@ export default function SubjectsManagementView({
                     type="text"
                     value={mcqTopic}
                     onChange={(e) => setMcqTopic(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="e.g., Data Structures, Algorithms, SCRUM Framework"
                     disabled={generatingMCQs}
                   />
@@ -1027,7 +1027,7 @@ export default function SubjectsManagementView({
                 {/* Suggested Topics */}
                 {extractingTopics ? (
                   <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-600"></div>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-700"></div>
                     Extracting topics from PDF...
                   </div>
                 ) : suggestedTopics.length > 0 && (
@@ -1040,7 +1040,7 @@ export default function SubjectsManagementView({
                         <button
                           key={index}
                           onClick={() => setMcqTopic(topic)}
-                          className="bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-sm hover:bg-purple-200 transition-all"
+                          className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm hover:bg-blue-200 transition-all"
                           disabled={generatingMCQs}
                         >
                           {topic}
@@ -1058,7 +1058,7 @@ export default function SubjectsManagementView({
                   <select
                     value={mcqCount}
                     onChange={(e) => setMcqCount(Number(e.target.value))}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     disabled={generatingMCQs}
                   >
                     <option value={3}>3 Questions</option>
@@ -1121,7 +1121,7 @@ export default function SubjectsManagementView({
                 </button>
                 <button
                   onClick={handleGenerateMCQs}
-                  className="bg-gradient-to-r from-purple-500 to-pink-500 text-white px-6 py-2 rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all disabled:opacity-50 flex items-center gap-2"
+                  className="bg-gradient-to-r from-blue-700 to-blue-600 text-white px-6 py-2 rounded-lg hover:from-blue-800 hover:to-blue-700 transition-all disabled:opacity-50 flex items-center gap-2"
                   disabled={generatingMCQs || !mcqTopic.trim()}
                 >
                   {generatingMCQs ? (
@@ -1162,7 +1162,7 @@ export default function SubjectsManagementView({
       <div className="space-y-6">
         {/* Breadcrumb */}
         <div className="flex items-center space-x-2 text-sm">
-          <button onClick={handleBackToSubjects} className="text-purple-600 hover:text-purple-800 font-medium">
+          <button onClick={handleBackToSubjects} className="text-blue-700 hover:text-blue-900 font-medium">
             ← Back to Subjects
           </button>
         </div>

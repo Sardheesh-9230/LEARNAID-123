@@ -1,3 +1,5 @@
+import Logo from '@/components/Logo';
+
 export default function Footer() {
   return (
     <footer id="contact" className="bg-gray-800 text-white py-16">
@@ -5,11 +7,8 @@ export default function Footer() {
         <div className="grid md:grid-cols-4 gap-8">
           {/* Company Info */}
           <div className="md:col-span-2">
-            <div className="flex items-center space-x-3 mb-6">
-              <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-xl">L</span>
-              </div>
-              <h3 className="text-2xl font-bold">LearnAID</h3>
+            <div className="mb-6">
+              <Logo size="lg" showText={true} variant="light" className="justify-start" />
             </div>
             <p className="text-gray-300 mb-6 leading-relaxed">
               Empowering educational institutions with cutting-edge technology solutions. 

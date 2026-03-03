@@ -259,19 +259,38 @@ userSchema.pre('save', async function(next) {
 
 // Pre-save middleware to generate student ID and employee ID
 userSchema.pre('save', function(next) {
-  // Calculate and set year for students based on batch
+  // ─── Academic data for students ────────────────────────────────────────────
+  // Indian college academic year starts in July.
+  // Before July  → we are still in the academic year that started LAST July.
+  // After July   → we are in the academic year that started THIS July.
+  // Example (today = Feb 2026):
+  //   effectiveYear = 2025  (Jan-Jun 2026 still belongs to 2025-26 AY)
+  //   Batch 2025 → yearOfStudy = 2025-2025+1 = 1 → 1st Year, semester 2
+  //   Batch 2024 → yearOfStudy = 2025-2024+1 = 2 → 2nd Year, semester 4
+  // ────────────────────────────────────────────────────────────────────────
   if (this.role === 'Student' && this.batch) {
-    const currentYear = new Date().getFullYear();
-    const batchYear = parseInt(this.batch);
-    const yearOfStudy = currentYear - batchYear + 1;
-    
-    switch (yearOfStudy) {
+    const now = new Date();
+    const currentMonth = now.getMonth() + 1; // 1–12
+    const currentYear  = now.getFullYear();
+
+    // Effective academic year start
+    const effectiveYear = currentMonth < 7 ? currentYear - 1 : currentYear;
+    const batchYear     = parseInt(this.batch);
+    const yearOfStudy   = effectiveYear - batchYear + 1;
+    const clampedYOS    = Math.min(Math.max(yearOfStudy, 1), 4);
+
+    switch (clampedYOS) {
       case 1: this.year = '1st Year'; break;
       case 2: this.year = '2nd Year'; break;
       case 3: this.year = '3rd Year'; break;
       case 4: this.year = '4th Year'; break;
-      default: this.year = '1st Year'; // Default to 1st year if calculation is off
     }
+
+    // Odd semester  = Jul–Dec (semester 1, 3, 5, 7)
+    // Even semester = Jan–Jun (semester 2, 4, 6, 8)
+    this.semester = currentMonth >= 7
+      ? (clampedYOS * 2) - 1   // e.g. 1st year Jul → sem 1
+      : clampedYOS * 2;         // e.g. 1st year Feb → sem 2
   }
 
   // Generate Student ID for students

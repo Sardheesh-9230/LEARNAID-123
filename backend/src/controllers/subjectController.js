@@ -26,8 +26,8 @@ const getSubjects = async (req, res) => {
       }
     }
     if (semester) filter.semester = parseInt(semester);
-    if (faculty) filter.faculty = faculty;
-    if (isActive !== undefined) filter.isActive = isActive === 'true';
+    if (faculty) filter['faculty.user'] = faculty;
+    if (isActive !== undefined) filter.status = isActive === 'true' ? 'Active' : 'Inactive';
 
     // Add search functionality
     if (search) {
@@ -74,15 +74,20 @@ const createSubject = async (req, res) => {
 
     const { name, code, type, department, faculty, credits, semester, description, prerequisite, academicYear, section, year } = req.body;
 
-    // Check if subject with this code already exists in the department
+    // Check if subject with this code already exists for the same department+section+academicYear
+    // (The unique index is on code+department+section+academicYear — same code CAN exist in different sections)
+    const resolvedSection = section || 'A';
+    const resolvedAcademicYear = academicYear || '2024-2025';
     let subject = await Subject.findOne({ 
       code: code.toUpperCase(), 
-      department 
+      department,
+      section: resolvedSection,
+      academicYear: resolvedAcademicYear
     });
     if (subject) {
       return res.status(409).json({
         success: false,
-        message: 'Subject with this code already exists in the department'
+        message: `Subject with code '${code.toUpperCase()}' already exists for section ${resolvedSection} in ${resolvedAcademicYear}`
       });
     }
 
@@ -130,15 +135,15 @@ const createSubject = async (req, res) => {
       code: code.toUpperCase(),
       type: type || 'Theory',
       department,
-      faculty,
       credits,
       semester,
       description,
       prerequisite: prerequisite || null,
-      academicYear: academicYear || '2024-2025', // Default academic year
-      section: section || 'A', // Default section
-      year: year || '1st Year', // Default year
-      createdBy: req.user?.id || req.user?._id || null // Add createdBy from authenticated user with fallback
+      academicYear: resolvedAcademicYear,
+      section: resolvedSection,
+      year: year || '1st Year',
+      status: 'Active',
+      createdBy: req.user?.id || req.user?._id || null
     });
 
     // Populate the created subject
@@ -238,7 +243,8 @@ const updateSubject = async (req, res) => {
       });
     }
 
-    const allowedFields = ['name', 'code', 'type', 'credits', 'semester', 'description', 'faculty', 'isActive', 'prerequisite'];
+    // Note: faculty is managed via POST/DELETE /:id/faculty endpoints, not here
+    const allowedFields = ['name', 'code', 'type', 'credits', 'semester', 'description', 'status', 'prerequisite', 'section', 'year', 'academicYear', 'maxStudents', 'syllabus'];
     const updates = {};
 
     // Only allow updating specific fields
@@ -402,11 +408,20 @@ const deleteSubject = async (req, res) => {
       { $pull: { subjects: subject._id } }
     );
 
-    // Remove from faculty's assignedSubjects
-    if (subject.faculty) {
-      await User.findByIdAndUpdate(
-        subject.faculty,
+    // Remove subject from all assigned faculty's assignedSubjects arrays
+    if (subject.faculty && subject.faculty.length > 0) {
+      const facultyUserIds = subject.faculty.map(f => f.user);
+      await User.updateMany(
+        { _id: { $in: facultyUserIds } },
         { $pull: { assignedSubjects: subject._id } }
+      );
+    }
+
+    // Remove subject from all enrolled students' enrolledSubjects arrays
+    if (subject.enrolledStudents && subject.enrolledStudents.length > 0) {
+      await User.updateMany(
+        { _id: { $in: subject.enrolledStudents } },
+        { $pull: { enrolledSubjects: subject._id } }
       );
     }
 
@@ -707,11 +722,7 @@ const getFacultySubjects = async (req, res) => {
     // Find all subjects where this faculty is assigned
     const subjects = await Subject.find({
       'faculty.user': facultyId,
-      $or: [
-        { isActive: true },
-        { isActive: { $exists: false } },
-        { isActive: null }
-      ]
+      status: { $in: ['Active', 'Draft'] }
     })
       .populate('department', 'name code')
       .populate('faculty.user', 'name email designation')
@@ -774,12 +785,8 @@ const getMySubjects = async (req, res) => {
       query.section = student.section;
     }
 
-    // Only filter by isActive if it's explicitly false, otherwise include all
-    query.$or = [
-      { isActive: true },
-      { isActive: { $exists: false } },
-      { isActive: null }
-    ];
+    // Only show Active subjects to students
+    query.status = 'Active';
 
     console.log('Query for subjects:', query);
 
@@ -791,18 +798,10 @@ const getMySubjects = async (req, res) => {
 
     console.log(`Found ${subjects.length} subjects`);
 
-    // Calculate progress for each subject (you can enhance this based on your needs)
-    const subjectsWithProgress = subjects.map(subject => {
-      return {
-        ...subject.toObject(),
-        progress: Math.floor(Math.random() * 30) + 60 // Placeholder: 60-90%
-      };
-    });
-
     res.status(200).json({
       success: true,
-      count: subjectsWithProgress.length,
-      data: subjectsWithProgress
+      count: subjects.length,
+      data: subjects
     });
 
   } catch (error) {
@@ -814,10 +813,85 @@ const getMySubjects = async (req, res) => {
   }
 };
 
+// @desc    Get all students enrolled in a specific subject
+// @route   GET /api/subjects/:id/students
+// @access  Private (Faculty, Admin)
+const getSubjectStudents = async (req, res) => {
+  try {
+    const subject = await Subject.findById(req.params.id)
+      .select('name code year section semester department faculty enrolledStudents maxStudents');
+
+    if (!subject) {
+      return res.status(404).json({ success: false, message: 'Subject not found' });
+    }
+
+    // Faculty can only access their own subjects
+    if (req.user.role === 'Faculty') {
+      const isFacultyOfSubject = subject.faculty.some(
+        f => f.user && f.user.toString() === req.user._id.toString()
+      );
+      if (!isFacultyOfSubject) {
+        return res.status(403).json({
+          success: false,
+          message: 'You are not assigned to this subject'
+        });
+      }
+    }
+
+    let students = [];
+
+    // Primary source: enrolledStudents array on the subject
+    if (subject.enrolledStudents && subject.enrolledStudents.length > 0) {
+      students = await User.find({
+        _id: { $in: subject.enrolledStudents },
+        role: 'Student',
+        status: 'Active'
+      })
+        .select('name email studentId rollNumber department year section batch semester')
+        .populate('department', 'name code')
+        .sort({ name: 1 });
+    }
+
+    // Fallback: match students by department + year + section if no enrolledStudents
+    if (students.length === 0) {
+      students = await User.find({
+        role: 'Student',
+        status: 'Active',
+        department: subject.department,
+        year: subject.year,
+        section: subject.section
+      })
+        .select('name email studentId rollNumber department year section batch semester')
+        .populate('department', 'name code')
+        .sort({ name: 1 });
+    }
+
+    console.log(`✅ getSubjectStudents: ${students.length} students for subject "${subject.name}" (${subject.year}, ${subject.section})`);
+
+    res.status(200).json({
+      success: true,
+      count: students.length,
+      subjectInfo: {
+        _id: subject._id,
+        name: subject.name,
+        code: subject.code,
+        year: subject.year,
+        section: subject.section,
+        semester: subject.semester
+      },
+      data: students
+    });
+  } catch (error) {
+    console.error('Error fetching subject students:', error);
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+};
+
 module.exports = {
   getSubjects,
   createSubject,
   getSubjectById,
+  getSubjectStudents,
   updateSubject,
   deleteSubject,
   assignFacultyToSubject,

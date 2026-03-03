@@ -28,6 +28,7 @@ interface Task {
   description: string;
   subject: Subject;
   courseOutcomes: string[];
+  taskType?: 'regular' | 'CO_ASSESSMENT' | 'CO_IMPROVEMENT';
   taskSchedule: {
     studyDuration: number;
     taskDuration: number;
@@ -86,6 +87,34 @@ const FacultyTaskManagement: React.FC<FacultyTaskManagementProps> = ({
   const [generatedMCQs, setGeneratedMCQs] = useState<any>({});
   const [showMCQPreview, setShowMCQPreview] = useState(false);
 
+  // Subject-scoped student list (changes when a subject is selected in the CO form)
+  const [subjectStudents, setSubjectStudents] = useState<Student[]>([]);
+  const [loadingSubjectStudents, setLoadingSubjectStudents] = useState(false);
+
+  // Fetch students enrolled in a specific subject
+  const fetchStudentsForSubject = async (subjectId: string) => {
+    if (!subjectId) { setSubjectStudents([]); return; }
+    try {
+      setLoadingSubjectStudents(true);
+      const res = await apiService.makeRequest(`/subjects/${subjectId}/students`);
+      if (res.success) {
+        setSubjectStudents(res.data || []);
+        // Auto-select all students in this subject
+        setCoAssignmentForm(prev => ({
+          ...prev,
+          selectedStudents: (res.data || []).map((s: Student) => s._id)
+        }));
+      } else {
+        setSubjectStudents([]);
+      }
+    } catch (e) {
+      console.error('Error loading subject students:', e);
+      setSubjectStudents([]);
+    } finally {
+      setLoadingSubjectStudents(false);
+    }
+  };
+
   // Form states
   const [taskForm, setTaskForm] = useState({
     title: '',
@@ -130,9 +159,10 @@ const FacultyTaskManagement: React.FC<FacultyTaskManagementProps> = ({
 
   const fetchStudents = async () => {
     try {
-      const response = await apiService.makeRequest('/users/role/Student');
+      // Fetch only students in this faculty's subjects (not all students)
+      const response = await apiService.makeRequest('/users/my-students');
       if (response.success) {
-        setStudents(response.data || []);
+        setStudents(response.users || response.data || []);
       }
     } catch (error) {
       console.error('Error fetching students:', error);
@@ -217,25 +247,20 @@ const FacultyTaskManagement: React.FC<FacultyTaskManagementProps> = ({
     if (!subjectId) return;
     
     try {
-      // Check for existing learning tasks for this subject
-      const response = await fetch('/api/tasks/faculty/tasks', {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        const activeTasks = data.tasks.filter((task: any) => 
-          task.subject._id === subjectId && 
-          task.assignedStudents.some((as: any) => 
+      const data = await apiService.makeRequest('/tasks/faculty/tasks');
+      if (data.success) {
+        const activeTasks = (data.tasks || []).filter((task: any) => 
+          task.subject?._id === subjectId && 
+          task.assignedStudents?.some((as: any) => 
             ['assigned', 'studying', 'in-progress'].includes(as.status)
           )
         );
         
         const studentsWithActiveTasks = activeTasks.flatMap((task: any) => 
-          task.assignedStudents
+          (task.assignedStudents || [])
             .filter((as: any) => 
               ['assigned', 'studying', 'in-progress'].includes(as.status) &&
-              as.student && as.student._id
+              as.student?._id
             )
             .map((as: any) => ({
               studentId: as.student._id,
@@ -261,32 +286,26 @@ const FacultyTaskManagement: React.FC<FacultyTaskManagementProps> = ({
     setError('');
 
     try {
-      // Calculate end time based on start time and durations
+      // Calculate end time based on start time and task duration
       const startTime = new Date(taskForm.taskSchedule.startTime);
       const endTime = new Date(startTime.getTime() + (taskForm.taskSchedule.taskDuration * 60000));
       
       const taskData = {
         ...taskForm,
+        subjectId: taskForm.subjectId,
         taskSchedule: {
           ...taskForm.taskSchedule,
           endTime: endTime.toISOString()
         }
       };
 
-      const response = await fetch('/api/tasks/create', {
+      const data = await apiService.makeRequest('/tasks/create', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        },
         body: JSON.stringify(taskData)
       });
 
-      if (response.ok) {
-        const data = await response.json();
+      if (data.task || data.generatedQuestions !== undefined) {
         alert(`Task created successfully! Generated ${data.generatedQuestions} MCQ questions.`);
-        
-        // Reset form
         setTaskForm({
           title: '',
           description: '',
@@ -309,16 +328,14 @@ const FacultyTaskManagement: React.FC<FacultyTaskManagementProps> = ({
           questionCount: 10,
           difficulty: 'Medium'
         });
-        
         fetchTasks();
         setActiveTab('manage');
       } else {
-        const errorData = await response.json();
-        setError(errorData.message || 'Failed to create task');
+        setError(data.message || 'Failed to create task');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating task:', error);
-      setError('Network error occurred');
+      setError(error.message || 'Network error occurred');
     } finally {
       setLoading(false);
     }
@@ -483,12 +500,8 @@ const FacultyTaskManagement: React.FC<FacultyTaskManagementProps> = ({
 
     setLoading(true);
     try {
-      const response = await fetch('/api/tasks/generate-co-mcqs', {
+      const data = await apiService.makeRequest('/tasks/generate-co-mcqs', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        },
         body: JSON.stringify({
           subjectId: coAssignmentForm.subjectId,
           courseOutcomes: coAssignmentForm.courseOutcomes,
@@ -497,7 +510,6 @@ const FacultyTaskManagement: React.FC<FacultyTaskManagementProps> = ({
         })
       });
 
-      const data = await response.json();
       if (data.success) {
         setGeneratedMCQs(data.data.generatedMCQs);
         setShowMCQPreview(true);
@@ -525,12 +537,8 @@ const FacultyTaskManagement: React.FC<FacultyTaskManagementProps> = ({
 
     setLoading(true);
     try {
-      const response = await fetch('/api/tasks/bulk-assign-co-tasks', {
+      const data = await apiService.makeRequest('/tasks/bulk-assign-co-tasks', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        },
         body: JSON.stringify({
           subjectId: coAssignmentForm.subjectId,
           studentIds: coAssignmentForm.selectedStudents,
@@ -544,10 +552,8 @@ const FacultyTaskManagement: React.FC<FacultyTaskManagementProps> = ({
         })
       });
 
-      const data = await response.json();
       if (data.success) {
         alert(`Task assigned successfully to ${coAssignmentForm.selectedStudents.length} students!`);
-        // Reset form
         setCoAssignmentForm({
           subjectId: '',
           courseOutcomes: [],
@@ -562,7 +568,7 @@ const FacultyTaskManagement: React.FC<FacultyTaskManagementProps> = ({
         });
         setGeneratedMCQs({});
         setShowMCQPreview(false);
-        fetchTasks(); // Refresh tasks
+        fetchTasks();
       } else {
         setError(data.message || 'Failed to assign tasks');
       }
